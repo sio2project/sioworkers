@@ -208,7 +208,15 @@ an ``ping`` key in the environment and and basically does::
 Integration with Celery
 -----------------------
 
-.. automodule:: sio.celery
+.. autofuncion:: sio.celery.job.sioworkers_job
+
+There is also a script ``sio-celery-worker`` which starts the Celery daemon
+with the default configuration. The configuration is available in
+``sio.celery.default_config``, so a custom ``celeryconfig.py`` (for use with a
+stock ``celeryd``) may look like this::
+
+  from sio.celery.default_config import *
+  BROKER_URL = 'amqp://foo@bar:server/vhost'
 
 Available jobs
 ==============
