@@ -4,6 +4,8 @@ from sio.workers import ft, Failure
 from sio.workers.sandbox import get_sandbox, NullSandbox
 from sio.workers.execute import execute
 
+COMPILER_OUTPUT_LIMIT = 5 * 1000
+
 def _lang_option(environ, key, lang):
     value = environ.get(key, ())
     if isinstance(value, dict):
@@ -99,7 +101,10 @@ def run(environ, lang, compiler, extension, output_file, compiler_options=(),
                                   environ=tmp_environ,
                                   environ_prefix='compilation_')
 
-    environ['compiler_output'] = output
+    environ['compiler_output'] = len(output) <= COMPILER_OUTPUT_LIMIT and \
+        output or \
+        "%s\n%s" % (output[:COMPILER_OUTPUT_LIMIT], '... And so on. Cut.')
+
     if retcode:
         environ['result_code'] = 'CE'
     elif 'compilation_result_size_limit' in environ and \
