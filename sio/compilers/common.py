@@ -102,6 +102,11 @@ def run(environ, lang, compiler, extension, output_file, compiler_options=(),
     environ['compiler_output'] = output
     if retcode:
         environ['result_code'] = 'CE'
+    elif 'compilation_result_size_limit' in environ and \
+            os.path.getsize(output_file) > \
+            environ['compilation_result_size_limit']:
+        environ['result_code'] = 'CE'
+        environ['compiler_output'] = 'Compiled file size limit exceeded.'
     else:
         environ['result_code'] = 'OK'
         ft.upload(environ, 'out_file', output_file)
