@@ -31,6 +31,9 @@ The following parameters are recognized in ``environ``:
     (optional) Resource limits for the compiler process, passed to
     :func:`sio.workers.execute.execute`.
 
+  ``compilation_result_size_limit``
+    (optional) Limit for size of the compiled file.
+
   ``additional_includes``
     This option allows additional files, such as header files, to be seen during
     compilation. This parameters can take one of the following forms:
