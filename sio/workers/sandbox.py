@@ -55,6 +55,7 @@ class _FileLock(object):
 
     def __del__(self):
         self.unlock()
+        os.close(self.fd)
 
 class Sandbox(object):
     """Represents a sandbox... that is some place in the filesystem when
