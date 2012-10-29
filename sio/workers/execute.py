@@ -135,7 +135,8 @@ def execute(command, env=None, split_lines=False, ignore_errors=False,
     if split_lines:
         data = data.split('\n')
     if rc and not ignore_errors and rc not in extra_ignore_errors:
-        raise ExecError('Failed to execute command: %s\n%s' % (command, data))
+        raise ExecError('Failed to execute command: %s (code %d)\n%s'
+                % (command, rc, data))
 
     return rc, data
 

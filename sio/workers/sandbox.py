@@ -12,6 +12,7 @@ import filetracker
 import email
 
 from sio.workers import ft, _original_cwd
+from sio.workers.elf_loader_patch import _patch_elf_loader
 
 SANDBOXES_BASEDIR = os.environ.get('SIO_SANDBOXES_BASEDIR',
         os.path.expanduser(os.path.join('~', '.sio-sandboxes')))
@@ -105,6 +106,8 @@ class Sandbox(object):
 
     _instances = weakref.WeakValueDictionary()
 
+    required_fixups = 'patch_elf_loader'
+
     @classmethod
     def _instance(cls, name):
         i = cls._instances.get(name)
@@ -142,6 +145,12 @@ class Sandbox(object):
 
     def _should_install_sandbox(self):
         try:
+            fixups_file = os.path.join(self.path, '.fixups_applied')
+            if not os.path.exists(fixups_file):
+                return True
+            if open(fixups_file).read().strip() != self.required_fixups:
+                return True
+
             last_check_file = os.path.join(self.path, '.last_check')
             last_check = int(open(last_check_file).read())
             now_int = int(time.time())
@@ -183,6 +192,11 @@ class Sandbox(object):
             last_modified = email.utils.parsedate_tz(last_modified)
             last_modified = int(email.utils.mktime_tz(last_modified))
         return last_modified
+
+    def _apply_fixups(self):
+        _patch_elf_loader(self.path)
+        fixups_file = os.path.join(self.path, '.fixups_applied')
+        open(fixups_file, 'w').write(self.required_fixups)
 
     def _get(self):
         name = self.name
@@ -243,6 +257,8 @@ class Sandbox(object):
         if not os.path.isdir(path):
             raise SandboxError("Downloaded sandbox archive "
                     "did not contain expected directory '%s'" % name)
+
+	self._apply_fixups()
 
         hash_file = os.path.join(path, '.hash')
         open(hash_file, 'wb').write(str(version))

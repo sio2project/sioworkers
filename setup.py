@@ -22,6 +22,7 @@ setup(
             'ping = sio.workers.ping:run',
             'compile = sio.compilers.job:run',
             'exec = sio.executors.executor:run',
+            'cpu-exec = sio.executors.executor:run',
             'vcpu-exec = sio.executors.vcpu_exec:run',
             'unsafe-exec = sio.executors.unsafe_exec:run',
         ],
