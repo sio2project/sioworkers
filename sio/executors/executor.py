@@ -32,11 +32,10 @@ def run(environ):
         value = environ.get('exec_' + key.lower(), default)
         env[key] = value
 
-    with get_sandbox('vcpu_exec-sandbox') as sandbox:
+    with get_sandbox('exec-sandbox') as sandbox:
         retcode, output = execute(
-                [os.path.join(sandbox.path, 'pin-supervisor/supervisor-bin/',
-                        'supervisor'), '-f', '3',
-                    '--', './exe',
+                [os.path.join(sandbox.path, 'bin', 'supervisor'), '-f', '3',
+                    './exe',
                     noquote('<'), 'in', noquote('3>'), 'supervisor_result',
                     noquote('>'), 'out'], env=env)
 
