@@ -4,12 +4,14 @@ from sio.workers import ft, Failure
 from sio.workers.sandbox import get_sandbox, NullSandbox
 from sio.workers.execute import execute
 
+COMPILER_OUTPUT_LIMIT = 5 * 1000
+
 def _lang_option(environ, key, lang):
     value = environ.get(key, ())
     if isinstance(value, dict):
         value = value.get(lang, ())
     if isinstance(value, basestring):
-        value = (value, )
+        value = (value,)
     return value
 
 def run(environ, lang, compiler, extension, output_file, compiler_options=(),
@@ -48,8 +50,8 @@ def run(environ, lang, compiler, extension, output_file, compiler_options=(),
             _lang_option(environ, 'extra_compilation_args', lang)
 
     ft.download(environ, 'source_file', 'a.' + extension)
-    cmdline = (compiler, ) + tuple(compiler_options) + \
-            tuple(extra_compilation_args) + ('a.' + extension, )
+    cmdline = (compiler,) + tuple(compiler_options) + \
+            tuple(extra_compilation_args) + ('a.' + extension,)
     # this cmdline may be later extended
 
     # using a copy of the environment in order to avoid polluting it with
@@ -69,7 +71,7 @@ def run(environ, lang, compiler, extension, output_file, compiler_options=(),
         ft.download(tmp_environ, 'additional_source',
                     os.path.basename(source))
         if compile_additional_sources:
-            cmdline += (os.path.basename(source), )
+            cmdline += (os.path.basename(source),)
 
     extra_files = environ.get('extra_files', {})
     for name, ft_path in extra_files.iteritems():
@@ -83,7 +85,7 @@ def run(environ, lang, compiler, extension, output_file, compiler_options=(),
                  and os.path.join(sandbox.path, 'lib') \
                  or os.path.join(sandbox.path, 'usr', 'lib')
 
-        shell_environ['PATH'] =  (lang == 'pas') \
+        shell_environ['PATH'] = (lang == 'pas') \
                 and os.path.join(sandbox.path, 'bin') \
                 or os.path.join(sandbox.path, 'usr', 'bin')
     shell_environ['PATH'] += ':' + os.environ['PATH']
@@ -99,7 +101,10 @@ def run(environ, lang, compiler, extension, output_file, compiler_options=(),
                                   environ=tmp_environ,
                                   environ_prefix='compilation_')
 
-    environ['compiler_output'] = output
+    environ['compiler_output'] = len(output) <= COMPILER_OUTPUT_LIMIT and \
+        output or \
+        "%s\n%s" % (output[:COMPILER_OUTPUT_LIMIT], '... And so on. Cut.')
+
     if retcode:
         environ['result_code'] = 'CE'
     elif 'compilation_result_size_limit' in environ and \

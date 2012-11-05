@@ -1,4 +1,4 @@
-from nose.tools import eq_
+from nose.tools import ok_, eq_, timed
 
 from sio.compilers.job import run
 from sio.workers import ft
@@ -62,9 +62,10 @@ def compile_and_run(compiler_env, expected_output):
        testing the result of a program.
     """
 
-    run(compiler_env)
+    result_env = run(compiler_env)
 
-    binary = ft.download({'path': '/out'}, 'path')
+    eq_(result_env['result_code'], 'OK')
+    binary = ft.download({'path': result_env['out_file']}, 'path')
 
     os.chmod(binary, stat.S_IXUSR)
 
@@ -94,7 +95,7 @@ def test_compilation():
         yield _test, 'Hello World from pas', 'default-pas', '/simple.pas'
 
 def test_compilation_with_additional_library():
-    def _test(message, compiler, source, sources, includes = ()):
+    def _test(message, compiler, source, sources, includes=()):
         with TemporaryCwd():
             upload_files()
 
@@ -106,19 +107,19 @@ def test_compilation_with_additional_library():
                     'out_file': '/out',
                     }, message)
 
-    yield _test, 'Hello World from c-lib', 'system-c', '/simple-lib.c',\
+    yield _test, 'Hello World from c-lib', 'system-c', '/simple-lib.c', \
           '/library.c', '/library.h'
-    yield _test, 'Hello World from cpp-lib', 'system-cpp', '/simple-lib.cpp',\
+    yield _test, 'Hello World from cpp-lib', 'system-cpp', '/simple-lib.cpp', \
           '/library.cpp', '/library.h'
-    yield _test, 'Hello World from pas-lib', 'system-pas', '/simple-lib.pas',\
+    yield _test, 'Hello World from pas-lib', 'system-pas', '/simple-lib.pas', \
           '/pas_library.pas'
 
     if ENABLE_SANDBOXED_COMPILERS:
-        yield _test, 'Hello World from c-lib', 'default-c',\
+        yield _test, 'Hello World from c-lib', 'default-c', \
               '/simple-lib.c', '/library.c', '/library.h'
-        yield _test, 'Hello World from cpp-lib', 'default-cpp',\
+        yield _test, 'Hello World from cpp-lib', 'default-cpp', \
               '/simple-lib.cpp', '/library.cpp', '/library.h'
-        yield _test, 'Hello World from pas-lib', 'default-pas',\
+        yield _test, 'Hello World from pas-lib', 'default-pas', \
               '/simple-lib.pas', '/pas_library.pas'
 
 def test_compilation_with_additional_library_and_dictionary_params():
@@ -146,10 +147,77 @@ def test_compilation_with_additional_library_and_dictionary_params():
     yield _test, 'Hello World from pas-lib', 'system-pas', '/simple-lib.pas'
 
     if ENABLE_SANDBOXED_COMPILERS:
-        yield _test, 'Hello World from c-lib', 'default-c',\
+        yield _test, 'Hello World from c-lib', 'default-c', \
               '/simple-lib.c'
-        yield _test, 'Hello World from cpp-lib', 'default-cpp',\
+        yield _test, 'Hello World from cpp-lib', 'default-cpp', \
               '/simple-lib.cpp'
-        yield _test, 'Hello World from pas-lib', 'default-pas',\
+        yield _test, 'Hello World from pas-lib', 'default-pas', \
               '/simple-lib.pas'
 
+COMPILATION_TIME_HARD_LIMIT = 62
+MAX_COMPILER_OUTPUT_LEN = 5 * 1000 + 5*24
+COMPILATION_RESULT_SIZE_LIMIT = 5 * 1024 * 1024
+
+@timed(COMPILATION_TIME_HARD_LIMIT)
+def compile_fail(compiler_env, expected_in_compiler_output=None):
+    """Helper function for compiling and asserting that it fails."""
+
+    result_env = run(compiler_env)
+
+    eq_(result_env['result_code'], 'CE')
+    ok_(len(result_env['compiler_output']) <= MAX_COMPILER_OUTPUT_LEN)
+
+    print result_env['compiler_output']
+
+    if expected_in_compiler_output:
+        ok_(expected_in_compiler_output in result_env['compiler_output'])
+
+def test_compilation_error_gcc():
+    def _test(message, compiler, source):
+        with TemporaryCwd():
+            upload_files()
+            compile_fail({
+                'source_file': source,
+                'compiler': compiler,
+                'out_file': '/out',
+                'compilation_result_size_limit': COMPILATION_RESULT_SIZE_LIMIT,
+                }, message)
+
+    compilers = ['system-cpp']
+    if ENABLE_SANDBOXED_COMPILERS:
+        compilers += 'default-cpp'
+
+    nasty_loopers = [ 'self-include.cpp',
+                     # 'dev-random.cpp',
+                     'infinite-warnings.cpp',
+                     'templates-infinite-loop.cpp'
+                    ]
+    nasty_loopers = [ '/nasty-%s' % (s,) for s in nasty_loopers]
+
+    exec_size_exceeders = ['250MB-exec.cpp', '5MiB-exec.cpp']
+    exec_size_exceeders = [ '/nasty-%s' % (s,) for s in exec_size_exceeders]
+
+    for compiler in compilers:
+        for filename in exec_size_exceeders:
+            yield _test, 'Compiled file size limit exceeded', compiler, filename
+
+        for filename in nasty_loopers:
+            yield _test, None, compiler, filename
+
+def test_compilation_extremes():
+    def _test(message, compiler, source):
+        with TemporaryCwd():
+            upload_files()
+            compile_and_run({
+                'source_file': source,
+                'compiler': compiler,
+                'out_file': '/out',
+                'compilation_result_size_limit': COMPILATION_RESULT_SIZE_LIMIT,
+                }, message)
+
+    compilers = ['system-cpp']
+    if ENABLE_SANDBOXED_COMPILERS:
+        compilers += 'default-cpp'
+
+    for compiler in compilers:
+            yield _test, "0", compiler, '/extreme-4.9MB-static-exec.cpp'
