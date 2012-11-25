@@ -4,6 +4,7 @@ from sio.compilers.job import run
 from sio.workers import ft
 from sio.workers.execute import execute
 from filetracker.dummy import DummyClient
+from sio.compilers.common import DEFAULT_COMPILER_OUTPUT_LIMIT
 
 import glob
 import os.path
@@ -30,7 +31,8 @@ import stat
 #
 
 SOURCES = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'sources')
-ENABLE_SANDBOXED_COMPILERS = False
+ENABLE_SANDBOXED_COMPILERS = os.environ.get('ENABLE_SANDBOXED_COMPILERS',
+                                            False)
 
 class TemporaryCwd(object):
     "Helper class for changing the working directory."
@@ -155,7 +157,7 @@ def test_compilation_with_additional_library_and_dictionary_params():
               '/simple-lib.pas'
 
 COMPILATION_TIME_HARD_LIMIT = 62
-MAX_COMPILER_OUTPUT_LEN = 5 * 1000 + 5*24
+COMPILATION_OUTPUT_LIMIT = 100
 COMPILATION_RESULT_SIZE_LIMIT = 5 * 1024 * 1024
 
 @timed(COMPILATION_TIME_HARD_LIMIT)
@@ -165,15 +167,22 @@ def compile_fail(compiler_env, expected_in_compiler_output=None):
     result_env = run(compiler_env)
 
     eq_(result_env['result_code'], 'CE')
-    ok_(len(result_env['compiler_output']) <= MAX_COMPILER_OUTPUT_LEN)
 
-    print result_env['compiler_output']
+    if 'compilation_output_limit' not in  compiler_env:
+        ok_(len(result_env['compiler_output']) <=
+                DEFAULT_COMPILER_OUTPUT_LIMIT)
+    elif compiler_env['compilation_output_limit'] is not None:
+        ok_(len(result_env['compiler_output']) <=
+                compiler_env['compilation_output_limit'])
+    else:
+        ok_(len(result_env['compiler_output']) >
+                DEFAULT_COMPILER_OUTPUT_LIMIT)
 
     if expected_in_compiler_output:
         ok_(expected_in_compiler_output in result_env['compiler_output'])
 
 def test_compilation_error_gcc():
-    def _test(message, compiler, source):
+    def _test_size_limit(message, compiler, source):
         with TemporaryCwd():
             upload_files()
             compile_fail({
@@ -181,11 +190,32 @@ def test_compilation_error_gcc():
                 'compiler': compiler,
                 'out_file': '/out',
                 'compilation_result_size_limit': COMPILATION_RESULT_SIZE_LIMIT,
+                'compilation_mem_limit': 512
+                }, message)
+
+    def _test_out_limit(message, compiler, source):
+        with TemporaryCwd():
+            upload_files()
+            compile_fail({
+                'source_file': source,
+                'compiler': compiler,
+                'out_file': '/out',
+                'compilation_output_limit': COMPILATION_OUTPUT_LIMIT,
+                }, message)
+
+    def _test_no_out_limit(message, compiler, source):
+        with TemporaryCwd():
+            upload_files()
+            compile_fail({
+                'source_file': source,
+                'compiler': compiler,
+                'out_file': '/out',
+                'compilation_output_limit': None
                 }, message)
 
     compilers = ['system-cpp']
     if ENABLE_SANDBOXED_COMPILERS:
-        compilers += 'default-cpp'
+        compilers += ['default-cpp']
 
     nasty_loopers = [ 'self-include.cpp',
                      # 'dev-random.cpp',
@@ -198,11 +228,15 @@ def test_compilation_error_gcc():
     exec_size_exceeders = [ '/nasty-%s' % (s,) for s in exec_size_exceeders]
 
     for compiler in compilers:
-        for filename in exec_size_exceeders:
-            yield _test, 'Compiled file size limit exceeded', compiler, filename
+        for fname in exec_size_exceeders:
+            yield _test_size_limit, 'Compiled file size limit exceeded', \
+                compiler, fname
 
-        for filename in nasty_loopers:
-            yield _test, None, compiler, filename
+        for fname in nasty_loopers:
+            yield _test_size_limit, None, compiler, fname
+            yield _test_out_limit, None, compiler, fname
+
+        yield _test_no_out_limit, None, compiler, '/nasty-infinite-warnings.cpp'
 
 def test_compilation_extremes():
     def _test(message, compiler, source):
@@ -217,7 +251,7 @@ def test_compilation_extremes():
 
     compilers = ['system-cpp']
     if ENABLE_SANDBOXED_COMPILERS:
-        compilers += 'default-cpp'
+        compilers += ['default-cpp']
 
     for compiler in compilers:
             yield _test, "0", compiler, '/extreme-4.9MB-static-exec.cpp'
