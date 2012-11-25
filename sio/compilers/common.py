@@ -4,7 +4,9 @@ from sio.workers import ft, Failure
 from sio.workers.sandbox import get_sandbox, NullSandbox
 from sio.workers.execute import execute
 
-COMPILER_OUTPUT_LIMIT = 5 * 1000
+DEFAULT_COMPILER_TIME_LIMIT = 30
+DEFAULT_COMPILER_MEM_LIMIT = 256
+DEFAULT_COMPILER_OUTPUT_LIMIT = 5 * 1024
 
 def _lang_option(environ, key, lang):
     value = environ.get(key, ())
@@ -95,15 +97,14 @@ def run(environ, lang, compiler, extension, output_file, compiler_options=(),
             sandbox_callback(sandbox)
         retcode, output = execute(list(cmdline),
                                   env=shell_environ,
-                                  time_limit=30,
-                                  mem_limit=256,
+                                  time_limit=DEFAULT_COMPILER_TIME_LIMIT,
+                                  mem_limit=DEFAULT_COMPILER_MEM_LIMIT,
+                                  output_limit=DEFAULT_COMPILER_OUTPUT_LIMIT,
                                   ignore_errors=True,
                                   environ=tmp_environ,
                                   environ_prefix='compilation_')
 
-    environ['compiler_output'] = len(output) <= COMPILER_OUTPUT_LIMIT and \
-        output or \
-        "%s\n%s" % (output[:COMPILER_OUTPUT_LIMIT], '... And so on. Cut.')
+    environ['compiler_output'] = output
 
     if retcode:
         environ['result_code'] = 'CE'

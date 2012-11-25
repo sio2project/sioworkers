@@ -23,8 +23,8 @@ def shellquote(s):
 
 def execute(command, env=None, split_lines=False, ignore_errors=False,
             extra_ignore_errors=(), stdin='', mem_limit=None,
-            time_limit=None, real_time_limit=None, environ=None,
-            environ_prefix=''):
+            time_limit=None, real_time_limit=None, output_limit=None,
+            environ=None, environ_prefix=''):
     """
     Utility function to execute a command and return the output.
 
@@ -63,14 +63,17 @@ def execute(command, env=None, split_lines=False, ignore_errors=False,
     ``real_time_limit``
       Wall clock time limit, in seconds.
 
+    ``output_limit``
+      Output is truncated to this limit, in bytes.
+
     ``environ``
       If present, this should be the ``environ`` dictionary. It's used to
       extract values for ``mem_limit``, ``time_limit`` and ``real_time_limit``
       from it.
 
     ``environ_prefix``
-      Prefix for ``mem_limit``, ``time_limit`` and ``real_time_limit`` keys
-      in ``environ``.
+      Prefix for ``mem_limit``, ``time_limit``, ``real_time_limit``
+      and ``output_limit`` keys in ``environ``.
 
     The function return the tuple ``(retcode, output)`` where ``retcode`` is
     the program's return code and the output is program's stdout and stderr.
@@ -84,6 +87,8 @@ def execute(command, env=None, split_lines=False, ignore_errors=False,
         time_limit = environ.get(environ_prefix + 'time_limit', time_limit)
         real_time_limit = environ.get(
                 environ_prefix + 'real_time_limit', real_time_limit)
+        output_limit = environ.get(
+                environ_prefix + 'output_limit', output_limit)
 
     if not env:
         env = os.environ.copy()
@@ -131,7 +136,7 @@ def execute(command, env=None, split_lines=False, ignore_errors=False,
             command, rc, perf_timer.elapsed)
 
     o.seek(0)
-    data = o.read()
+    data = o.read(output_limit or -1)
     if split_lines:
         data = data.split('\n')
     if rc and not ignore_errors and rc not in extra_ignore_errors:
