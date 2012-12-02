@@ -1,15 +1,14 @@
 
 import os.path
 from sio.workers import ft, Failure
-from sio.workers.sandbox import get_sandbox, NullSandbox
-from sio.workers.execute import execute
+from sio.workers.executors import UnprotectedExecutor, SandboxExecutor
 
 def _lang_option(environ, key, lang):
     value = environ.get(key, ())
     if isinstance(value, dict):
         value = value.get(lang, ())
     if isinstance(value, basestring):
-        value = (value, )
+        value = (value,)
     return value
 
 def run(environ, lang, compiler, extension, output_file, compiler_options=(),
@@ -34,22 +33,25 @@ def run(environ, lang, compiler, extension, output_file, compiler_options=(),
                                        Defaults to False.
     :param sandbox: Enables sandboxing (using compiler name
                     as a sandbox). Defaults to False.
+                    May be Sandbox instance itself.
     :param sandbox_callback: Optional callback called immediately after
                              creating the sandbox, with the said sandbox
                              as its sole parameter.
     """
 
-    if sandbox is True:
-        sandbox = get_sandbox('compiler-' + environ['compiler'])
-    elif not sandbox:
-        sandbox = NullSandbox()
+    if sandbox is False:
+        executor = UnprotectedExecutor()
+    elif sandbox is True:
+        executor = SandboxExecutor('compiler-' + environ['compiler'])
+    else:
+        executor = SandboxExecutor(sandbox)
 
     extra_compilation_args = \
             _lang_option(environ, 'extra_compilation_args', lang)
 
     ft.download(environ, 'source_file', 'a.' + extension)
-    cmdline = (compiler, ) + tuple(compiler_options) + \
-            tuple(extra_compilation_args) + ('a.' + extension, )
+    cmdline = (compiler,) + tuple(compiler_options) + \
+            tuple(extra_compilation_args) + ('a.' + extension,)
     # this cmdline may be later extended
 
     # using a copy of the environment in order to avoid polluting it with
@@ -69,38 +71,28 @@ def run(environ, lang, compiler, extension, output_file, compiler_options=(),
         ft.download(tmp_environ, 'additional_source',
                     os.path.basename(source))
         if compile_additional_sources:
-            cmdline += (os.path.basename(source), )
+            cmdline += (os.path.basename(source),)
 
     extra_files = environ.get('extra_files', {})
     for name, ft_path in extra_files.iteritems():
         tmp_environ['extra_file'] = ft_path
         ft.download(tmp_environ, 'extra_file', os.path.basename(name))
 
-    shell_environ = os.environ.copy()
-
-    if sandbox:
-        shell_environ['LD_LIBRARY_PATH'] = (lang == 'pas') \
-                 and os.path.join(sandbox.path, 'lib') \
-                 or os.path.join(sandbox.path, 'usr', 'lib')
-
-        shell_environ['PATH'] =  (lang == 'pas') \
-                and os.path.join(sandbox.path, 'bin') \
-                or os.path.join(sandbox.path, 'usr', 'bin')
-    shell_environ['PATH'] += ':' + os.environ['PATH']
-
-    with sandbox:
+    with executor:
         if sandbox_callback:
-            sandbox_callback(sandbox)
-        retcode, output = execute(list(cmdline),
-                                  env=shell_environ,
-                                  time_limit=30,
-                                  mem_limit=256,
+            sandbox_callback(executor)
+        renv = executor(list(cmdline),
+                                  time_limit=30000,
+                                  mem_limit=256000,
                                   ignore_errors=True,
                                   environ=tmp_environ,
-                                  environ_prefix='compilation_')
+                                  environ_prefix='compilation_',
+                                  use_path=True,
+                                  capture_output=True,
+                                  forward_stderr=True)
 
-    environ['compiler_output'] = output
-    if retcode:
+    environ['compiler_output'] = renv['stdout']
+    if renv['return_code']:
         environ['result_code'] = 'CE'
     elif 'compilation_result_size_limit' in environ and \
             os.path.getsize(output_file) > \

@@ -1,5 +1,6 @@
 from sio.compilers import common
 
+# Without -static as there is no static compilation on Mac
 COMPILER_OPTIONS = ('-O2', '-s')
 
 def run(environ, lang):

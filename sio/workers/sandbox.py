@@ -133,6 +133,9 @@ class Sandbox(object):
         if self._in_context == 0:
             self.lock.unlock()
 
+    def __str__(self):
+        return "<Sandbox: %s at %s>" % (self.name, self.path,)
+
     def _mark_checked(self):
         # We're assuming this is safe enough to be done under
         # a shared lock, as the check will eventually be re-done
@@ -141,6 +144,9 @@ class Sandbox(object):
         open(last_check_file, 'wb').write(str(int(time.time())))
 
     def _should_install_sandbox(self):
+        if not os.path.exists(self.path):
+            return True
+
         try:
             last_check_file = os.path.join(self.path, '.last_check')
             last_check = int(open(last_check_file).read())
