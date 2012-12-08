@@ -160,11 +160,13 @@ class Sandbox(object):
             if not expected_hash:
                 raise SandboxError("Server did not return hash for "
                         "the sandbox image '%s'" % self.name)
+            expected_hash = str(expected_hash)
 
             hash_file = os.path.join(self.path, '.hash')
             if not os.path.exists(hash_file):
                 return True
             hash = open(hash_file, 'rb').read().strip()
+            logger.debug("Comparing hashes: %s vs %s.", expected_hash, hash)
             if hash != expected_hash:
                 return True
 
