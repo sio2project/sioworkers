@@ -17,6 +17,10 @@ setup(
         'Celery',
     ],
 
+    setup_requires = [
+        'nose',
+    ],
+
     entry_points = {
         'sio.jobs': [
             'ping = sio.workers.ping:run',
