@@ -3,6 +3,10 @@ import os.path
 from sio.workers import ft, Failure
 from sio.workers.executors import UnprotectedExecutor, SandboxExecutor
 
+DEFAULT_COMPILER_TIME_LIMIT = 30000 # in ms
+DEFAULT_COMPILER_MEM_LIMIT = 256 << 10 # in kbytes
+DEFAULT_COMPILER_OUTPUT_LIMIT = 5 << 10 # in bytes
+
 def _lang_option(environ, key, lang):
     value = environ.get(key, ())
     if isinstance(value, dict):
@@ -82,8 +86,9 @@ def run(environ, lang, compiler, extension, output_file, compiler_options=(),
         if sandbox_callback:
             sandbox_callback(executor)
         renv = executor(list(cmdline),
-                                  time_limit=30000,
-                                  mem_limit=256000,
+                                  time_limit=DEFAULT_COMPILER_TIME_LIMIT,
+                                  mem_limit=DEFAULT_COMPILER_MEM_LIMIT,
+                                  output_limit=DEFAULT_COMPILER_OUTPUT_LIMIT,
                                   ignore_errors=True,
                                   environ=tmp_environ,
                                   environ_prefix='compilation_',

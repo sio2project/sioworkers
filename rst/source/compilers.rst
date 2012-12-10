@@ -31,6 +31,11 @@ The following parameters are recognized in ``environ``:
     (optional) Resource limits for the compiler process, passed to
     :func:`sio.workers.execute.execute`.
 
+  ``compilation_output_limit``
+    (optional) Limits length of compiler output returned to user when
+    compilation error occurs. By default set to 5KiB, set to None for unlimited.
+    Passed to :func:`sio.workers.execute.execute`.
+
   ``compilation_result_size_limit``
     (optional) Limit for size of the compiled file.
 
