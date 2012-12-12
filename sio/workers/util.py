@@ -36,8 +36,8 @@ def s2ms(seconds):
 def ms2s(miliseconds):
     """Converts ``miliseconds`` to seconds and returns float.
 
-       >>> ms2s(1190)
-       1.19
+       >>> '%.2f' % ms2s(1190)
+       '1.19'
     """
     return miliseconds / 1000.
 

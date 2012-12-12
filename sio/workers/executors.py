@@ -383,7 +383,9 @@ class SandboxExecutor(UnprotectedExecutor):
         env = kwargs.get('env')
         env['PATH'] = '%s:%s' % (self._env_paths('bin'), env['PATH'])
 
-        env['LD_LIBRARY_PATH'] = self._env_paths('lib')
+        if not self.sandbox.has_fixup('elf_loader_patch'):
+            env['LD_LIBRARY_PATH'] = self._env_paths('lib')
+
         return super(SandboxExecutor, self)._execute(command, **kwargs)
 
 

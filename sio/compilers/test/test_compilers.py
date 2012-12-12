@@ -25,13 +25,13 @@ import stat
 #
 # 2) By default, sandboxed compilers are excluded from the
 #    testing, due to their rather unwieldy dependencies. You
-#    can enable them by turning ENABLE_SANDBOXED_COMPILERS on.
+#    can enable them by setting environment variable TEST_SANDBOXES to 1.
 #    All needed dependencies will be downloaded automagically
 #    by sio.workers.sandbox.
 #
 
 SOURCES = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'sources')
-ENABLE_SANDBOXED_COMPILERS = os.environ.get('ENABLE_SANDBOXED_COMPILERS',
+ENABLE_SANDBOXED_COMPILERS = os.environ.get('TEST_SANDBOXES',
                                             False)
 
 def in_(a, b, msg=None):
@@ -192,7 +192,7 @@ def compile_fail(compiler_env, expected_in_compiler_output=None):
         in_(expected_in_compiler_output, result_env['compiler_output'])
 
 def test_compilation_error_gcc():
-    def _test_size_limit(message, compiler, source):
+    def _test_size_and_out_limit(message, compiler, source):
         with TemporaryCwd():
             upload_files()
             compile_fail({
@@ -200,16 +200,7 @@ def test_compilation_error_gcc():
                 'compiler': compiler,
                 'out_file': '/out',
                 'compilation_result_size_limit': COMPILATION_RESULT_SIZE_LIMIT,
-                'compilation_mem_limit': 512 << 10
-                }, message)
-
-    def _test_out_limit(message, compiler, source):
-        with TemporaryCwd():
-            upload_files()
-            compile_fail({
-                'source_file': source,
-                'compiler': compiler,
-                'out_file': '/out',
+                'compilation_mem_limit': 512 << 10,
                 'compilation_output_limit': COMPILATION_OUTPUT_LIMIT,
                 }, message)
 
@@ -239,12 +230,11 @@ def test_compilation_error_gcc():
 
     for compiler in compilers:
         for fname in exec_size_exceeders:
-            yield _test_size_limit, 'Compiled file size limit exceeded', \
+            yield _test_size_and_out_limit, 'Compiled file size limit exceeded', \
                 compiler, fname
 
         for fname in nasty_loopers:
-            yield _test_size_limit, None, compiler, fname
-            yield _test_out_limit, None, compiler, fname
+            yield _test_size_and_out_limit, None, compiler, fname
 
         yield _test_no_out_limit, None, compiler, '/nasty-infinite-warnings.cpp'
 

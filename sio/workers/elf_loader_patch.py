@@ -31,7 +31,8 @@ def _patch_elf_loader(path):
     path = os.path.abspath(path)
     loader = os.path.join(path, 'lib', 'ld-linux.so.2')
     if not os.path.exists(loader):
-        return
+        logger.info("Not patching sandbox: %s", path)
+        return False
     rpath = '%s:%s' % (os.path.join(path, 'lib'),
             os.path.join(path, 'usr', 'lib'))
 
@@ -72,3 +73,5 @@ def _patch_elf_loader(path):
                         {'loader': loader, 'original': pext, 'rpath': rpath})
                 mode = os.stat(pext).st_mode
                 os.fchmod(f.fileno(), mode)
+
+    return True

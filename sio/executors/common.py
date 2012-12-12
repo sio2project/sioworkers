@@ -25,10 +25,11 @@ def run(environ, executor, safe_check=True):
     os.chmod('exe', 0700)
     ft.download(environ, 'in_file', 'in', add_to_cache=True)
 
-    with executor as e, open('in', 'rb') as inf, \
-            open('out', 'wb') as outf:
-        renv = e(['./exe'], stdin=inf, stdout=outf, ignore_errors=True,
-                 environ=environ)
+    with executor as e:
+        with open('in', 'rb') as inf:
+            with open('out', 'wb') as outf:
+                renv = e(['./exe'], stdin=inf, stdout=outf, ignore_errors=True,
+                            environ=environ)
 
     _populate_environ(renv, environ)
 

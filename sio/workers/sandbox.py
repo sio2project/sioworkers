@@ -15,7 +15,8 @@ from sio.workers.util import rmtree
 
 SANDBOXES_BASEDIR = os.environ.get('SIO_SANDBOXES_BASEDIR',
         os.path.expanduser(os.path.join('~', '.sio-sandboxes')))
-SANDBOXES_URL = os.environ.get('SIO_SANDBOXES_URL')
+SANDBOXES_URL = os.environ.get('SIO_SANDBOXES_URL',
+                    'http://downloads.sio2project.mimuw.edu.pl/sandboxes')
 CHECK_INTERVAL = int(os.environ.get('SIO_SANDBOXES_CHECK_INTERVAL', 3600))
 
 logger = logging.getLogger(__name__)
@@ -105,7 +106,7 @@ class Sandbox(object):
 
     _instances = weakref.WeakValueDictionary()
 
-    required_fixups = 'patch_elf_loader'
+    required_fixups = set(('elf_loader_patch',))
 
     @classmethod
     def _instance(cls, name):
@@ -153,7 +154,8 @@ class Sandbox(object):
             fixups_file = os.path.join(self.path, '.fixups_applied')
             if not os.path.exists(fixups_file):
                 return True
-            if open(fixups_file).read().strip() != self.required_fixups:
+            current_fixups = set(open(fixups_file).read().split())
+            if not current_fixups.issuperset(self.required_fixups):
                 return True
 
             last_check_file = os.path.join(self.path, '.last_check')
@@ -201,9 +203,23 @@ class Sandbox(object):
         return last_modified
 
     def _apply_fixups(self):
-        _patch_elf_loader(self.path)
+        operative = {}
+        if 'elf_loader_patch' in self.required_fixups:
+            operative['elf_loader_patch'] = _patch_elf_loader(self.path)
+
         fixups_file = os.path.join(self.path, '.fixups_applied')
-        open(fixups_file, 'w').write(self.required_fixups)
+        open(fixups_file, 'w').write('\n'.join(self.required_fixups))
+
+        operatives_file = os.path.join(self.path, '.fixups_operative')
+        open(operatives_file, 'w').write('\n'.join(
+            [fixup for fixup in operative if operative[fixup]]))
+
+    def has_fixup(self, name):
+        if not hasattr(self, 'operative_fixups'):
+            operatives_file = os.path.join(self.path, '.fixups_operative')
+            self.operative_fixups = open(operatives_file).read().split('\n')
+
+        return name in self.operative_fixups
 
     def _get(self):
         name = self.name
@@ -284,6 +300,7 @@ class Sandbox(object):
 def get_sandbox(name):
     """Constructs a :class:`Sandbox` with the given ``name``."""
     return Sandbox._instance(name)
+
 
 class NullSandbox(object):
     """A dummy sandbox doing nothing."""
