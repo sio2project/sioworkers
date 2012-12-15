@@ -1,6 +1,5 @@
 import os.path
 from sio.compilers import common
-from sio.workers.sandbox import get_sandbox
 
 COMPILER_OPTIONS = ['-static', '-O2', '-s']
 
@@ -14,18 +13,17 @@ def run(environ, lang):
     else:
         raise ValueError("Unexpected language name: " + lang)
 
-    sandbox = get_sandbox('compiler-' + environ['compiler'])
-    compiler_options = \
-        ['-I', os.path.join(sandbox.path, 'usr', 'include')] \
-        + COMPILER_OPTIONS
+    def include_callback(executor, cmd):
+        return cmd + ['-I', os.path.join(executor.rpath, 'usr', 'include')];
 
     return common.run(environ=environ,
                lang=lang,
                compiler=compiler_exe,
                extension=extension,
                output_file='a.out',
-               compiler_options=compiler_options,
-               sandbox=sandbox)
+               compiler_options=COMPILER_OPTIONS,
+               sandbox=True,
+               sandbox_callback=include_callback)
 
 def run_gcc(environ):
     return run(environ, 'c')

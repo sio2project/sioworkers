@@ -1,11 +1,11 @@
 
 import os.path
 from sio.workers import ft, Failure
-from sio.workers.executors import UnprotectedExecutor, SandboxExecutor
+from sio.workers.executors import UnprotectedExecutor, PRootExecutor
 
-DEFAULT_COMPILER_TIME_LIMIT = 30000 # in ms
-DEFAULT_COMPILER_MEM_LIMIT = 256 << 10 # in kbytes
-DEFAULT_COMPILER_OUTPUT_LIMIT = 5 << 10 # in bytes
+DEFAULT_COMPILER_TIME_LIMIT = 30000  # in ms
+DEFAULT_COMPILER_MEM_LIMIT = 256 << 10  # in kbytes
+DEFAULT_COMPILER_OUTPUT_LIMIT = 5 << 10  # in bytes
 
 def _lang_option(environ, key, lang):
     value = environ.get(key, ())
@@ -31,31 +31,29 @@ def run(environ, lang, compiler, extension, output_file, compiler_options=(),
                         `a.<extension>`
     :param compiler_options: Optional tuple of command line parameters to the
                              compiler.
-    :param compile_additional_sources: Disables passing additional
+    :param compile_additional_sources: Enables passing additional
                                        source files to the compiler - used
                                        as a hack to support FPC.
-                                       Defaults to False.
+                                       Defaults to True.
     :param sandbox: Enables sandboxing (using compiler name
                     as a sandbox). Defaults to False.
-                    May be Sandbox instance itself.
     :param sandbox_callback: Optional callback called immediately after
-                             creating the sandbox, with the said sandbox
-                             as its sole parameter.
+                             creating the executor, with the said executor
+                             and the command argument list as arguments.
+                             Should return new command if modified.
     """
 
     if sandbox is False:
         executor = UnprotectedExecutor()
-    elif sandbox is True:
-        executor = SandboxExecutor('compiler-' + environ['compiler'])
     else:
-        executor = SandboxExecutor(sandbox)
+        executor = PRootExecutor('compiler-' + environ['compiler'])
 
     extra_compilation_args = \
             _lang_option(environ, 'extra_compilation_args', lang)
 
     ft.download(environ, 'source_file', 'a.' + extension)
-    cmdline = (compiler,) + tuple(compiler_options) + \
-            tuple(extra_compilation_args) + ('a.' + extension,)
+    cmdline = [compiler, ] + list(compiler_options) + \
+                list(extra_compilation_args) + ['a.' + extension, ]
     # this cmdline may be later extended
 
     # using a copy of the environment in order to avoid polluting it with
@@ -75,7 +73,7 @@ def run(environ, lang, compiler, extension, output_file, compiler_options=(),
         ft.download(tmp_environ, 'additional_source',
                     os.path.basename(source))
         if compile_additional_sources:
-            cmdline += (os.path.basename(source),)
+            cmdline += [os.path.basename(source), ]
 
     extra_files = environ.get('extra_files', {})
     for name, ft_path in extra_files.iteritems():
@@ -84,15 +82,15 @@ def run(environ, lang, compiler, extension, output_file, compiler_options=(),
 
     with executor:
         if sandbox_callback:
-            sandbox_callback(executor)
-        renv = executor(list(cmdline),
+            cmdline = sandbox_callback(executor, cmdline) or cmdline
+
+        renv = executor(cmdline,
                                   time_limit=DEFAULT_COMPILER_TIME_LIMIT,
                                   mem_limit=DEFAULT_COMPILER_MEM_LIMIT,
                                   output_limit=DEFAULT_COMPILER_OUTPUT_LIMIT,
                                   ignore_errors=True,
                                   environ=tmp_environ,
                                   environ_prefix='compilation_',
-                                  use_path=True,
                                   capture_output=True,
                                   forward_stderr=True)
 

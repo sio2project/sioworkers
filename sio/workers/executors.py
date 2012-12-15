@@ -4,13 +4,14 @@ import tempfile
 import signal
 from threading import Timer
 import logging
-
-from sio.workers import util
-from sio.workers.sandbox import get_sandbox, Sandbox
+import re
+import sys
 import traceback
 from os import path
-from sio.workers.util import ceil_ms2s, ms2s, s2ms
-import re
+
+from sio.workers import util, elf_loader_patch
+from sio.workers.sandbox import get_sandbox, Sandbox
+from sio.workers.util import ceil_ms2s, ms2s, s2ms, path_join_abs
 
 logger = logging.getLogger(__name__)
 
@@ -265,7 +266,6 @@ class BaseExecutor(object):
                 forward_stderr=forward_stderr, capture_output=capture_output,
                 environ=environ, environ_prefix=environ_prefix, **kwargs)
 
-
 class UnprotectedExecutor(BaseExecutor):
     """Executes command in completely unprotected manner.
 
@@ -286,7 +286,6 @@ class UnprotectedExecutor(BaseExecutor):
 
         renv = execute_command(command, **kwargs)
         return renv
-
 
 TIME_OUTPUT_RE = re.compile(r'^user\s+([0-9]+)m([0-9.]+)s$', re.MULTILINE)
 class DetailedUnprotectedExecutor(UnprotectedExecutor):
@@ -334,7 +333,6 @@ class DetailedUnprotectedExecutor(UnprotectedExecutor):
 
         return renv
 
-
 class SandboxExecutor(UnprotectedExecutor):
     """SandboxedExecutor is intended to run programs delivered in sandbox package.
 
@@ -352,12 +350,9 @@ class SandboxExecutor(UnprotectedExecutor):
     def __exit__(self, exc_type, exc_value, traceback):
         self.sandbox.__exit__(exc_type, exc_value, traceback)
 
-    def _get_sandbox(self, name):
-            return isinstance(name, Sandbox) and name or get_sandbox(name)
-
     def __init__(self, sandbox):
-        """``sandbox`` can be either a :class:`Sandbox` instance or a sandbox name."""
-        self.sandbox = self._get_sandbox(sandbox)
+        """``sandbox`` has to be a sandbox name."""
+        self.sandbox = get_sandbox(sandbox)
 
     def __str__(self):
         return 'SandboxExecutor(%s)' % (self.sandbox,)
@@ -388,7 +383,6 @@ class SandboxExecutor(UnprotectedExecutor):
 
         return super(SandboxExecutor, self)._execute(command, **kwargs)
 
-
 class _SIOSupervisedExecutor(SandboxExecutor):
     _supervisor_codes = {
             0: 'OK',
@@ -406,7 +400,6 @@ class _SIOSupervisedExecutor(SandboxExecutor):
 
     def _execute(self, command, **kwargs):
         env = kwargs.get('env')
-        environ = kwargs['environ']
         env.update({
                     'MEM_LIMIT': kwargs['mem_limit'] or 64 << 10,
                     'TIME_LIMIT': kwargs['time_limit'] or 30000,
@@ -459,7 +452,6 @@ class _SIOSupervisedExecutor(SandboxExecutor):
 
         return renv
 
-
 class VCPUExecutor(_SIOSupervisedExecutor):
     """Runs program in controlled environment while counting CPU instructions.
 
@@ -476,7 +468,6 @@ class VCPUExecutor(_SIOSupervisedExecutor):
                     '-f', '3', '--'] + command
         return super(VCPUExecutor, self)._execute(command, **kwargs)
 
-
 class SupervisedExecutor(_SIOSupervisedExecutor):
     """Executes program in supervised mode.
 
@@ -491,3 +482,113 @@ class SupervisedExecutor(_SIOSupervisedExecutor):
         command = [os.path.join(self.sandbox.path, 'bin', 'supervisor'),
                     '-f', '3'   ] + command
         return super(SupervisedExecutor, self)._execute(command, **kwargs)
+
+class PRootExecutor(BaseExecutor):
+    """PRootExecutor executor mimics ``chroot`` with ``mount --bind``.
+
+       During execution ``sandbox.path`` becomes new ``/`` (``sandbox.path``).
+       Current working directory is visible as itself and ``/tmp``.
+       ``sandbox.path`` remains accessible under ``sandbox.path``.
+
+       If *sandbox* doesn't contain ``/bin/sh`` or ``/lib``,
+       then some basic is bound from *proot sandbox*.
+
+       For more information about PRoot see http://proot.me.
+
+       PRootExecutor adds support of following *kwargs*:
+         ``proot_options`` Options passed to *proot* binary after those
+                           automatically generated.
+    """
+
+    def __init__(self, sandbox):
+        """``sandbox`` has to be a sandbox name."""
+        self.chroot = get_sandbox(sandbox)
+        self.proot = SandboxExecutor('proot-sandbox')
+
+        self.options = []
+        with self.chroot:
+            with self.proot:
+                self._proot_options()
+
+    def __enter__(self):
+        self.proot.__enter__()
+        try:
+            self.chroot.__enter__()
+        except:
+            self.proot.__exit__(*sys.exc_info())
+            raise
+
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        exc = (exc_type, exc_value, traceback)
+        try:
+            self.chroot.__exit__(*exc)
+            exc = (None, None, None)
+        except:
+            exc = sys.exc_info()
+        finally:
+            self.proot.__exit__(*exc)
+
+    def _bind(self, what, where=None, force=False):
+        if where is None:
+            where = what
+
+        where = path_join_abs(self.rpath, where)
+        if not path.exists(what):
+            raise RuntimeError("Binding not existing location")
+
+        if force or not path.exists(path_join_abs(self.chroot.path, where)):
+            self.options += ['-b', '%s:%s' % (what, where)]
+            return True
+        return False
+
+    def _chroot(self, where):
+        self.options += ['-r', where]
+
+    def _pwd(self, pwd):
+        """Sets new process initial pwd"""
+        self.options += ['-w', path_join_abs(self.rpath, pwd)]
+
+    def _verbosity(self, level):
+        """-1: suppress, 0: warnings, 1: infos, 2: debug"""
+        self.options += ['-v', str(level)]
+
+    def _proot_options(self):
+        self._verbosity(-1)
+        self._chroot(self.chroot.path)
+
+        sh_target = path.join(os.sep, 'bin', 'sh')
+        if not path.exists(path_join_abs(self.chroot.path, sh_target)):
+            self._bind(path_join_abs(self.proot.path, sh_target), sh_target)
+        else:
+            # If /bin/sh exists, then bind unpatched version to it
+            sh_patched = elf_loader_patch._get_unpatched_name(
+                path.realpath(path_join_abs(self.chroot.path, sh_target)))
+            if path.exists(sh_patched):
+                self._bind(sh_patched, sh_target, force=True)
+
+        self._bind(os.path.join(self.proot.path, 'lib'), 'lib')
+        self._bind(os.getcwd(), 'tmp', force=True)
+
+        # Make absolute `outside paths' visible in sandbox
+        self._bind(self.chroot.path, force=True)
+        self._bind(os.getcwd(), force=True)
+
+    def _execute(self, command, **kwargs):
+        if kwargs['time_limit'] and kwargs['real_time_limit'] is None:
+            kwargs['real_time_limit'] = 3 * kwargs['time_limit']
+
+        self.options += kwargs.pop('proot_options', [])
+        command = [path.join('proot', 'proot')] + self.options + \
+                    [path.join(self.rpath, 'bin', 'sh'), '-c', command]
+
+        return self.proot._execute(command, **kwargs)
+
+    @property
+    def rpath(self):
+        return path.sep
+
+    @property
+    def path(self):
+        return self.chroot.path

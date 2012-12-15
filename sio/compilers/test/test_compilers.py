@@ -119,19 +119,19 @@ def test_compilation_with_additional_library():
                     'out_file': '/out',
                     }, message)
 
-    yield _test, 'Hello World from c-lib', 'system-c', '/simple-lib.c',\
+    yield _test, 'Hello World from c-lib', 'system-c', '/simple-lib.c', \
           '/library.c', '/library.h'
-    yield _test, 'Hello World from cpp-lib', 'system-cpp', '/simple-lib.cpp',\
+    yield _test, 'Hello World from cpp-lib', 'system-cpp', '/simple-lib.cpp', \
           '/library.cpp', '/library.h'
-    yield _test, 'Hello World from pas-lib', 'system-pas', '/simple-lib.pas',\
+    yield _test, 'Hello World from pas-lib', 'system-pas', '/simple-lib.pas', \
           '/pas_library.pas'
 
     if ENABLE_SANDBOXED_COMPILERS:
-        yield _test, 'Hello World from c-lib', 'default-c',\
+        yield _test, 'Hello World from c-lib', 'default-c', \
               '/simple-lib.c', '/library.c', '/library.h'
-        yield _test, 'Hello World from cpp-lib', 'default-cpp',\
+        yield _test, 'Hello World from cpp-lib', 'default-cpp', \
               '/simple-lib.cpp', '/library.cpp', '/library.h'
-        yield _test, 'Hello World from pas-lib', 'default-pas',\
+        yield _test, 'Hello World from pas-lib', 'default-pas', \
               '/simple-lib.pas', '/pas_library.pas'
 
 def test_compilation_with_additional_library_and_dictionary_params():
@@ -159,11 +159,11 @@ def test_compilation_with_additional_library_and_dictionary_params():
     yield _test, 'Hello World from pas-lib', 'system-pas', '/simple-lib.pas'
 
     if ENABLE_SANDBOXED_COMPILERS:
-        yield _test, 'Hello World from c-lib', 'default-c',\
+        yield _test, 'Hello World from c-lib', 'default-c', \
               '/simple-lib.c'
-        yield _test, 'Hello World from cpp-lib', 'default-cpp',\
+        yield _test, 'Hello World from cpp-lib', 'default-cpp', \
               '/simple-lib.cpp'
-        yield _test, 'Hello World from pas-lib', 'default-pas',\
+        yield _test, 'Hello World from pas-lib', 'default-pas', \
               '/simple-lib.pas'
 
 COMPILATION_TIME_HARD_LIMIT = 62
@@ -218,10 +218,10 @@ def test_compilation_error_gcc():
     if ENABLE_SANDBOXED_COMPILERS:
         compilers += ['default-cpp']
 
-    nasty_loopers = [ 'self-include.cpp',
-                     # 'dev-random.cpp',
-                     'infinite-warnings.cpp',
-                     'templates-infinite-loop.cpp'
+    nasty_loopers = ['self-include.cpp',
+                    'dev-random.cpp',
+                    'infinite-warnings.cpp',
+                    'templates-infinite-loop.cpp'
                     ]
     nasty_loopers = [ '/nasty-%s' % (s,) for s in nasty_loopers]
 

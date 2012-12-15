@@ -77,3 +77,14 @@ def rmtree(path):
 
     shutil.rmtree(path, onerror=remove_readonly)
 
+def path_join_abs(base, subpath):
+    """Joins two absolute paths making ``subpath`` relative to ``base``.
+
+       >>> import os.path
+       >>> os.path.join('/usr', '/bin/sh')
+       '/bin/sh'
+
+       >>> path_join_abs('/usr', '/bin/sh')
+       '/usr/bin/sh'
+    """
+    return os.path.join(base, subpath.strip(os.sep))

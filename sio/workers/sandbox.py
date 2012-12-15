@@ -301,7 +301,6 @@ def get_sandbox(name):
     """Constructs a :class:`Sandbox` with the given ``name``."""
     return Sandbox._instance(name)
 
-
 class NullSandbox(object):
     """A dummy sandbox doing nothing."""
 
