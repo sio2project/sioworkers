@@ -1,4 +1,3 @@
-import os
 import fcntl
 import os.path
 from hashlib import sha1
@@ -8,15 +7,16 @@ import shutil
 import logging
 import weakref
 import urllib2
-import filetracker
 import email
 
 from sio.workers import ft, _original_cwd
+from sio.workers.elf_loader_patch import _patch_elf_loader
+from sio.workers.util import rmtree
 
 SANDBOXES_BASEDIR = os.environ.get('SIO_SANDBOXES_BASEDIR',
         os.path.expanduser(os.path.join('~', '.sio-sandboxes')))
 SANDBOXES_URL = os.environ.get('SIO_SANDBOXES_URL')
-CHECK_INTERVAL = 3600
+CHECK_INTERVAL = int(os.environ.get('SIO_SANDBOXES_CHECK_INTERVAL', 3600))
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +105,8 @@ class Sandbox(object):
 
     _instances = weakref.WeakValueDictionary()
 
+    required_fixups = 'patch_elf_loader'
+
     @classmethod
     def _instance(cls, name):
         i = cls._instances.get(name)
@@ -144,10 +146,16 @@ class Sandbox(object):
         open(last_check_file, 'wb').write(str(int(time.time())))
 
     def _should_install_sandbox(self):
-        if not os.path.exists(self.path):
+        if not os.path.isdir(self.path):
             return True
 
         try:
+            fixups_file = os.path.join(self.path, '.fixups_applied')
+            if not os.path.exists(fixups_file):
+                return True
+            if open(fixups_file).read().strip() != self.required_fixups:
+                return True
+
             last_check_file = os.path.join(self.path, '.last_check')
             last_check = int(open(last_check_file).read())
             now_int = int(time.time())
@@ -192,6 +200,11 @@ class Sandbox(object):
             last_modified = int(email.utils.mktime_tz(last_modified))
         return last_modified
 
+    def _apply_fixups(self):
+        _patch_elf_loader(self.path)
+        fixups_file = os.path.join(self.path, '.fixups_applied')
+        open(fixups_file, 'w').write(self.required_fixups)
+
     def _get(self):
         name = self.name
         path = self.path
@@ -212,51 +225,59 @@ class Sandbox(object):
             self.lock.lock_shared()
             return
 
-        logger.info("Downloading sandbox '%s' ...", name)
-
-        if os.path.exists(path):
-            shutil.rmtree(path)
-
-        archive_path = path + '.tar.gz'
-
         try:
-            ft_path = _filetracker_path(name)
-            ft_client = ft.instance()
-            vname = ft_client.get_file(ft_path, archive_path)
-            version = ft_client.file_version(vname)
-        except Exception, e:
-            logger.warning("Failed to download sandbox from filetracker",
-                    exc_info=True)
-            if SANDBOXES_URL:
-                url = SANDBOXES_URL + '/' + _urllib_path(name)
-                logger.info("  trying url: %s", url)
-                local_f = open(archive_path, 'wb')
-                try:
-                    http_f = urllib2.urlopen(url)
-                    shutil.copyfileobj(http_f, local_f)
-                    local_f.close()
-                except:
-                    os.unlink(archive_path)
-                    raise
-                version = self._parse_last_modified(http_f)
-            else:
-                raise SandboxError("Could not download sandbox '%s'" % (name,))
+            logger.info("Downloading sandbox '%s' ...", name)
 
-        logger.info(" extracting ...")
+            if os.path.exists(path):
+                rmtree(path)
 
-        tar = tarfile.open(archive_path, 'r')
-        tar.extractall(SANDBOXES_BASEDIR)
-        os.unlink(archive_path)
+            archive_path = path + '.tar.gz'
 
-        if not os.path.isdir(path):
-            raise SandboxError("Downloaded sandbox archive "
-                    "did not contain expected directory '%s'" % name)
+            try:
+                ft_path = _filetracker_path(name)
+                ft_client = ft.instance()
+                vname = ft_client.get_file(ft_path, archive_path)
+                version = ft_client.file_version(vname)
+            except Exception, e:
+                logger.warning("Failed to download sandbox from filetracker",
+                        exc_info=True)
+                if SANDBOXES_URL:
+                    url = SANDBOXES_URL + '/' + _urllib_path(name)
+                    logger.info("  trying url: %s", url)
+                    local_f = open(archive_path, 'wb')
+                    try:
+                        http_f = urllib2.urlopen(url)
+                        shutil.copyfileobj(http_f, local_f)
+                        local_f.close()
+                    except:
+                        os.unlink(archive_path)
+                        raise
+                    version = self._parse_last_modified(http_f)
+                else:
+                    raise SandboxError("Could not download sandbox '%s'"
+                                        % (name,))
 
-        hash_file = os.path.join(path, '.hash')
-        open(hash_file, 'wb').write(str(version))
+            logger.info(" extracting ...")
 
-        self._mark_checked()
-        logger.info(" done.")
+            tar = tarfile.open(archive_path, 'r')
+            tar.extractall(SANDBOXES_BASEDIR)
+            os.unlink(archive_path)
+
+            if not os.path.isdir(path):
+                raise SandboxError("Downloaded sandbox archive "
+                        "did not contain expected directory '%s'" % name)
+
+            self._apply_fixups()
+
+            hash_file = os.path.join(path, '.hash')
+            open(hash_file, 'wb').write(str(version))
+
+            self._mark_checked()
+            logger.info(" done.")
+
+        except:
+            self.lock.unlock()
+            raise
 
         self.lock.lock_shared()
 

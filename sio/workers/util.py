@@ -1,6 +1,9 @@
 import pkg_resources
 import time
 import logging
+import stat
+import os
+import shutil
 
 logger = logging.getLogger(__name__)
 
@@ -33,4 +36,30 @@ def ms2s(miliseconds):
 def ceil_ms2s(miliseconds):
     """Returns first integer count of seconds not less that ``miliseconds``"""
     return int((miliseconds + 999) / 1000)
+
+class Writable(object):
+    """Context manager making file writable.
+
+       It's not safe to use it concurrently on the same file, but nesting is ok.
+    """
+    def __init__(self, fname):
+        self.orig_mode = os.stat(fname).st_mode
+        self.change_needed = ~(self.orig_mode & stat.S_IWUSR)
+        self.fname = fname
+
+    def __enter__(self):
+        if self.change_needed:
+            os.chmod(self.fname, self.orig_mode | stat.S_IWUSR)
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self.change_needed:
+            os.chmod(self.fname, self.orig_mode)
+
+def rmtree(path):
+    def remove_readonly(fn, path, excinfo):
+        with Writable(os.path.normpath(os.path.dirname(path))):
+            fn(path)
+
+    shutil.rmtree(path, onerror=remove_readonly)
 
