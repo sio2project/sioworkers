@@ -95,17 +95,19 @@ def test_compilation():
                 'out_file': '/out',
                 }, message)
 
-    yield _test, 'Hello World from c', 'system-c', '/simple.c'
-    yield _test, 'Hello World from cpp', 'system-cpp', '/simple.cpp'
-    yield _test, 'Hello World from pas', 'system-pas', '/simple.pas'
-
+    compilers = ['system-']
     if ENABLE_SANDBOXED_COMPILERS:
-        yield _test, 'Hello World from c', 'default-c', '/simple.c'
-        yield _test, 'Hello World from cpp', 'default-cpp', '/simple.cpp'
-        yield _test, 'Hello World from pas', 'default-pas', '/simple.pas'
+        compilers += ['default-']
+
+    for compiler in compilers:
+        yield _test, 'Hello World from c', compiler + 'c', '/simple.c'
+        yield _test, '6.907167, 31.613478, 1.569796', compiler + 'c', '/libm.c'
+        yield _test, 'Hello World from cpp', compiler + 'cpp', '/simple.cpp'
+        yield _test, '3\n5\n5\n7\n9\n10', compiler + 'cpp', '/libstdc++.cpp'
+        yield _test, 'Hello World from pas', compiler + 'pas', '/simple.pas'
 
 def test_compilation_with_additional_library():
-    def _test(message, compiler, source, sources, includes = ()):
+    def _test(message, compiler, source, sources, includes=()):
         with TemporaryCwd():
             upload_files()
 

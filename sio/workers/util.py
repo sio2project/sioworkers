@@ -26,15 +26,29 @@ class PerfTimer(object):
         return time.time() - self.start_time
 
 def s2ms(seconds):
-    """Converts ``seconds`` to miliseconds"""
+    """Converts ``seconds`` to miliseconds
+
+       >>> s2ms(1.95)
+       1950
+    """
     return int(1000 * seconds)
 
 def ms2s(miliseconds):
-    """Converts ``miliseconds`` to seconds and returns float."""
+    """Converts ``miliseconds`` to seconds and returns float.
+
+       >>> ms2s(1190)
+       1.19
+    """
     return miliseconds / 1000.
 
 def ceil_ms2s(miliseconds):
-    """Returns first integer count of seconds not less that ``miliseconds``"""
+    """Returns first integer count of seconds not less that ``miliseconds``.
+
+       >>> ceil_ms2s(1000)
+       1
+       >>> ceil_ms2s(1001)
+       2
+    """
     return int((miliseconds + 999) / 1000)
 
 class Writable(object):
