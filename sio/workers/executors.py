@@ -407,7 +407,7 @@ class _SIOSupervisedExecutor(SandboxExecutor):
                     })
 
         if kwargs['time_limit'] and kwargs['real_time_limit'] is None:
-            env['HARD_LIMIT'] = 64 * kwargs['real_time_limit']
+            env['HARD_LIMIT'] = 1 + 64 * kwargs['time_limit']
             # Limiting outside supervisor
             kwargs['real_time_limit'] = 1 + 2 * env['HARD_LIMIT']
 

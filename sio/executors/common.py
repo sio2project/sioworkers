@@ -16,7 +16,7 @@ def run(environ, executor, safe_check=True):
 
     :param: environ Recipe to pass to `filetracker` and `sio.workers.executors`
                     For all supported options, see the global documentation for
-                    `sio.workers.executors`.
+                    `sio.workers.executors` and prefix them with ``exec_``.
     :param: executor Executor instance used for executing commands.
     :param: safe_check Enables safe checking output corectness.
                        See `sio.executors.checkers`. True by default.
@@ -29,7 +29,7 @@ def run(environ, executor, safe_check=True):
         with open('in', 'rb') as inf:
             with open('out', 'wb') as outf:
                 renv = e(['./exe'], stdin=inf, stdout=outf, ignore_errors=True,
-                            environ=environ)
+                            environ=environ, environ_prefix='exec_')
 
     _populate_environ(renv, environ)
 
