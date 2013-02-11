@@ -14,7 +14,9 @@ setup(
     install_requires = [
         'filetracker>=0.95',
         'simplejson',
-        'Celery',
+
+        # Workaround for https://jira.sio2project.mimuw.edu.pl/browse/SIO-1178
+        'Celery==3.0.11',
     ],
 
     setup_requires = [
