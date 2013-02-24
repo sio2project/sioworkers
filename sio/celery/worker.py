@@ -9,15 +9,6 @@ from celery.apps import worker
 import celery.loaders.default
 from filetracker.servers.run import DEFAULT_PORT as DEFAULT_FILETRACKER_PORT
 
-from sio.celery import default_config
-
-class Loader(celery.loaders.default.Loader):
-    def read_configuration(self):
-        conf = dict((k, getattr(default_config, k))
-                    for k in dir(default_config)
-                    if k.isupper())
-        return self.setup_settings(conf)
-
 def _host_from_url(url):
     try:
         return urlparse.urlparse(url).hostname
@@ -33,7 +24,8 @@ host as the Celery broker uses, with default Filetracker port."""
     parser = OptionParser(usage=usage, epilog=epilog)
     parser.disable_interspersed_args()
 
-    app = Celery(loader=Loader)
+    os.environ.setdefault('CELERY_CONFIG_MODULE', 'sio.celery.default_config')
+    app = Celery()
     cmd = WorkerCommand(app)
     for x in cmd.get_options():
         parser.add_option(x)

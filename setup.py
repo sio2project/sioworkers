@@ -15,8 +15,7 @@ setup(
         'filetracker>=0.95',
         'simplejson',
 
-        # Workaround for https://jira.sio2project.mimuw.edu.pl/browse/SIO-1178
-        'Celery==3.0.11',
+        'Celery',
     ],
 
     setup_requires = [
