@@ -1,7 +1,7 @@
-
 import os.path
-from sio.workers import ft, Failure
+from sio.workers import ft
 from sio.workers.executors import UnprotectedExecutor, PRootExecutor
+from sio.workers.util import replace_invalid_UTF
 
 DEFAULT_COMPILER_TIME_LIMIT = 30000  # in ms
 DEFAULT_COMPILER_MEM_LIMIT = 256 << 10  # in kbytes
@@ -94,7 +94,7 @@ def run(environ, lang, compiler, extension, output_file, compiler_options=(),
                                   capture_output=True,
                                   forward_stderr=True)
 
-    environ['compiler_output'] = renv['stdout']
+    environ['compiler_output'] = replace_invalid_UTF(renv['stdout'])
     if renv['return_code']:
         environ['result_code'] = 'CE'
     elif 'compilation_result_size_limit' in environ and \

@@ -1,5 +1,6 @@
 import os
 from sio.workers import ft
+from sio.workers.util import replace_invalid_UTF
 
 from sio.executors import checker
 
@@ -35,6 +36,9 @@ def run(environ, executor, safe_check=True):
 
     if renv['result_code'] == 'OK' and environ.get('check_output'):
         environ = checker.run(environ, no_sandbox=not safe_check)
+
+    for key in ('result_code', 'result_string'):
+        environ[key] = replace_invalid_UTF(environ[key])
 
     if 'out_file' in environ:
         ft.upload(environ, 'out_file', 'out',

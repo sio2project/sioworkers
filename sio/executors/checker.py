@@ -1,6 +1,6 @@
 import os.path
 from sio.workers import ft
-from sio.workers.executors import UnprotectedExecutor, noquote, SandboxExecutor
+from sio.workers.executors import UnprotectedExecutor, SandboxExecutor
 
 def _run_diff():
     with UnprotectedExecutor() as e:

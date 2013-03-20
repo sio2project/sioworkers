@@ -88,3 +88,6 @@ def path_join_abs(base, subpath):
        '/usr/bin/sh'
     """
     return os.path.join(base, subpath.strip(os.sep))
+
+def replace_invalid_UTF(str):
+    return str.decode('utf-8', 'replace').encode('utf-8')
