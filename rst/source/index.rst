@@ -107,11 +107,41 @@ For example, the following ``setup.py`` defines a module with a job named
       }
   )
 
+.. _sandboxes:
+
 Sandboxes
 ---------
 
 .. autoclass:: sio.workers.sandbox.Sandbox
     :members:
+
+
+.. _executors_env:
+
+Executors (environment)
+-----------------------
+
+The executors are environment for executing commands. Just like :ref:`sandboxes`
+they are context managers.
+
+.. autoclass:: sio.workers.executors.BaseExecutor
+
+.. autoclass:: sio.workers.executors.SandboxExecutor
+    :members:
+
+.. autoclass:: sio.workers.executors.PRootExecutor
+    :members:
+
+
+This module provides some ready to user executors which are:
+
+.. autoclass:: sio.workers.executors.UnprotectedExecutor
+
+.. autoclass:: sio.workers.executors.DetailedUnprotectedExecutor
+
+.. autoclass:: sio.workers.executors.SupervisedExecutor
+
+.. autoclass:: sio.workers.executors.VCPUExecutor
 
 Executing external programs
 ---------------------------

@@ -4,7 +4,8 @@ from sio.compilers.job import run
 from sio.workers import ft
 from sio.workers.execute import execute
 from filetracker.dummy import DummyClient
-from sio.compilers.common import DEFAULT_COMPILER_OUTPUT_LIMIT
+from sio.compilers.common import DEFAULT_COMPILER_OUTPUT_LIMIT, \
+        DEFAULT_COMPILER_TIME_LIMIT
 
 import glob
 import os.path
@@ -166,11 +167,10 @@ def test_compilation_with_additional_library_and_dictionary_params():
         yield _test, 'Hello World from pas-lib', 'default-pas', \
               '/simple-lib.pas'
 
-COMPILATION_TIME_HARD_LIMIT = 62
+COMPILATION_TIME_HARD_LIMIT = 2 + 3 * DEFAULT_COMPILER_TIME_LIMIT
 COMPILATION_OUTPUT_LIMIT = 100
 COMPILATION_RESULT_SIZE_LIMIT = 5 * 1024 * 1024
 
-@timed(COMPILATION_TIME_HARD_LIMIT)
 def compile_fail(compiler_env, expected_in_compiler_output=None):
     """Helper function for compiling and asserting that it fails."""
 
@@ -184,14 +184,14 @@ def compile_fail(compiler_env, expected_in_compiler_output=None):
     elif compiler_env['compilation_output_limit'] is not None:
         ok_(len(result_env['compiler_output']) <=
                 compiler_env['compilation_output_limit'])
-    else:
-        ok_(len(result_env['compiler_output']) >
-                DEFAULT_COMPILER_OUTPUT_LIMIT)
 
     if expected_in_compiler_output:
         in_(expected_in_compiler_output, result_env['compiler_output'])
 
+    return result_env
+
 def test_compilation_error_gcc():
+    @timed(COMPILATION_TIME_HARD_LIMIT)
     def _test_size_and_out_limit(message, compiler, source):
         with TemporaryCwd():
             upload_files()
@@ -204,15 +204,19 @@ def test_compilation_error_gcc():
                 'compilation_output_limit': COMPILATION_OUTPUT_LIMIT,
                 }, message)
 
-    def _test_no_out_limit(message, compiler, source):
+    @timed(COMPILATION_TIME_HARD_LIMIT)
+    def _test_large_limit(message, compiler, source):
         with TemporaryCwd():
             upload_files()
-            compile_fail({
+            result_env = compile_fail({
                 'source_file': source,
                 'compiler': compiler,
                 'out_file': '/out',
-                'compilation_output_limit': None
+                'compilation_output_limit': 100 * DEFAULT_COMPILER_OUTPUT_LIMIT
                 }, message)
+
+            ok_(len(result_env['compiler_output']) >
+                    DEFAULT_COMPILER_OUTPUT_LIMIT)
 
     compilers = ['system-cpp']
     if ENABLE_SANDBOXED_COMPILERS:
@@ -230,13 +234,13 @@ def test_compilation_error_gcc():
 
     for compiler in compilers:
         for fname in exec_size_exceeders:
-            yield _test_size_and_out_limit, 'Compiled file size limit exceeded', \
-                compiler, fname
+            yield _test_size_and_out_limit, \
+                'Compiled file size limit exceeded', compiler, fname
 
         for fname in nasty_loopers:
             yield _test_size_and_out_limit, None, compiler, fname
 
-        yield _test_no_out_limit, None, compiler, '/nasty-infinite-warnings.cpp'
+        yield _test_large_limit, None, compiler, '/nasty-infinite-warnings.cpp'
 
 def test_compilation_extremes():
     def _test(message, compiler, source):

@@ -1,10 +1,10 @@
 Executors
 =========
 
-This package provides one SIO Workers job, named ``exec``, which can be used
+This package provides several SIO Workers jobs, which can be used
 to run arbitrary binary programs under a supervisor program in a secure way.
 
-This job also allows to check the correctness of the output produced by the
+These jobs also allows to check the correctness of the output produced by the
 program, either using the default ``compare`` program distributed in an
 appropriate sandbox, or by using an external checker provided by the user.
 
@@ -46,11 +46,6 @@ The following parameters are recognized in ``environ``:
 
     Default: 50 MB
 
-  ``exec_et_limit``
-    Exectime limit (i.e. the limit of number of CPU instructions executed).
-
-    Default: 0 (no limit)
-
   ``check_output``
     Should the program output be checked?
 
@@ -88,10 +83,6 @@ Parameters added to the environment:
 
   ``time_used``
     CPU time used, in milliseconds (only user time is counted, not system).
-
-  ``exectime_used``
-    Exectime user, i.e. the number of CPU instructions executed. May be an
-    invalid value if appropriate kernel modules are not available.
 
   ``mem_used``
     Maximum amount of virtual memory used, in kB. Lower-bound estimate.
@@ -136,24 +127,24 @@ or::
 Anything different than ``OK`` in the first line (including nothing) is
 treated as ``WRONG``.
 
-Simple (unsafe) implementation
-------------------------------
+Builtin jobs
+------------
 
-There is also another job type provided by this module -- it's ``unsafe-exec``.
-It doesn't use the supervisor, but instead relies on simple ulimit resource
-limiting. It does not need a sandbox.
-
-Instruction counting
---------------------
-
-Another, machine-independent execution job, is called ``vcpu-exec``. It uses
-instruction counting for measuring "runtime" of programs.
-
-Prerequisites
--------------
-
-This may sound obvious, but the job requires that appropriate sandboxes named
-(``exec-sandbox``, ``vcpu_exec-sandbox``) are available.
++--------------+------+------------+-----------------------------------------+
+|Name          |Secu\ |Prerequi\   |Info                                     |
+|              |re    |sites       |                                         |
++==============+======+============+=========================================+
+|``unsafe-``\  |No    |None        |This job provides simple resource        |
+|``exec``      |      |            |management relying on ``ulimit``.        |
++--------------+------+------------+-----------------------------------------+
+|``cpu-exec``  |Yes   |``exec-``\  |Executes programs in a dedicated, secure |
+|              |      |``sandbox`` |sandbox.                                 |
++--------------+------+------------+-----------------------------------------+
+|``vcpu-exec`` |Yes   |``vcpu_``\  |This is machine-independent execution    |
+|              |      |``exec-``\  |job, which uses instruction counting     |
+|              |      |``sandbox`` |for meansiring "runtime" of programs.    |
+|              |      |            |It uses a secure sandbox as well.        |
++--------------+------+------------+-----------------------------------------+
 
 
 Shell scripts
@@ -165,10 +156,11 @@ name, output file name and programming language source file extension
 (optionally).
 
 
-Defining new compilers
+Defining new executors
 ----------------------
 
-#. Copy-and-paste code from ``sio/compilers/template.py``, adjust accordingly.
+#. (Optional) Create new executing environment: :ref:`executors_env`
+
+#. Copy-and-paste code from ``sio/workers/common.py``, adjust accordingly.
 
 #. Add to ``entry_points`` in ``setup.py``.
-
