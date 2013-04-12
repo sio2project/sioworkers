@@ -29,12 +29,12 @@ The following parameters are recognized in ``environ``:
 
   ``compilation_mem_limit``, ``compilation_time_limit``, ``compilation_real_time_limit``
     (optional) Resource limits for the compiler process, passed to
-    :func:`sio.workers.execute.execute`.
+    relevant :ref:`executor <executors_env>`.
 
   ``compilation_output_limit``
     (optional) Limits length of compiler output returned to user when
     compilation error occurs. By default set to 5KiB, set to None for unlimited.
-    Passed to :func:`sio.workers.execute.execute`.
+    Passed to relevant :ref:`executor <executors_env>`.
 
   ``compilation_result_size_limit``
     (optional) Limit for size of the compiled file.
@@ -89,7 +89,7 @@ Built-in non-sandboxed compilers:
 
 .. note::
     Testing sandboxed compilers is disabled by default. To enable it,
-    uncomment relevant lines in ``sio/workers/test/test_compilation.py``.
+    run ``nosetests`` with environment variable ``TEST_SANDBOXES`` set to ``1``.
 
 Shell scripts
 -------------

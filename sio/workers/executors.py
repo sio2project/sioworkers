@@ -55,36 +55,39 @@ def execute_command(command, env=None, split_lines=False, stdin=None,
                     capture_output=False, output_limit=None,
                     real_time_limit=None,
                     ignore_errors=False, extra_ignore_errors=(), **kwargs):
-    """ Utility function to run arbitrary command.
-        ``stdin``
-          Could be either file opened with ``open(fname, 'r')`` or None (inherited).
+    """Utility function to run arbitrary command.
+       ``stdin``
+         Could be either file opened with ``open(fname, 'r')``
+         or None (then it is inherited from current process).
 
-        ``stdout``, ``stderr``
-          Could be files opened with ``open(fname, 'w')``, sys.std*
-          or None - then it's suppressed.
+       ``stdout``, ``stderr``
+         Could be files opened with ``open(fname, 'w')``, sys.std*
+         or None - then it's suppressed.
 
-        ``forward_stderr``
-          Forwards stderr to stdin.
+       ``forward_stderr``
+         Forwards stderr to stdout.
 
-        ``capture_output``
-          Returns program output in renv key ``stdout``.
+       ``capture_output``
+         Returns program output in renv key ``stdout``.
 
-        ``output_limit``
-          Limits returned output when ``capture_output=True`` (in bytes).
+       ``output_limit``
+         Limits returned output when ``capture_output=True`` (in bytes).
 
-        Returns renv: dictionary containing:
-        ``realtime_used``
-          Wall clock time it took to execute the command (in ms).
+       Returns renv: dictionary containing:
+       ``real_time_used``
+         Wall clock time it took to execute the command (in ms).
 
-        ``return_code``
-          Status code that program returned.
+       ``return_code``
+         Status code that program returned.
 
-        ``stdout``
-          Only when ``capture_output=True``: output of the command
+       ``real_time_killed``
+         Only when process was killed due to exceeding real time limit.
+
+       ``stdout``
+         Only when ``capture_output=True``: output of the command
     """
     # Using temporary file is way faster than using subproces.PIPE
-    # and it prevents deadlocks. Also using stdin/stdout as file opened with
-    # ``open`` has no performance penalty.
+    # and it prevents deadlocks.
     command = shellquote(command)
 
     logger.debug('Executing: %s', command)
@@ -109,12 +112,15 @@ def execute_command(command, env=None, split_lines=False, stdin=None,
                          shell=True,
                          close_fds=True,
                          universal_newlines=True,
-                         env=env)
+                         env=env,
+                         preexec_fn=os.setpgrp)
 
     kill_timer = None
     if real_time_limit:
-        kill_timer = Timer(ms2s(real_time_limit),
-                lambda: os.kill(p.pid, signal.SIGKILL))
+        def oot_killer():
+            ret_env['real_time_killed'] = True
+            os.killpg(p.pid, signal.SIGKILL)
+        kill_timer = Timer(ms2s(real_time_limit), oot_killer)
         kill_timer.start()
 
     rc = p.wait()
@@ -123,7 +129,7 @@ def execute_command(command, env=None, split_lines=False, stdin=None,
     if kill_timer:
         kill_timer.cancel()
 
-    ret_env['realtime_used'] = s2ms(perf_timer.elapsed)
+    ret_env['real_time_used'] = s2ms(perf_timer.elapsed)
 
     logger.debug('Command "%s" exited with code %d, took %.2fs',
             str(command), rc, perf_timer.elapsed)
@@ -145,84 +151,92 @@ def execute_command(command, env=None, split_lines=False, stdin=None,
 class BaseExecutor(object):
     """Base class for Executors: command environment managers.
 
-        It's behavior depends on class instance, see it's docstring. Objects are
-        callable context managers, so typical usage would be like:
-            with executor_instance:
-                executor_instance(command, kwargs...)
+       Its behavior depends on class instance, see its docstring. Objects are
+       callable context managers, so typical usage would be like::
 
-        Most of executors supports following options for ``__call__`` method:
-        ``command``
-          The command to execute --- may be a list or a string. If this is a list,
-          all the arguments will be shell-quoted unless wrapped in
-          :class:`sio.workers.executors.noquote`. If this is a string, it will be
-          converted to ``noquote``ed one-element list.
-          Command is passed to ``subprocess.Popen`` with ``shell=True``, but may
-          be manipulated in various ways depending on concrete class.
+           with executor_instance:
+               executor_instance(command, kwargs...)
 
-        ``env``
-          The dictionary passed as environment. Non-string values are automatically
-          converted to strings. If not present, the current process' environment is
-          used. In all cases, the environment is augmented by adding ``LC_ALL`` and
-          ``LANGUAGE`` set to ``en_US.UTF-8``.
+       Most of executors support following options for ``__call__`` method:
 
-        ``split_lines``
-          If ``True``, the output from the called program is returned as a list of
-          lines, otherwise just one big string.
+       ``command``
+         The command to execute --- may be a list or a string. If this is a
+         list, all the arguments will be shell-quoted unless wrapped in
+         :class:`sio.workers.executors.noquote`. If this is a string, it will
+         be converted to ``noquote``-ed one-element list.
+         Command is passed to ``subprocess.Popen`` with ``shell=True``, but may
+         be manipulated in various ways depending on concrete class.
 
-        ``ignore_errors``
-          Do not throw :exc:`ExecError` if the program exits with non-zero code.
+       ``env``
+         The dictionary passed as environment. Non-string values are
+         automatically converted to strings. If not present, the current
+         process' environment is used. In all cases, the environment
+         is augmented by adding ``LC_ALL`` and ``LANGUAGE`` set
+         to ``en_US.UTF-8``.
 
-        ``extra_ignore_errors``
-          Do not throw :exc:`ExecError` if the program exits with one of the
-          error codes in ``extra_ignore_errors``.
+       ``ignore_errors``
+         Do not throw :exc:`ExecError` if the program exits with non-zero code.
 
-        ``stdin``
-          File object which should be redirected to standard input of the program.
+       ``extra_ignore_errors``
+         Do not throw :exc:`ExecError` if the program exits with one of the
+         error codes in ``extra_ignore_errors``.
 
-        ``stdout``, ``stderr``
-          Could be files opened with ``open(fname, 'w')``, sys.*
-          or None - then it's suppressed (which is default).
-          See also: ``capture_output``
+       ``stdin``
+         File object which should be redirected to standard input of
+         the program.
 
-        ``capture_output``
-          Returns program output in return dict at key ``stdout``.
+       ``stdout``, ``stderr``
+         Could be files opened with ``open(fname, 'w')``, sys.*
+         or None - then it's suppressed (which is default).
+         See also: ``capture_output``
 
-        ``output_limit``
-          Limits returned output when ``capture_output=True`` (in bytes).
+       ``capture_output``
+         Returns program output in ``stdout`` key of ``renv``.
 
-        ``mem_limit``
-          Memory limit (``ulimit -v``), in KiB.
+       ``split_lines``
+         If ``True``, the output from the called program is returned as a list
+         of lines, otherwise just one big string.
 
-        ``time_limit``
-          CPU time limit (``ulimit -s``), in miliseconds.
+       ``forward_stderr``
+         Forwards ``stderr`` to ``stdout``.
 
-        ``real_time_limit``
-          Wall clock time limit, in miliseconds.
+       ``output_limit``
+         Limits amount of data program can write to stdout, in KiB.
 
-        ``environ``
-          If present, this should be the ``environ`` dictionary. It's used to
-          extract values for ``mem_limit``, ``time_limit`` and ``real_time_limit``
-          from it.
+       ``mem_limit``
+         Memory limit (``ulimit -v``), in KiB.
 
-        ``environ_prefix``
-          Prefix for ``mem_limit``, ``time_limit`` and ``real_time_limit`` keys
-          in ``environ``.
+       ``time_limit``
+         CPU time limit (``ulimit -s``), in miliseconds.
 
-        ``**kwargs``
-          Other arguments handled by some executors. See their documentation.
+       ``real_time_limit``
+         Wall clock time limit, in miliseconds.
 
-        The method returns dictionary (called ``renv``) containing:
-        ``realtime_used``
-          Wall clock time it took to execute command (in ms).
+       ``environ``
+         If present, this should be the ``environ`` dictionary. It's used to
+         extract values for ``mem_limit``, ``time_limit``, ``real_time_limit``
+         and ``output_limit`` from it.
 
-        ``return_code``
-          Status code that program returned.
+       ``environ_prefix``
+         Prefix for ``mem_limit``, ``time_limit``, ``real_time_limit`` and
+         ``output_limit`` keys in ``environ``.
 
-        ``stdout``
-          Only when ``capture_output=True``: output of command
+       ``**kwargs``
+         Other arguments handled by some executors. See their documentation.
 
-        Some executors also returns other keys i.e:
-        ``time_used``, ``result_code``, ``mem_used``, ``num_syscalls``
+       The method returns dictionary (called ``renv``) containing:
+
+       ``real_time_used``
+         Wall clock time it took to execute command (in ms).
+
+       ``return_code``
+         Status code that program returned.
+
+       ``stdout``
+         Only when ``capture_output=True``: output of command
+
+       Some executors also returns other keys i.e:
+       ``time_used``, ``result_code``, ``mem_used``, ``num_syscalls``
     """
 
     def __enter__(self):
@@ -234,8 +248,9 @@ class BaseExecutor(object):
     def _execute(self, command, **kwargs):
         raise NotImplementedError('BaseExecutor is abstract!')
 
-    def __call__(self, command, env=None, split_lines=False, ignore_errors=False,
-                extra_ignore_errors=(), stdin=None, stdout=None, stderr=None,
+    def __call__(self, command, env=None, split_lines=False,
+                ignore_errors=False, extra_ignore_errors=(),
+                stdin=None, stdout=None, stderr=None,
                 forward_stderr=False, capture_output=False,
                 mem_limit=None, time_limit=None,
                 real_time_limit=None, output_limit=None, environ={},
@@ -269,7 +284,7 @@ class BaseExecutor(object):
 class UnprotectedExecutor(BaseExecutor):
     """Executes command in completely unprotected manner.
 
-       Warning: time limiting is counted with accuracy of seconds.
+       .. note:: time limiting is counted with accuracy of seconds.
     """
 
     def __enter__(self):
@@ -291,11 +306,16 @@ TIME_OUTPUT_RE = re.compile(r'^user\s+([0-9]+)m([0-9.]+)s$', re.MULTILINE)
 class DetailedUnprotectedExecutor(UnprotectedExecutor):
     """This executor returns extended process status (over UnprotectedExecutor.)
 
-    It reserves process stderr for time counting, so ``stderr`` arg is ignored.
-    It adds following keys to ``renv``:
-      ``time_used``: Linux user-time used by process
-      ``result_code``: TLE, OK, RE.
-      ``result_string``: string describing ``result_code``
+       .. note:: It reserves process stderr for time counting, so ``stderr``
+                 arg is ignored.
+
+       This class adds the following keys to ``renv``:
+
+         ``time_used``: Linux user-time used by process
+
+         ``result_code``: TLE, OK, RE.
+
+         ``result_string``: string describing ``result_code``
     """
 
     def _execute(self, command, **kwargs):
@@ -303,6 +323,7 @@ class DetailedUnprotectedExecutor(UnprotectedExecutor):
         stderr = tempfile.TemporaryFile()
         kwargs['stderr'] = stderr
         kwargs['forward_stderr'] = False
+        kwargs['ignore_errors'] = True
         renv = super(DetailedUnprotectedExecutor, self)._execute(command,
                                                                     **kwargs)
         stderr.seek(0)
@@ -312,6 +333,8 @@ class DetailedUnprotectedExecutor(UnprotectedExecutor):
         if time_output_matches:
             mins, secs = time_output_matches[-1]
             renv['time_used'] = int((int(mins) * 60 + float(secs)) * 1000)
+        elif 'real_time_killed' in renv:
+            renv['time_used'] = renv['real_time_used']
         else:
             raise RuntimeError('Could not find output of time program. '
                 'Captured output: %s' % output)
@@ -320,9 +343,16 @@ class DetailedUnprotectedExecutor(UnprotectedExecutor):
                 and renv['time_used'] >= 0.99 * kwargs['time_limit']:
             renv['result_string'] = 'time limit exceeded'
             renv['result_code'] = 'TLE'
+        elif 'real_time_killed' in renv:
+            renv['result_string'] = 'real time limit exceeded'
+            renv['result_code'] = 'TLE'
         elif renv['return_code'] == 0:
             renv['result_string'] = 'ok'
             renv['result_code'] = 'OK'
+        elif renv['return_code'] > 128: # os.WIFSIGNALED(1) returns True
+            renv['result_string'] = 'program exited due to signal %d' \
+                                    % os.WTERMSIG(renv['return_code'])
+            renv['result_code'] = 'RE'
         else:
             renv['result_string'] = 'program exited with code %d' \
                                                         % renv['return_code']
@@ -334,13 +364,15 @@ class DetailedUnprotectedExecutor(UnprotectedExecutor):
         return renv
 
 class SandboxExecutor(UnprotectedExecutor):
-    """SandboxedExecutor is intended to run programs delivered in sandbox package.
+    """SandboxedExecutor is intended to run programs delivered in ``sandbox`` package.
 
-       In addition to :class:BaseExecutor it handles following options in __call__:
-         ``use_path`` If false (default) and first argument of command is relative
-                      then its prepended with sandbox path.
+      This executor accepts following extra arguments in ``__call__``:
+         ``use_path`` If false (default) and first argument of command is
+                      relative then it's prepended with sandbox path.
 
        .. note:: Sandbox does not mean isolation, it's just part of filesytem.
+
+       ..
     """
 
     def __enter__(self):
@@ -359,12 +391,12 @@ class SandboxExecutor(UnprotectedExecutor):
 
     @property
     def rpath(self):
-        """Returns path to sandbox root as visible during command execution."""
+        """Contains path to sandbox root as visible during command execution."""
         return self.sandbox.path
 
     @property
     def path(self):
-        """Returns real, absolute path to sandbox root."""
+        """Contains real, absolute path to sandbox root."""
         return self.sandbox.path
 
     def _env_paths(self, suffix):
@@ -406,10 +438,14 @@ class _SIOSupervisedExecutor(SandboxExecutor):
                     'OUT_LIMIT': kwargs['output_limit'] or 50 << 20,
                     })
 
-        if kwargs['time_limit'] and kwargs['real_time_limit'] is None:
-            env['HARD_LIMIT'] = 1 + 64 * kwargs['time_limit']
+        if kwargs['real_time_limit']:
+            env['HARD_LIMIT'] = 1 + ceil_ms2s(kwargs['real_time_limit'])
+        elif kwargs['time_limit'] and kwargs['real_time_limit'] is None:
+            env['HARD_LIMIT'] = 1 + ceil_ms2s(64 * kwargs['time_limit'])
+
+        if 'HARD_LIMIT' in env:
             # Limiting outside supervisor
-            kwargs['real_time_limit'] = 1 + 2 * env['HARD_LIMIT']
+            kwargs['real_time_limit'] = 2 * s2ms(env['HARD_LIMIT'])
 
 
         renv = {}
@@ -456,7 +492,18 @@ class VCPUExecutor(_SIOSupervisedExecutor):
     """Runs program in controlled environment while counting CPU instructions.
 
        Executed programs may only use stdin/stdout/stderr and manage it's
-       own memory. Retuns extended statistics in renv.
+       own memory. Retuns extended statistics in ``renv`` containing:
+
+       ``time_used``: time based on instruction counting (in ms).
+
+       ``mem_used``: memory used (in KiB).
+
+       ``num_syscall``: number of times a syscall has been called
+
+       ``result_code``: short code reporting result of sandboxing. Is one of \
+                        ``OK``, ``RE``, ``TLE``, ``OLE``, ``MLE``, ``RV``
+
+       ``result_string``: string describing ``result_code``
     """
 
     def __init__(self):
@@ -472,7 +519,18 @@ class SupervisedExecutor(_SIOSupervisedExecutor):
     """Executes program in supervised mode.
 
        Executed programs may only use stdin/stdout/stderr and manage it's
-       own memory. Retuns extended statistics in renv.
+       own memory. Retuns extended statistics in ``renv`` containing:
+
+       ``time_used``: time based on instruction counting (in ms).
+
+       ``mem_used``: memory used (in KiB).
+
+       ``num_syscall``: number of times a syscall has been called
+
+       ``result_code``: short code reporting result of sandboxing. Is one of \
+                        ``OK``, ``RE``, ``TLE``, ``OLE``, ``MLE``, ``RV``
+
+       ``result_string``: string describing ``result_code``
     """
 
     def __init__(self):
@@ -480,22 +538,23 @@ class SupervisedExecutor(_SIOSupervisedExecutor):
 
     def _execute(self, command, **kwargs):
         command = [os.path.join(self.sandbox.path, 'bin', 'supervisor'),
-                    '-f', '3'   ] + command
+                    '-q', '-f', '3'] + command
         return super(SupervisedExecutor, self)._execute(command, **kwargs)
 
 class PRootExecutor(BaseExecutor):
     """PRootExecutor executor mimics ``chroot`` with ``mount --bind``.
 
-       During execution ``sandbox.path`` becomes new ``/`` (``sandbox.path``).
+       During execution ``sandbox.path`` becomes new ``/``.
        Current working directory is visible as itself and ``/tmp``.
-       ``sandbox.path`` remains accessible under ``sandbox.path``.
+       Also ``sandbox.path`` remains accessible under ``sandbox.path``.
 
        If *sandbox* doesn't contain ``/bin/sh`` or ``/lib``,
        then some basic is bound from *proot sandbox*.
 
        For more information about PRoot see http://proot.me.
 
-       PRootExecutor adds support of following *kwargs*:
+       PRootExecutor adds support of following arguments in ``__call__``:
+
          ``proot_options`` Options passed to *proot* binary after those
                            automatically generated.
     """
@@ -579,16 +638,18 @@ class PRootExecutor(BaseExecutor):
         if kwargs['time_limit'] and kwargs['real_time_limit'] is None:
             kwargs['real_time_limit'] = 3 * kwargs['time_limit']
 
-        self.options += kwargs.pop('proot_options', [])
-        command = [path.join('proot', 'proot')] + self.options + \
+        options = self.options + kwargs.pop('proot_options', [])
+        command = [path.join('proot', 'proot')] + options + \
                     [path.join(self.rpath, 'bin', 'sh'), '-c', command]
 
         return self.proot._execute(command, **kwargs)
 
     @property
     def rpath(self):
+        """Contains path to sandbox root as visible during command execution."""
         return path.sep
 
     @property
     def path(self):
+        """Contains real, absolute path to sandbox root."""
         return self.chroot.path

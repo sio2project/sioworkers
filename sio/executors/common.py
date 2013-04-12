@@ -19,7 +19,7 @@ def run(environ, executor, safe_check=True):
                     For all supported options, see the global documentation for
                     `sio.workers.executors` and prefix them with ``exec_``.
     :param: executor Executor instance used for executing commands.
-    :param: safe_check Enables safe checking output corectness.
+    :param: safe_check Enables safe checking output correctness.
                        See `sio.executors.checkers`. True by default.
     """
     ft.download(environ, 'exe_file', 'exe', add_to_cache=True)
