@@ -32,7 +32,7 @@ def run_gplusplus(environ):
     return run(environ, 'cpp')
 
 def run_default(environ, lang):
-    environ['compiler'] = 'gcc.sio20120206'
+    environ['compiler'] = 'gcc.4_6_3'
     return run(environ, lang)
 
 def run_default_c(environ):
