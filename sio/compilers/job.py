@@ -1,7 +1,6 @@
 import sys
 import os.path
-import pkg_resources
-import traceback
+
 try:
     import json
     json.dumps
@@ -9,7 +8,7 @@ except (ImportError, AttributeError):
     import simplejson as json
 
 from sio.workers.util import first_entry_point
-from sio.workers.execute import execute
+
 
 def run(environ):
     if 'compiler' not in environ:
@@ -25,10 +24,20 @@ def run(environ):
     return environ
 
 def main():
+    if len(sys.argv) < 3:
+        print """Usage: %s source output [compiler [extra_compilation_args ...]]
+
+   If source or output path starts with '/', then it's considered to
+   be filetracker path, if not, relative to the current directory.""" \
+              % sys.argv[0].split('/')[-1]
+        raise SystemExit(1)
+
     # Simulate compile.sh from sio1
     environ = {
             'source_file': sys.argv[1],
             'out_file': sys.argv[2],
+            'use_filetracker': 'auto',
+            'extra_compilation_args': sys.argv[4:]
         }
     if len(sys.argv) > 3:
         environ['compiler'] = 'default-' + sys.argv[3].lower()

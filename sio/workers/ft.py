@@ -68,7 +68,7 @@ def download(environ, key, dest=None, skip_if_exists=False, **kwargs):
         dest = os.path.join(dest, os.path.split(source)[1])
     if not _use_filetracker(source, environ):
         source = os.path.join(_original_cwd, source)
-        if not os.path.samefile(source, dest):
+        if not os.path.exists(dest) or not os.path.samefile(source, dest):
             shutil.copy(source, dest)
     else:
         kwargs.setdefault('add_to_cache', False)
