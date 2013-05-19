@@ -47,7 +47,7 @@ def not_in_(a, b, msg=None):
         raise AssertionError(msg or "%r not in %r" % (a, b))
 
 class TemporaryCwd(object):
-    "Helper class for changing the working directory."
+    """Helper class for changing the working directory."""
 
     def __init__(self):
         self.path = os.tmpnam()
@@ -64,18 +64,18 @@ class TemporaryCwd(object):
         shutil.rmtree(self.path)
 
 def upload_files():
-    "Uploads all files from SOURCES to a newly created dummy filetracker"
+    """Uploads all files from SOURCES to a newly created dummy filetracker"""
 
     # DummyClient operates in the working directory.
     ft.set_instance(DummyClient())
     for path in glob.glob(os.path.join(SOURCES, '*')):
         ft.upload({'path': '/' + os.path.basename(path)}, 'path', path)
 
-def compile(source):
+def compile(source, output='/exe'):
     compiler_env = {
         'source_file': source,
         'compiler':  ENABLE_SANDBOXES and 'default-c' or 'system-c',
-        'out_file': '/exe',
+        'out_file': output,
     }
 
     # Dummy sandbox doesn't support asking for versioned filename
@@ -98,9 +98,9 @@ def compile_and_execute(source, executor, **exec_args):
 
     return renv
 
-def compile_and_run(source, executor_env, executor, safe_check=False):
+def compile_and_run(source, executor_env, executor, use_sandboxes=False):
     executor_env['exe_file'] = compile(source)
-    return run_executor(executor_env, executor, safe_check=safe_check)
+    return run_executor(executor_env, executor, use_sandboxes=use_sandboxes)
 
 def print_env(env):
     from pprint import pprint
@@ -111,10 +111,43 @@ def fail(*args, **kwargs):
 
 MEMORY_CHECKS = ['30MiB-bss.c', '30MiB-data.c', '30MiB-malloc.c',
         '30MiB-stack.c']
-MEMORY_CHECKS_LIMIT = 30*1024 # in KiB
+MEMORY_CHECKS_LIMIT = 30 * 1024  # in KiB
 CHECKING_EXECUTORS = [DetailedUnprotectedExecutor]
 SANDBOXED_CHECKING_EXECUTORS = [SupervisedExecutor, VCPUExecutor]
 
+
+# Status helpers
+def res_ok(env):
+    eq_('OK', env['result_code'])
+
+def res_not_ok(env):
+    assert_not_equal(env['result_code'], 'OK')
+
+def res_wa(env):
+    eq_('WA', env['result_code'])
+
+def res_re(reason):
+    def inner(env):
+        eq_('RE', env['result_code'])
+        in_(str(reason), env['result_string'])
+    return inner
+
+def res_tle(env):
+    eq_(env['result_code'], 'TLE')
+
+def res_rv(msg):
+    def inner(env):
+        eq_('RV', env['result_code'])
+        in_(msg, env['result_string'])
+    return inner
+
+def due_signal(code):
+    def inner(env):
+        res_re('due to signal')
+        in_(str(code), env['result_string'])
+    return inner
+
+# High-level tests
 def test_common_memory_limiting():
     def _test(source, mem_limit, executor, callback):
         with TemporaryCwd():
@@ -126,32 +159,24 @@ def test_common_memory_limiting():
             print_env(result_env)
             callback(result_env)
 
-    def status_ok(env):
-        eq_(env['result_code'], 'OK')
-
-    def status_not_ok(env):
-        assert_not_equal(env['result_code'], 'OK')
-
-    def status_mle(env):
-        status_not_ok(env)
+    def res_mle_or_fail(env):
+        res_not_ok(env)
         if env['result_code'] != 'MLE':
-            eq_(env['result_code'], 'RE')
-            in_('signal', env['result_string']) # sigsegv
-            in_('11', env['result_string'])
+            due_signal(11)  # sigsegv
 
     for test in MEMORY_CHECKS:
         for executor in CHECKING_EXECUTORS:
             yield _test, "/" + test, int(MEMORY_CHECKS_LIMIT*1.2), executor(), \
-                    status_ok
+                    res_ok
             yield _test, "/" + test, int(MEMORY_CHECKS_LIMIT*0.9), executor(), \
-                    status_not_ok
+                    res_not_ok
 
         if ENABLE_SANDBOXES:
             for executor in SANDBOXED_CHECKING_EXECUTORS:
                 yield _test, "/" + test, int(MEMORY_CHECKS_LIMIT*1.2), \
-                        executor(),  status_ok
+                        executor(),  res_ok
                 yield _test, "/" + test, int(MEMORY_CHECKS_LIMIT*0.9), \
-                        executor(),  status_mle
+                        executor(), res_mle_or_fail
 
 def test_common_time_limiting():
     def _test(source, time_limit, executor, callback):
@@ -164,22 +189,16 @@ def test_common_time_limiting():
             print_env(result_env)
             callback(result_env)
 
-    def status_ok(env):
-        eq_(env['result_code'], 'OK')
-
-    def status_tle(env):
-        eq_(env['result_code'], 'TLE')
-
     for executor in CHECKING_EXECUTORS:
-        yield _test, '/procspam.c', 1000, executor(), status_tle
+        yield _test, '/procspam.c', 1000, executor(), res_tle
 
     if ENABLE_SANDBOXES:
         for executor in SANDBOXED_CHECKING_EXECUTORS:
-            yield _test, "/procspam.c", 1000, executor(), status_tle
-            yield _test, "/1-sec-prog.c", 10, executor(), status_tle
+            yield _test, "/procspam.c", 1000, executor(), res_tle
+            yield _test, "/1-sec-prog.c", 10, executor(), res_tle
 
-        yield _test, "/1-sec-prog.c", 1000, SupervisedExecutor(), status_ok
-        yield _test, "/1-sec-prog.c", 1100, VCPUExecutor(), status_ok
+        yield _test, "/1-sec-prog.c", 1000, SupervisedExecutor(), res_ok
+        yield _test, "/1-sec-prog.c", 1100, VCPUExecutor(), res_ok
 
 def test_outputting_non_utf8():
     if ENABLE_SANDBOXES:
@@ -189,11 +208,45 @@ def test_outputting_non_utf8():
                     'in_file': '/input',
                     'check_output': True,
                     'hint_file': '/input',
-                    }, SupervisedExecutor(), safe_check=True)
+                    }, SupervisedExecutor(), use_sandboxes=True)
             print_env(renv)
             in_('42', renv['result_string'])
             ok_(renv['result_string'].decode('utf8'))
 
+def test_untrusted_checkers():
+    def _test(checker, callback):
+        with TemporaryCwd():
+            upload_files()
+            checker_bin = compile(checker, '/chk.e')
+        with TemporaryCwd():
+            renv = compile_and_run('/add_print.c', {
+                'in_file': '/input',
+                'check_output': True,
+                'hint_file': '/hint',
+                'chk_file': checker_bin,
+                'untrusted_checker': True,
+            }, SupervisedExecutor(), use_sandboxes=True)
+            print_env(renv)
+            if callback:
+                callback(renv)
+
+    def ok_42(env):
+        res_ok(env)
+        eq_(42, int(env['result_percentage']))
+
+    def checker_error(env):
+        eq_('SE', env['result_code'])
+        in_('checker', env['result_string'])
+
+    if ENABLE_SANDBOXES:
+        yield _test, '/chk.c', ok_42
+        # Broken checker
+        yield _test, '/open2.c', res_wa
+        # Hostile checker
+        yield _test, '/fork.c', checker_error
+
+
+# Direct tests
 def test_uploading_out():
     with TemporaryCwd():
         upload_files()
@@ -207,14 +260,19 @@ def test_uploading_out():
         ft.download({'path': '/output'}, 'path', 'd_out')
         in_('84', open('d_out').read())
 
-# Direct tests
 @nottest
-def _test_exec(source, executor, callback, kwargs):
+def _test_transparent_exec(source, executor, callback, kwargs):
     with TemporaryCwd():
         upload_files()
+        ft.download({'path': '/somefile'}, 'path', 'somefile')
         result_env = compile_and_execute(source, executor, **kwargs)
         print_env(result_env)
-        callback(result_env)
+        if callback:
+            callback(result_env)
+@nottest
+def _test_exec(source, executor, callback, kwargs):
+    kwargs.setdefault('ignore_errors', True)
+    _test_transparent_exec(source, executor, callback, kwargs)
 
 @nottest
 def _test_raw(cmd, executor, callback, kwargs):
@@ -251,30 +309,29 @@ def test_capturing_stdout():
 
 
 def test_return_codes():
-    _raising_test_exec = raises(ExecError)(_test_exec)
-
-    def return_42(env):
+    def ret_42(env):
         eq_(42, env['return_code'])
-
-    def runtime_42(env):
-        eq_('RE', env['result_code'])
-        in_('42', env['result_string'])
 
     executors = [UnprotectedExecutor]
 
     for executor in executors:
-        yield _raising_test_exec, '/return-scanf.c', executor(), None, {}
-        yield _test_exec, '/return-scanf.c', executor(), return_42, \
+        yield raises(ExecError)(_test_transparent_exec), '/return-scanf.c',\
+                executor(), None, {}
+        yield _test_transparent_exec, '/return-scanf.c', executor(), ret_42, \
                 {'ignore_errors': True}
-        yield _test_exec, '/return-scanf.c', executor(), return_42, \
-            {'extra_ignore_errors': (42,)}
+        yield _test_transparent_exec, '/return-scanf.c', executor(), ret_42, \
+                {'extra_ignore_errors': (42,)}
 
     checking_executors = CHECKING_EXECUTORS
     if ENABLE_SANDBOXES:
         checking_executors += SANDBOXED_CHECKING_EXECUTORS
 
     for executor in checking_executors:
-        yield _test_exec, '/return-scanf.c', executor(), runtime_42, {}
+        yield _test_exec, '/return-scanf.c', executor(), res_re(42), {}
+
+    if ENABLE_SANDBOXES:
+        yield _test_exec, '/return-scanf.c', SupervisedExecutor(), res_ok, \
+                {'ignore_return': True}
 
 def test_output_limit():
     def ole(env):
@@ -301,14 +358,6 @@ def test_output_limit():
         yield _test_exec, '/iospam-hard.c', executor(), ole, {} # Default
 
 def test_signals():
-    def due_signal(code):
-        def inner(env):
-            eq_('RE', env['result_code'])
-            in_('due to signal', env['result_string'])
-            in_(str(code), env['result_string'])
-        return inner
-
-
     checking_executors = CHECKING_EXECUTORS
     if ENABLE_SANDBOXES:
         checking_executors += SANDBOXED_CHECKING_EXECUTORS
@@ -324,18 +373,38 @@ def test_signals():
             yield _test_exec, '/' + prog, executor(), due_signal(code), {}
 
 def test_rule_violation():
-    def rv(msg):
-        def inner(env):
-            eq_('RV', env['result_code'])
-            in_(msg, env['result_string'])
-        return inner
-
     checking_executors = []
     if ENABLE_SANDBOXES:
         checking_executors += SANDBOXED_CHECKING_EXECUTORS
 
     for executor in checking_executors:
-        yield _test_exec, '/open.c', executor(), rv('opening files'), {}
+        yield _test_exec, '/open.c', executor(), res_rv('opening files'), {}
+
+def test_local_opens():
+    def change(env):
+        res_ok(env)
+        eq_('13', open('somefile').read().strip())
+        ok_(os.path.exists('./not_existing'))
+
+    def nochange(env):
+        res_re(1)(env)
+        eq_('42', open('somefile').read().strip())
+        ok_(not os.path.exists('./not_existing'))
+
+    # Test that this is in fact unsafe
+    yield _test_exec, '/openrw.c', DetailedUnprotectedExecutor(), change, {}
+
+    if ENABLE_SANDBOXES:
+        yield _test_exec, '/open.c', SupervisedExecutor(), \
+                res_rv('opening files'), {}
+        yield _test_exec, '/openrw.c', SupervisedExecutor(), \
+                res_rv('opening files'), {}
+        yield _test_exec, '/open.c', \
+                SupervisedExecutor(allow_local_open=True), res_ok, {}
+        yield _test_exec, '/openrw.c', \
+                SupervisedExecutor(allow_local_open=True), nochange, {}
+        yield _test_exec, '/open2.c', \
+                SupervisedExecutor(allow_local_open=True), res_re(1), {}
 
 def test_vcpu_accuracy():
     def used_1sec(env):

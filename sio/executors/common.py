@@ -11,7 +11,7 @@ def _populate_environ(renv, environ):
     for key in ('result_code', 'result_string'):
         environ[key] = renv.get(key, '')
 
-def run(environ, executor, safe_check=True):
+def run(environ, executor, use_sandboxes=True):
     """
     Common code for executors.
 
@@ -19,7 +19,7 @@ def run(environ, executor, safe_check=True):
                     For all supported options, see the global documentation for
                     `sio.workers.executors` and prefix them with ``exec_``.
     :param: executor Executor instance used for executing commands.
-    :param: safe_check Enables safe checking output correctness.
+    :param: use_sandboxes Enables safe checking output correctness.
                        See `sio.executors.checkers`. True by default.
     """
     ft.download(environ, 'exe_file', 'exe', add_to_cache=True)
@@ -35,7 +35,7 @@ def run(environ, executor, safe_check=True):
     _populate_environ(renv, environ)
 
     if renv['result_code'] == 'OK' and environ.get('check_output'):
-        environ = checker.run(environ, no_sandbox=not safe_check)
+        environ = checker.run(environ, use_sandboxes=use_sandboxes)
 
     for key in ('result_code', 'result_string'):
         environ[key] = replace_invalid_UTF(environ[key])

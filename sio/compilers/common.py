@@ -4,8 +4,8 @@ from sio.workers.executors import UnprotectedExecutor, PRootExecutor
 from sio.workers.util import replace_invalid_UTF
 
 DEFAULT_COMPILER_TIME_LIMIT = 30000  # in ms
-DEFAULT_COMPILER_MEM_LIMIT = 256 << 10  # in kbytes
-DEFAULT_COMPILER_OUTPUT_LIMIT = 5 << 10  # in bytes
+DEFAULT_COMPILER_MEM_LIMIT = 256 * 2**10  # in KiB
+DEFAULT_COMPILER_OUTPUT_LIMIT = 5 * 2**10  # in KiB
 
 def _lang_option(environ, key, lang):
     value = environ.get(key, ())

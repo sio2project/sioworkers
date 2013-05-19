@@ -63,6 +63,13 @@ The following parameters are recognized in ``environ``:
 
     Default: ``compare`` program from the sandbox.
 
+  ``untrusted_checker``
+    Pass ``True`` to run ``chk_file`` in sandbox.
+
+  ``checker_mem_limit``,  ``checker_time_limit``, ``checker_out_limit``
+    Just like for executing program, but for checker. Only difference is default
+    memory limit raised to 256MiB
+
 Parameters added to the environment:
 
   ``result_code``
@@ -142,7 +149,7 @@ Builtin jobs
 +--------------+------+------------+-----------------------------------------+
 |``vcpu-exec`` |Yes   |``vcpu_``\  |This is machine-independent execution    |
 |              |      |``exec-``\  |job, which uses instruction counting     |
-|              |      |``sandbox`` |for meansiring "runtime" of programs.    |
+|              |      |``sandbox`` |for meansuring "runtime" of programs.    |
 |              |      |            |It uses a secure sandbox as well.        |
 +--------------+------+------------+-----------------------------------------+
 

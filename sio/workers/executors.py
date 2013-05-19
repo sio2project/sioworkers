@@ -175,7 +175,7 @@ class BaseExecutor(object):
          to ``en_US.UTF-8``.
 
        ``ignore_errors``
-         Do not throw :exc:`ExecError` if the program exits with non-zero code.
+         Do not throw :exc:`ExecError` if the program exits with error
 
        ``extra_ignore_errors``
          Do not throw :exc:`ExecError` if the program exits with one of the
@@ -323,7 +323,6 @@ class DetailedUnprotectedExecutor(UnprotectedExecutor):
         stderr = tempfile.TemporaryFile()
         kwargs['stderr'] = stderr
         kwargs['forward_stderr'] = False
-        kwargs['ignore_errors'] = True
         renv = super(DetailedUnprotectedExecutor, self)._execute(command,
                                                                     **kwargs)
         stderr.seek(0)
@@ -349,7 +348,7 @@ class DetailedUnprotectedExecutor(UnprotectedExecutor):
         elif renv['return_code'] == 0:
             renv['result_string'] = 'ok'
             renv['result_code'] = 'OK'
-        elif renv['return_code'] > 128: # os.WIFSIGNALED(1) returns True
+        elif renv['return_code'] > 128:  # os.WIFSIGNALED(1) returns True
             renv['result_string'] = 'program exited due to signal %d' \
                                     % os.WTERMSIG(renv['return_code'])
             renv['result_code'] = 'RE'
@@ -433,9 +432,9 @@ class _SIOSupervisedExecutor(SandboxExecutor):
     def _execute(self, command, **kwargs):
         env = kwargs.get('env')
         env.update({
-                    'MEM_LIMIT': kwargs['mem_limit'] or 64 << 10,
+                    'MEM_LIMIT': kwargs['mem_limit'] or 64 * 2**10,
                     'TIME_LIMIT': kwargs['time_limit'] or 30000,
-                    'OUT_LIMIT': kwargs['output_limit'] or 50 << 20,
+                    'OUT_LIMIT': kwargs['output_limit'] or 50 * 2**20,
                     })
 
         if kwargs['real_time_limit']:
@@ -447,7 +446,8 @@ class _SIOSupervisedExecutor(SandboxExecutor):
             # Limiting outside supervisor
             kwargs['real_time_limit'] = 2 * s2ms(env['HARD_LIMIT'])
 
-
+        ignore_errors = kwargs.pop('ignore_errors')
+        extra_ignore_errors = kwargs.pop('extra_ignore_errors')
         renv = {}
         try:
             result_file = tempfile.NamedTemporaryFile(dir=os.getcwd())
@@ -456,12 +456,12 @@ class _SIOSupervisedExecutor(SandboxExecutor):
                         command + [noquote('3>'), result_file.name],
                          **kwargs
                         )
-            # TODO: supervisor errors handling (for example hard hard TLE)
 
-            if renv['return_code']:
+            if 'real_time_killed' in renv:
+                raise ExecError('Supervisor exceeded realtime limit')
+            elif renv['return_code']:
                 raise ExecError('Supervisor returned code %s'
                                 % renv['return_code'])
-
 
             result_file.seek(0)
             status_line = result_file.readline().strip().split()[1:]
@@ -474,7 +474,7 @@ class _SIOSupervisedExecutor(SandboxExecutor):
 
             result_code = self._supervisor_result_to_code(
                                                         renv['result_code'])
-        except Exception, e:
+        except Exception as e:
             logger.error('SupervisedExecutor error: %s', traceback.format_exc())
             logger.error('SupervisedExecutor error dirlist: %s: %s',
                          os.getcwd(), str(os.listdir('.')))
@@ -486,13 +486,17 @@ class _SIOSupervisedExecutor(SandboxExecutor):
 
         renv['result_code'] = result_code
 
+        if result_code != 'OK' and not ignore_errors and \
+                        result_code not in extra_ignore_errors:
+            raise ExecError('Failed to execute command: %s. Reason: %s'
+                        % (command, renv['result_string']))
         return renv
 
 class VCPUExecutor(_SIOSupervisedExecutor):
     """Runs program in controlled environment while counting CPU instructions.
 
        Executed programs may only use stdin/stdout/stderr and manage it's
-       own memory. Retuns extended statistics in ``renv`` containing:
+       own memory. Returns extended statistics in ``renv`` containing:
 
        ``time_used``: time based on instruction counting (in ms).
 
@@ -500,45 +504,62 @@ class VCPUExecutor(_SIOSupervisedExecutor):
 
        ``num_syscall``: number of times a syscall has been called
 
-       ``result_code``: short code reporting result of sandboxing. Is one of \
+       ``result_code``: short code reporting result of rule obeying. Is one of \
                         ``OK``, ``RE``, ``TLE``, ``OLE``, ``MLE``, ``RV``
 
        ``result_string``: string describing ``result_code``
     """
 
     def __init__(self):
+        self.options = ['-f', '3']
         super(VCPUExecutor, self).__init__('vcpu_exec-sandbox')
 
     def _execute(self, command, **kwargs):
-        command = [os.path.join(self.sandbox.path, 'pin-supervisor',
-                                         'supervisor-bin', 'supervisor'),
-                    '-f', '3', '--'] + command
+        command = [os.path.join(self.rpath, 'pin-supervisor',
+                                         'supervisor-bin', 'supervisor')] + \
+                    self.options + ['--'] + command
         return super(VCPUExecutor, self)._execute(command, **kwargs)
 
 class SupervisedExecutor(_SIOSupervisedExecutor):
     """Executes program in supervised mode.
 
-       Executed programs may only use stdin/stdout/stderr and manage it's
-       own memory. Retuns extended statistics in ``renv`` containing:
+       Sandboxing limitations may be controlled by passing following arguments
+       to constructor:
 
-       ``time_used``: time based on instruction counting (in ms).
+         ``allow_local_open`` Allow opening files within current directory in \
+                              read-only mode
+
+       Following new arguments are recognized in ``__call__``:
+
+          ``ignore_return`` Do no treat non-zero return code as runtime error.
+
+       Executed programs may only use stdin/stdout/stderr and manage it's
+       own memory. Returns extended statistics in ``renv`` containing:
+
+       ``time_used``: processor user time (in ms).
 
        ``mem_used``: memory used (in KiB).
 
        ``num_syscall``: number of times a syscall has been called
 
-       ``result_code``: short code reporting result of sandboxing. Is one of \
+       ``result_code``: short code reporting result of rule obeying. Is one of \
                         ``OK``, ``RE``, ``TLE``, ``OLE``, ``MLE``, ``RV``
 
        ``result_string``: string describing ``result_code``
     """
 
-    def __init__(self):
-        super(SupervisedExecutor, self).__init__('exec-sandbox')
+    def __init__(self, allow_local_open=False, **kwargs):
+        self.options = ['-q', '-f', '3']
+        if allow_local_open:
+            self.options += ['-l']
+        super(SupervisedExecutor, self).__init__('exec-sandbox', **kwargs)
 
     def _execute(self, command, **kwargs):
-        command = [os.path.join(self.sandbox.path, 'bin', 'supervisor'),
-                    '-q', '-f', '3'] + command
+        options = self.options
+        if kwargs.get('ignore_return', False):
+            options = options + ['-R']
+        command = [os.path.join(self.rpath, 'bin', 'supervisor')] + \
+                  options + command
         return super(SupervisedExecutor, self)._execute(command, **kwargs)
 
 class PRootExecutor(BaseExecutor):
