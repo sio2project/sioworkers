@@ -3,7 +3,7 @@ from sio.compilers import common
 
 COMPILER_OPTIONS = ['-static', '-O2', '-s']
 
-def run(environ, lang):
+def run(environ, lang, extra_options=[]):
     if lang == 'c':
         compiler_exe = 'gcc'
         extension = 'c'
@@ -21,7 +21,7 @@ def run(environ, lang):
                compiler=compiler_exe,
                extension=extension,
                output_file='a.out',
-               compiler_options=COMPILER_OPTIONS,
+               compiler_options=(COMPILER_OPTIONS + extra_options),
                sandbox=True,
                sandbox_callback=include_callback)
 
@@ -33,7 +33,10 @@ def run_gplusplus(environ):
 
 def run_default(environ, lang):
     environ['compiler'] = 'gcc.4_6_3'
-    return run(environ, lang)
+    extra_options = []
+    if lang == 'cpp':
+        extra_options = ['-std=gnu++0x']
+    return run(environ, lang, extra_options)
 
 def run_default_c(environ):
     return run_default(environ, 'c')
