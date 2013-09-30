@@ -14,7 +14,7 @@ def run(environ, lang, extra_options=[]):
         raise ValueError("Unexpected language name: " + lang)
 
     def include_callback(executor, cmd):
-        return cmd + ['-I', os.path.join(executor.rpath, 'usr', 'include')];
+        return cmd + ['-I', os.path.join(executor.rpath, 'usr', 'include')]
 
     return common.run(environ=environ,
                lang=lang,

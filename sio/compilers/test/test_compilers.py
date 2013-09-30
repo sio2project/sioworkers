@@ -107,6 +107,9 @@ def test_compilation():
         yield _test, '3\n5\n5\n7\n9\n10', compiler + 'cpp', '/libstdc++.cpp'
         yield _test, 'Hello World from pas', compiler + 'pas', '/simple.pas'
 
+    if ENABLE_SANDBOXED_COMPILERS:
+        yield _test, '12903', 'default-cpp', '/cpp11.cpp'
+
 def test_compilation_with_additional_library():
     def _test(message, compiler, source, sources, includes=()):
         with TemporaryCwd():
