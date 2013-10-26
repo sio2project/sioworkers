@@ -1,7 +1,7 @@
 import os.path
 from sio.compilers import common
 
-COMPILER_OPTIONS = ['-static', '-O2', '-s']
+COMPILER_OPTIONS = ['-static', '-O2', '-s', '-lm']
 
 def run(environ, lang, extra_options=[]):
     if lang == 'c':
