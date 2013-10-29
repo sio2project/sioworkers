@@ -10,10 +10,7 @@ import celery.loaders.default
 from filetracker.servers.run import DEFAULT_PORT as DEFAULT_FILETRACKER_PORT
 
 def _host_from_url(url):
-    try:
-        return urlparse.urlparse(url).hostname
-    except Exception:
-        return None
+    return urlparse.urlparse(url).hostname
 
 def main():
     usage = "usage: %prog [options] [broker-url]"
