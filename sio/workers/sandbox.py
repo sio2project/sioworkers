@@ -21,7 +21,7 @@ CHECK_INTERVAL = int(os.environ.get('SIO_SANDBOXES_CHECK_INTERVAL', 3600))
 
 logger = logging.getLogger(__name__)
 
-class SandboxError(Exception):
+class SandboxError(StandardError):
     pass
 
 def _filetracker_path(name):
@@ -185,7 +185,7 @@ class Sandbox(object):
             self._mark_checked()
             return False
 
-        except (Exception):
+        except Exception:
             logger.warning("Failed to check if sandbox is up-to-date",
                     exc_info=True)
             if os.path.isdir(self.path):
@@ -254,7 +254,7 @@ class Sandbox(object):
                 ft_client = ft.instance()
                 vname = ft_client.get_file(ft_path, archive_path)
                 version = ft_client.file_version(vname)
-            except Exception, e:
+            except Exception:
                 logger.warning("Failed to download sandbox from filetracker",
                         exc_info=True)
                 if SANDBOXES_URL:
