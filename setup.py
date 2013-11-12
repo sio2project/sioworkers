@@ -15,7 +15,7 @@ setup(
         'filetracker>=0.95',
         'simplejson',
 
-        'Celery',
+        'Celery<3.1',
     ],
 
     setup_requires = [
