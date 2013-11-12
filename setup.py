@@ -45,6 +45,7 @@ setup(
             'c = sio.compilers.gcc:run_gcc',
             'gcc = sio.compilers.gcc:run_gcc',
 
+            'cc = sio.compilers.gcc:run_gplusplus',
             'cpp = sio.compilers.gcc:run_gplusplus',
             'g++ = sio.compilers.gcc:run_gplusplus',
 
@@ -55,6 +56,7 @@ setup(
             'system-c = sio.compilers.system_gcc:run_gcc',
             'system-gcc = sio.compilers.system_gcc:run_gcc',
 
+            'system-cc = sio.compilers.system_gcc:run_gplusplus',
             'system-cpp = sio.compilers.system_gcc:run_gplusplus',
             'system-g++ = sio.compilers.system_gcc:run_gplusplus',
 
