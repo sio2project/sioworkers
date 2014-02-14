@@ -1,6 +1,7 @@
 import glob
 import os.path
 import shutil
+import re
 
 from nose.tools import ok_, eq_, assert_not_equal, nottest, raises, \
         assert_raises
@@ -8,6 +9,8 @@ from filetracker.dummy import DummyClient
 
 from sio.compilers.job import run as run_compiler
 from sio.executors.common import run as run_executor
+from sio.executors.ingen import run as run_ingen
+from sio.executors.inwer import run as run_inwer
 from sio.workers import ft
 from sio.workers.execute import execute
 from sio.workers.executors import UnprotectedExecutor, \
@@ -112,6 +115,7 @@ def fail(*args, **kwargs):
 MEMORY_CHECKS = ['30MiB-bss.c', '30MiB-data.c', '30MiB-malloc.c',
         '30MiB-stack.c']
 MEMORY_CHECKS_LIMIT = 30 * 1024  # in KiB
+SMALL_OUTPUT_LIMIT = 50  # in B
 CHECKING_EXECUTORS = [DetailedUnprotectedExecutor]
 SANDBOXED_CHECKING_EXECUTORS = [SupervisedExecutor, VCPUExecutor]
 
@@ -245,6 +249,129 @@ def test_untrusted_checkers():
         # Hostile checker
         yield _test, '/fork.c', checker_error
 
+def test_inwer():
+    def _test(inwer, in_file, use_sandboxes, callback):
+        with TemporaryCwd():
+            upload_files()
+            inwer_bin = compile(inwer, '/inwer.e')
+        with TemporaryCwd():
+            env = {
+                    'in_file': in_file,
+                    'exe_file': inwer_bin,
+                    'use_sandboxes': use_sandboxes,
+                    'inwer_output_limit': SMALL_OUTPUT_LIMIT,
+                    }
+            renv = run_inwer(env)
+            print_env(renv)
+            if callback:
+                callback(renv)
+
+    def check_inwer_ok(env):
+        eq_(env['result_code'], "OK")
+        ok_(env['stdout'][0].startswith("OK"))
+
+    def check_inwer_wrong(env):
+        assert_not_equal(env['result_code'], "OK")
+        in_("WRONG", env['stdout'][0])
+
+    def check_inwer_faulty(env):
+        eq_(env['result_code'], "OK")
+        ok_(not env['stdout'][0].startswith("OK"))
+
+    def check_inwer_big_output(use_sandboxes):
+        def inner(env):
+            if(use_sandboxes):
+                eq_(env['result_code'], "OLE")
+            else:
+                eq_(env['result_code'], "OK")
+                eq_(env['stdout'], ['A' * SMALL_OUTPUT_LIMIT])
+        return inner
+
+    sandbox_options = [False]
+    if ENABLE_SANDBOXES:
+        sandbox_options.append(True)
+
+    for use_sandboxes in sandbox_options:
+        yield _test, '/inwer.c', '/inwer_ok', use_sandboxes, check_inwer_ok
+        yield _test, '/inwer.c', '/inwer_wrong', use_sandboxes, \
+                check_inwer_wrong
+        yield _test, '/inwer_faulty.c', '/inwer_ok', use_sandboxes, \
+                check_inwer_faulty
+        yield _test, '/inwer_big_output.c', '/inwer_ok', use_sandboxes, \
+                check_inwer_big_output(use_sandboxes)
+
+def test_ingen():
+    def _test(ingen, re_string, upload_dir, use_sandboxes, callback):
+        with TemporaryCwd():
+            upload_files()
+            ingen_bin = compile(ingen, '/ingen.e')
+        with TemporaryCwd():
+            env = {
+                    're_string': re_string,
+                    'collected_files_path': '/' + upload_dir,
+                    'exe_file': ingen_bin,
+                    'use_sandboxes': use_sandboxes,
+                    'ingen_output_limit': SMALL_OUTPUT_LIMIT,
+                    }
+            renv = run_ingen(env)
+            print_env(renv)
+            if callback:
+                callback(renv)
+
+    def check_upload(upload_dir, expected_files, expected_output):
+        def inner(env):
+            eq_(env['return_code'], 0)
+            eq_(env['stdout'], expected_output)
+            collected = env['collected_files']
+            eq_(len(expected_files), len(collected))
+            for filename, path in collected.iteritems():
+                in_(filename, expected_files)
+                unversioned_path = '/%s/%s' % (upload_dir, filename)
+                upload_re_str = '%s@\d+' % (unversioned_path)
+                upload_re = re.compile(upload_re_str)
+                ok_(upload_re.match(path), 'Unexpected filetracker path')
+
+                ft.download({'in': unversioned_path}, 'in', filename)
+                eq_(expected_files[filename], open(filename).read())
+        return inner
+
+    def check_proot_fail(env):
+        eq_(env['return_code'], 139)
+
+    sandbox_options = [False]
+    if ENABLE_SANDBOXES:
+        sandbox_options.append(True)
+
+    test_sets = [
+            {
+                'program': '/ingen.c',
+                'dir': 'somedir',
+                're_string': r'.*\.upload',
+                'files': {
+                    'two.upload': '2\n',
+                    'five.five.upload': '5\n',
+                    },
+                'output': ["Everything OK", "Really"],
+                },
+            {
+                'program': '/ingen_big_output.c',
+                'dir': 'other_dir',
+                're_string': r'.*_upload',
+                'files': {
+                    'three_upload': '3\n',
+                    },
+                'output': ['A' * SMALL_OUTPUT_LIMIT],
+                },
+            ]
+
+    for use_sandboxes in sandbox_options:
+        for test in test_sets:
+            yield _test, test['program'], test['re_string'], test['dir'], \
+                    use_sandboxes, \
+                    check_upload(test['dir'], test['files'], test['output'])
+    if ENABLE_SANDBOXES:
+        yield _test, '/ingen_nosy.c', 'myfile.txt', 'somedir', True, \
+                check_proot_fail
 
 # Direct tests
 def test_uploading_out():
