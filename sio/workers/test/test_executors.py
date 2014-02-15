@@ -143,7 +143,7 @@ def res_rv(msg):
 
 def due_signal(code):
     def inner(env):
-        res_re('due to signal')
+        res_re('due to signal')(env)
         in_(str(code), env['result_string'])
     return inner
 
@@ -162,7 +162,7 @@ def test_common_memory_limiting():
     def res_mle_or_fail(env):
         res_not_ok(env)
         if env['result_code'] != 'MLE':
-            due_signal(11)  # sigsegv
+            due_signal(11)(env)  # sigsegv
 
     for test in MEMORY_CHECKS:
         for executor in CHECKING_EXECUTORS:
