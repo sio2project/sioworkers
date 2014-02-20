@@ -2,9 +2,9 @@
 #include <math.h>
 #include <stdio.h>
 
-int main() {
-    double v = 999.412;
-
+int main(int argc, char **argv) {
+    double v;
+    sscanf(argv[1], "%lf", &v);
     printf("%lf, %lf, %lf\n", log(v), sqrt(v), atan(v));
 
     return 0;

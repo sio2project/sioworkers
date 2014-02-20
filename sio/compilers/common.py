@@ -52,8 +52,8 @@ def run(environ, lang, compiler, extension, output_file, compiler_options=(),
             _lang_option(environ, 'extra_compilation_args', lang)
 
     ft.download(environ, 'source_file', 'a.' + extension)
-    cmdline = [compiler, ] + list(compiler_options) + \
-                list(extra_compilation_args) + ['a.' + extension, ]
+    cmdline = [compiler, 'a.' + extension] + list(compiler_options) + \
+                list(extra_compilation_args)
     # this cmdline may be later extended
 
     # using a copy of the environment in order to avoid polluting it with

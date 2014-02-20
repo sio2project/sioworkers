@@ -66,7 +66,7 @@ def upload_files():
     for path in glob.glob(os.path.join(SOURCES, '*')):
         ft.upload({'path': '/' + os.path.basename(path)}, 'path', path)
 
-def compile_and_run(compiler_env, expected_output):
+def compile_and_run(compiler_env, expected_output, program_args=None):
     """Helper function for compiling, launching and
        testing the result of a program.
     """
@@ -80,21 +80,23 @@ def compile_and_run(compiler_env, expected_output):
 
     os.chmod(binary, stat.S_IXUSR)
 
-    retcode, output = execute(['./' + binary])
+    if not program_args:
+        program_args = []
+    retcode, output = execute(['./' + binary] + program_args)
     eq_(retcode, 0)
     eq_(output.strip(), expected_output)
 
     os.remove(binary)
 
 def test_compilation():
-    def _test(message, compiler, source):
+    def _test(message, compiler, source, program_args=None):
         with TemporaryCwd():
             upload_files()
             compile_and_run({
                 'source_file': source,
                 'compiler': compiler,
                 'out_file': '/out',
-                }, message)
+                }, message, program_args)
 
     compilers = ['system-']
     if ENABLE_SANDBOXED_COMPILERS:
@@ -102,7 +104,8 @@ def test_compilation():
 
     for compiler in compilers:
         yield _test, 'Hello World from c', compiler + 'c', '/simple.c'
-        yield _test, '6.907167, 31.613478, 1.569796', compiler + 'c', '/libm.c'
+        yield _test, '6.907167, 31.613478, 1.569796', compiler + 'c', \
+                '/libm.c', ['999.412']
         yield _test, 'Hello World from cpp', compiler + 'cpp', '/simple.cpp'
         yield _test, '3\n5\n5\n7\n9\n10', compiler + 'cpp', '/libstdc++.cpp'
         yield _test, 'Hello World from pas', compiler + 'pas', '/simple.pas'
