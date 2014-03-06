@@ -30,6 +30,8 @@ setup(
             'vcpu-exec = sio.executors.vcpu_exec:run',
             'cpu-exec = sio.executors.executor:run',
             'unsafe-exec = sio.executors.unsafe_exec:run',
+            'ingen = sio.executors.ingen:run',
+            'inwer = sio.executors.inwer:run',
         ],
         'sio.compilers': [
             # Example compiler:
