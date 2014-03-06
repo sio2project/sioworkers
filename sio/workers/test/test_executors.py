@@ -218,18 +218,20 @@ def test_outputting_non_utf8():
             ok_(renv['result_string'].decode('utf8'))
 
 def test_untrusted_checkers():
-    def _test(checker, callback):
+    def _test(checker, callback, sandboxed=True):
         with TemporaryCwd():
             upload_files()
             checker_bin = compile(checker, '/chk.e')
         with TemporaryCwd():
+            executor = SupervisedExecutor(use_program_return_code=True) if \
+                    sandboxed else DetailedUnprotectedExecutor()
             renv = compile_and_run('/add_print.c', {
-                'in_file': '/input',
-                'check_output': True,
-                'hint_file': '/hint',
-                'chk_file': checker_bin,
-                'untrusted_checker': True,
-            }, SupervisedExecutor(), use_sandboxes=True)
+                    'in_file': '/input',
+                    'check_output': True,
+                    'hint_file': '/hint',
+                    'chk_file': checker_bin,
+                    'untrusted_checker': True,
+            }, executor, use_sandboxes=sandboxed)
             print_env(renv)
             if callback:
                 callback(renv)
@@ -238,16 +240,19 @@ def test_untrusted_checkers():
         res_ok(env)
         eq_(42, int(env['result_percentage']))
 
-    def checker_error(env):
-        eq_('SE', env['result_code'])
-        in_('checker', env['result_string'])
+    # Test if unprotected execution allows for return code 1
+    yield _test, '/chk-rtn1.c', None, False
+    # Test if unprotected execution allows for return code 2
+    yield raises(SystemError)(_test), '/chk-rtn2.c', None, False
 
     if ENABLE_SANDBOXES:
         yield _test, '/chk.c', ok_42
         # Broken checker
         yield _test, '/open2.c', res_wa
         # Hostile checker
-        yield _test, '/fork.c', checker_error
+        yield raises(SystemError)(_test), '/fork.c', None
+        # Wrong model solution
+        yield raises(SystemError)(_test), '/chk-rtn2.c', None
 
 def test_inwer():
     def _test(inwer, in_file, use_sandboxes, callback):

@@ -10,6 +10,9 @@ logger = logging.getLogger(__name__)
 DEFAULT_CHECKER_TIME_LIMIT = 30000  # in ms
 DEFAULT_CHECKER_MEM_LIMIT = 256 * 2**10  # in KiB
 
+class CheckerError(Exception):
+    pass
+
 def _run_in_executor(env, command, executor, **kwargs):
     with executor:
         return executor(command,
@@ -27,10 +30,18 @@ def _run_checker(env, use_sandboxes=False):
     command = ['./chk', 'in', 'out', 'hint']
     if env.get('untrusted_checker', False) and use_sandboxes:
         renv = _run_in_executor(env, command,
-                SupervisedExecutor(allow_local_open=True), ignore_return=True)
+                SupervisedExecutor(allow_local_open=True,
+                        use_program_return_code=True), ignore_return=False,
+                extra_ignore_errors=[1])
     else:
         renv = _run_in_executor(env, command, UnprotectedExecutor(),
                 ignore_errors=True)
+
+    if renv['return_code'] >= 2:
+        raise CheckerError(
+                'Checker returned code(%d) >= 2. Checker environ dump: %s' \
+                        % (renv['return_code'], env))
+
     return renv['stdout']
 
 def _run_compare(env):
@@ -55,12 +66,10 @@ def run(environ, use_sandboxes=True):
             output = _run_compare(environ)
         else:
             output = _run_diff(environ)
-    except ExecError as e:
+    except (CheckerError, ExecError) as e:
         logger.error('Checker failed! %s', e)
         logger.error('Environ dump: %s', environ)
-        environ['result_code'] = 'SE'
-        environ['result_string'] = 'checker failure'
-        return environ
+        raise SystemError(e)
 
     while len(output) < 3:
         output.append('')

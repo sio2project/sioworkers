@@ -459,7 +459,8 @@ class _SIOSupervisedExecutor(SandboxExecutor):
 
             if 'real_time_killed' in renv:
                 raise ExecError('Supervisor exceeded realtime limit')
-            elif renv['return_code']:
+            elif renv['return_code'] and \
+                    renv['return_code'] not in extra_ignore_errors:
                 raise ExecError('Supervisor returned code %s'
                                 % renv['return_code'])
 
@@ -472,8 +473,8 @@ class _SIOSupervisedExecutor(SandboxExecutor):
                     if key:
                         renv[key] = int(status_line[num])
 
-            result_code = self._supervisor_result_to_code(
-                                                        renv['result_code'])
+            result_code = self._supervisor_result_to_code(renv['result_code'])
+
         except Exception as e:
             logger.error('SupervisedExecutor error: %s', traceback.format_exc())
             logger.error('SupervisedExecutor error dirlist: %s: %s',
@@ -486,8 +487,9 @@ class _SIOSupervisedExecutor(SandboxExecutor):
 
         renv['result_code'] = result_code
 
-        if result_code != 'OK' and not ignore_errors and \
-                        result_code not in extra_ignore_errors:
+        if result_code != 'OK' and not ignore_errors and not \
+                (result_code != 'RV' and renv['return_code'] in \
+                        extra_ignore_errors):
             raise ExecError('Failed to execute command: %s. Reason: %s'
                         % (command, renv['result_string']))
         return renv
@@ -529,9 +531,13 @@ class SupervisedExecutor(_SIOSupervisedExecutor):
          ``allow_local_open`` Allow opening files within current directory in \
                               read-only mode
 
+         ``use_program_return_code`` Makes supervisor pass the program return \
+                                     code to renv['return_code'] rather than \
+                                     the sandbox return code.
+
        Following new arguments are recognized in ``__call__``:
 
-          ``ignore_return`` Do no treat non-zero return code as runtime error.
+          ``ignore_return`` Do not treat non-zero return code as runtime error.
 
        Executed programs may only use stdin/stdout/stderr and manage it's
        own memory. Returns extended statistics in ``renv`` containing:
@@ -548,10 +554,13 @@ class SupervisedExecutor(_SIOSupervisedExecutor):
        ``result_string``: string describing ``result_code``
     """
 
-    def __init__(self, allow_local_open=False, **kwargs):
+    def __init__(self, allow_local_open=False, use_program_return_code=False,
+                 **kwargs):
         self.options = ['-q', '-f', '3']
         if allow_local_open:
             self.options += ['-l']
+        if use_program_return_code:
+            self.options += ['-r']
         super(SupervisedExecutor, self).__init__('exec-sandbox', **kwargs)
 
     def _execute(self, command, **kwargs):
