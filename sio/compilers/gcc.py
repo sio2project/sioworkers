@@ -1,46 +1,26 @@
-import os.path
-from sio.compilers import common
+from sio.compilers.system_gcc import CStyleCompiler
 
-COMPILER_OPTIONS = ['-static', '-O2', '-s', '-lm']
 
-def run(environ, lang, extra_options=[]):
-    if lang == 'c':
-        compiler_exe = 'gcc'
-        extension = 'c'
-    elif lang == 'cpp':
-        compiler_exe = 'g++'
-        extension = 'cpp'
-    else:
-        raise ValueError("Unexpected language name: " + lang)
+class CCompiler(CStyleCompiler):
+    sandbox = 'gcc.4_8_2'
+    lang = 'c'
+    options = ['-static', '-O2', '-s', '-lm']
 
-    def include_callback(executor, cmd):
-        return cmd + ['-I', os.path.join(executor.rpath, 'usr', 'include')]
 
-    return common.run(environ=environ,
-               lang=lang,
-               compiler=compiler_exe,
-               extension=extension,
-               output_file='a.out',
-               compiler_options=(COMPILER_OPTIONS + extra_options),
-               sandbox=True,
-               sandbox_callback=include_callback)
+class CPPCompiler(CStyleCompiler):
+    sandbox = 'gcc.4_8_2'
+    lang = 'cpp'
+    compiler = 'g++'
+    options = ['-std=c++11', '-static', '-O2', '-s', '-lm']
+
 
 def run_gcc(environ):
-    return run(environ, 'c')
+    return CCompiler().compile(environ)
+
 
 def run_gplusplus(environ):
-    return run(environ, 'cpp')
+    return CPPCompiler().compile(environ)
 
-def run_default(environ, lang):
-    environ['compiler'] = 'gcc.4_8_2'
-    extra_options = []
-    if lang == 'cpp':
-        extra_options = ['-std=c++11']
-    return run(environ, lang, extra_options)
 
-def run_default_c(environ):
-    return run_default(environ, 'c')
-
-def run_default_cpp(environ):
-    return run_default(environ, 'cpp')
-
+run_default_c = run_gcc
+run_default_cpp = run_gplusplus

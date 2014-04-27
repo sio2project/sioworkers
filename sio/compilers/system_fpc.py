@@ -1,10 +1,15 @@
-from sio.compilers import common
+from sio.compilers.common import Compiler
+
+
+class FPCCompiler(Compiler):
+    lang = 'pas'
+    output_file = 'a'
+
+    def _make_cmdline(self, executor):
+        # Addinational sources are automatically included
+        return ['fpc', 'a.pas'] + list(self.extra_compilation_args)
+
 
 def run(environ):
-    return common.run(environ=environ,
-               lang='pas',
-               compiler='fpc',
-               extension='pas',
-               output_file='a',
-               compile_additional_sources=False)
+    return FPCCompiler().compile(environ)
 

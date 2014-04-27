@@ -1,3 +1,4 @@
+# pylint: disable=attribute-defined-outside-init
 import os.path
 import logging
 from zipfile import ZipFile
@@ -9,7 +10,7 @@ from sio.workers.util import replace_invalid_UTF
 logger = logging.getLogger(__name__)
 
 DEFAULT_COMPILER_TIME_LIMIT = 30000  # in ms
-DEFAULT_COMPILER_MEM_LIMIT = 256 * 2**10  # in KiB
+DEFAULT_COMPILER_MEM_LIMIT = 512 * 2**10  # in KiB
 DEFAULT_COMPILER_OUTPUT_LIMIT = 5 * 2**10  # in KiB
 
 
@@ -39,103 +40,121 @@ def _extract_all(archive_path):
                 zipf.extract(name, target_path)
 
 
-def run(environ, lang, compiler, extension, output_file, compiler_options=(),
-        compile_additional_sources=True, sandbox=False,
-        sandbox_callback=None):
+class Compiler(object):
     """
-    Common code for compiler handlers:
-
-    :param environ: Recipe to pass to `filetracker` and `sio.workers.execute`
-                    For all supported options, see the global documentation for
-                    `sio.compilers`.
-    :param lang: Language code (for example: `c`, `cpp`, `pas`)
-    :param compiler: Compiler binary name
-    :param extension: Usual extension for source files of the given language.
-    :param output_file: Default output binary file, assuming the input is named
-                        `a.<extension>`
-    :param compiler_options: Optional tuple of command line parameters to the
-                             compiler.
-    :param compile_additional_sources: Enables passing additional
-                                       source files to the compiler - used
-                                       as a hack to support FPC.
-                                       Defaults to True.
-    :param sandbox: Enables sandboxing (using compiler name
-                    as a sandbox). Defaults to False.
-    :param sandbox_callback: Optional callback called immediately after
-                             creating the executor, with the said executor
-                             and the command argument list as arguments.
-                             Should return new command if modified.
+    Base class for implementing compilers. Override some fields and methods
+    in a subclass to match your needs.
     """
+    sandbox = None
+    #: Language code (for example: `c`, `cpp`, `pas`)
+    lang = ''
+    #: Default output binary file.
+    output_file = ''
 
-    if sandbox is False:
-        executor = UnprotectedExecutor()
-    else:
-        executor = PRootExecutor('compiler-' + environ['compiler'])
+    def __init__(self, sandbox=None):
+        """
+        :param sandbox: If specified, commands will be executed in an isolated
+                        environment with the sandbox as root directory.
+        """
+        if sandbox is not None:
+            self.sandbox = sandbox
 
-    extra_compilation_args = \
-            _lang_option(environ, 'extra_compilation_args', lang)
+        if self.sandbox is None:
+            self.executor = UnprotectedExecutor()
+        else:
+            self.executor = PRootExecutor('compiler-' + self.sandbox)
 
-    ft.download(environ, 'source_file', 'a.' + extension)
-    cmdline = [compiler, 'a.' + extension] + list(compiler_options) + \
-                list(extra_compilation_args)
-    # this cmdline may be later extended
+    def compile(self, environ):
+        """
+        Compile the file specified in the `environ` dictionary.
 
-    # using a copy of the environment in order to avoid polluting it with
-    # temoporary elements
-    tmp_environ = environ.copy()
+        :param environ: Recipe to pass to `filetracker` and
+                    `sio.workers.execute` For all supported options,
+                    see the global documentation for `sio.compilers`.
+        """
+        self.environ = environ
+        # using a copy of the environment in order to avoid polluting it with
+        # temoporary elements
+        self.tmp_environ = environ.copy()
 
-    additional_includes = _lang_option(environ, 'additional_includes', lang)
-    additional_sources = _lang_option(environ, 'additional_sources', lang)
+        self.source_file = self._make_filename()
+        ft.download(environ, 'source_file', self.source_file)
 
-    for include in additional_includes:
-        tmp_environ['additional_include'] = include
-        ft.download(tmp_environ, 'additional_include',
-                    os.path.basename(include))
+        self._process_extra_files()
+        self.extra_compilation_args = \
+                _lang_option(environ, 'extra_compilation_args', self.lang)
 
-    for source in additional_sources:
-        tmp_environ['additional_source'] = source
-        ft.download(tmp_environ, 'additional_source',
-                    os.path.basename(source))
-        if compile_additional_sources:
-            cmdline += [os.path.basename(source), ]
+        with self.executor as executor:
+            renv = self._run_in_executor(executor)
 
-    extra_files = environ.get('extra_files', {})
-    for name, ft_path in extra_files.iteritems():
-        tmp_environ['extra_file'] = ft_path
-        ft.download(tmp_environ, 'extra_file', os.path.basename(name))
+        return self._postprocess(renv)
 
-    if 'additional_archive' in environ:
-        archive = environ['additional_archive']
-        tmp_environ['additional_archive'] = archive
-        archive_path = os.path.basename(archive)
-        ft.download(tmp_environ, 'additional_archive', archive_path)
-        _extract_all(archive_path)
+    def _make_filename(self):
+        return 'a.' + self.lang
 
-    with executor:
-        if sandbox_callback:
-            cmdline = sandbox_callback(executor, cmdline) or cmdline
+    def _process_extra_files(self):
+        self.additional_includes = _lang_option(self.environ,
+                                                'additional_includes',
+                                                self.lang)
+        self.additional_sources = _lang_option(self.environ,
+                                               'additional_sources', self.lang)
 
-        renv = executor(cmdline,
-                                  time_limit=DEFAULT_COMPILER_TIME_LIMIT,
-                                  mem_limit=DEFAULT_COMPILER_MEM_LIMIT,
-                                  output_limit=DEFAULT_COMPILER_OUTPUT_LIMIT,
-                                  ignore_errors=True,
-                                  environ=tmp_environ,
-                                  environ_prefix='compilation_',
-                                  capture_output=True,
-                                  forward_stderr=True)
+        for include in self.additional_includes:
+            self.tmp_environ['additional_include'] = include
+            ft.download(self.tmp_environ, 'additional_include',
+                        os.path.basename(include))
 
-    environ['compiler_output'] = replace_invalid_UTF(renv['stdout'])
-    if renv['return_code']:
-        environ['result_code'] = 'CE'
-    elif 'compilation_result_size_limit' in environ and \
-            os.path.getsize(output_file) > \
-            environ['compilation_result_size_limit']:
-        environ['result_code'] = 'CE'
-        environ['compiler_output'] = 'Compiled file size limit exceeded.'
-    else:
-        environ['result_code'] = 'OK'
-        ft.upload(environ, 'out_file', output_file)
+        for source in self.additional_sources:
+            self.tmp_environ['additional_source'] = source
+            ft.download(self.tmp_environ, 'additional_source',
+                        os.path.basename(source))
 
-    return environ
+        extra_files = self.environ.get('extra_files', {})
+        for name, ft_path in extra_files.iteritems():
+            self.tmp_environ['extra_file'] = ft_path
+            ft.download(self.tmp_environ, 'extra_file', os.path.basename(name))
 
+        archive = self.environ.get('additional_archive', '')
+        if archive:
+            self.tmp_environ['additional_archive'] = archive
+            archive_path = os.path.basename(archive)
+            ft.download(self.tmp_environ, 'additional_archive', archive_path)
+            _extract_all(archive_path)
+
+    def _make_cmdline(self, executor):
+        raise NotImplementedError
+
+    def _run_in_executor(self, executor):
+        cmdline = self._make_cmdline(executor)
+
+        return self._execute(executor, cmdline)
+
+    def _execute(self, executor, cmdline, **kwargs):
+        defaults = dict(
+                time_limit=DEFAULT_COMPILER_TIME_LIMIT,
+                mem_limit=DEFAULT_COMPILER_MEM_LIMIT,
+                output_limit=DEFAULT_COMPILER_OUTPUT_LIMIT,
+                ignore_errors=True,
+                environ=self.tmp_environ,
+                environ_prefix='compilation_',
+                capture_output=True,
+                forward_stderr=True)
+        defaults.update(kwargs)
+        return executor(cmdline, **defaults)
+
+    def _postprocess(self, renv):
+        self.environ['compiler_output'] = replace_invalid_UTF(renv['stdout'])
+        if renv['return_code']:
+            self.environ['result_code'] = 'CE'
+        elif 'compilation_result_size_limit' in self.environ and \
+                os.path.getsize(self.output_file) > \
+                self.environ['compilation_result_size_limit']:
+            self.environ['result_code'] = 'CE'
+            self.environ['compiler_output'] = \
+                    'Compiled file size limit exceeded.'
+        else:
+            self.environ['result_code'] = 'OK'
+            self.environ['exec_info'] = {'mode': 'executable'}
+            ft.upload(self.environ, 'out_file', self.output_file)
+
+        return self.environ

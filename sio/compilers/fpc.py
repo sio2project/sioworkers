@@ -1,23 +1,30 @@
 import os.path
 
-from sio.compilers import common
+from sio.compilers.common import Compiler
+
+
+class FPCCompiler(Compiler):
+    sandbox = 'fpc.2_6_2'
+    lang = 'pas'
+    output_file = 'a'
+
+    def _make_cmdline(self, executor):
+        # Additional sources are automatically included
+        return ['fpc', 'a.pas'] + list(self.extra_compilation_args)
+
+    def _run_in_executor(self, executor):
+        # Generate FPC configuration
+        with open(os.path.join(executor.path, 'fpc.cfg.in')) as f:
+            fpc_cfg = f.read()
+        fpc_cfg = fpc_cfg.replace('__DIR__', executor.rpath.rstrip(os.sep))
+        with open('fpc.cfg', 'w') as f:
+            f.write(fpc_cfg)
+
+        return super(FPCCompiler, self)._run_in_executor(executor)
+
 
 def run(environ):
-    def sandbox_callback(executor, cmdline):
-        fpc_cfg = open(os.path.join(executor.path, 'fpc.cfg.in')).read()
-        fpc_cfg = fpc_cfg.replace('__DIR__', executor.rpath.rstrip(os.sep))
-        open('fpc.cfg', 'w').write(fpc_cfg)
-        return cmdline
+    return FPCCompiler().compile(environ)
 
-    return common.run(environ=environ,
-               lang='pas',
-               compiler='fpc',
-               extension='pas',
-               output_file='a',
-               compile_additional_sources=False,
-               sandbox=True,
-               sandbox_callback=sandbox_callback)
 
-def run_default(environ):
-    environ['compiler'] = 'fpc.2_6_2'
-    return run(environ)
+run_default = run

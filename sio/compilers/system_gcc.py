@@ -1,28 +1,39 @@
-from sio.compilers import common
+import os.path
 
-# Without -static as there is no static compilation on Mac
-COMPILER_OPTIONS = ['-O2', '-s', '-lm']
+from sio.compilers.common import Compiler
 
-def run(environ, lang):
-    if lang == 'c':
-        compiler_exe = 'gcc'
-        extension = 'c'
-    elif lang == 'cpp':
-        compiler_exe = 'g++'
-        extension = 'cpp'
-    else:
-        raise ValueError("Unexpected language name: " + lang)
 
-    return common.run(environ=environ,
-               lang=lang,
-               compiler=compiler_exe,
-               extension=extension,
-               output_file='a.out',
-               compiler_options=COMPILER_OPTIONS)
+class CStyleCompiler(Compiler):
+    lang = 'c'
+    output_file = 'a.out'
+    # CStyleCompiler customization
+    compiler = 'gcc'  # Compiler to use
+    options = []  # Compiler options
+
+    def _make_cmdline(self, executor):
+        cmdline = [self.compiler, self.source_file] + self.options \
+                  + list(self.extra_compilation_args)
+
+        cmdline.extend(os.path.basename(source)
+            for source in self.additional_sources)
+        return cmdline
+
+
+class CCompiler(CStyleCompiler):
+    compiler = 'gcc'
+    # Without -static as there is no static compilation on Mac
+    options = ['-O2', '-s', '-lm']
+
+
+class CPPCompiler(CStyleCompiler):
+    lang = 'cpp'
+    compiler = 'g++'
+    options = ['-std=gnu++0x', '-O2', '-s', '-lm']
+
 
 def run_gcc(environ):
-    return run(environ, 'c')
+    return CCompiler().compile(environ)
+
 
 def run_gplusplus(environ):
-    return run(environ, 'cpp')
-
+    return CPPCompiler().compile(environ)

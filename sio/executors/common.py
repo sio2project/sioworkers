@@ -3,6 +3,7 @@ from shutil import rmtree
 from zipfile import ZipFile, is_zipfile
 from sio.workers import ft
 from sio.workers.util import replace_invalid_UTF
+from sio.workers.file_runners import get_file_runner
 
 from sio.executors import checker
 
@@ -24,11 +25,13 @@ def run(environ, executor, use_sandboxes=True):
     :param: use_sandboxes Enables safe checking output correctness.
                        See `sio.executors.checkers`. True by default.
     """
-
     input_name = 'in'
 
-    ft.download(environ, 'exe_file', 'exe', add_to_cache=True)
-    os.chmod('exe', 0700)
+    file_executor = get_file_runner(executor, environ)
+    exe_filename = file_executor.preferred_filename()
+
+    ft.download(environ, 'exe_file', exe_filename, add_to_cache=True)
+    os.chmod(exe_filename, 0700)
     ft.download(environ, 'in_file', input_name, add_to_cache=True)
 
     zipdir = 'in_dir'
@@ -47,12 +50,12 @@ def run(environ, executor, use_sandboxes=True):
             except Exception as e:
                 raise StandardError("Failed to open archive: " + unicode(e))
 
-        with executor as e:
+        with file_executor as fe:
             with open(input_name, 'rb') as inf:
                 with open('out', 'wb') as outf:
-                    renv = e(['./exe'], stdin=inf, stdout=outf,
-                                ignore_errors=True,
-                                environ=environ, environ_prefix='exec_')
+                    renv = fe(exe_filename, [],
+                              stdin=inf, stdout=outf, ignore_errors=True,
+                              environ=environ, environ_prefix='exec_')
 
         _populate_environ(renv, environ)
 

@@ -10,8 +10,9 @@ import traceback
 from os import path
 
 from sio.workers import util, elf_loader_patch
-from sio.workers.sandbox import get_sandbox, Sandbox
-from sio.workers.util import ceil_ms2s, ms2s, s2ms, path_join_abs
+from sio.workers.sandbox import get_sandbox
+from sio.workers.util import ceil_ms2s, ms2s, s2ms, path_join_abs, \
+    null_ctx_manager
 
 logger = logging.getLogger(__name__)
 
@@ -207,7 +208,7 @@ class BaseExecutor(object):
          Memory limit (``ulimit -v``), in KiB.
 
        ``time_limit``
-         CPU time limit (``ulimit -s``), in miliseconds.
+         CPU time limit (``ulimit -t``), in miliseconds.
 
        ``real_time_limit``
          Wall clock time limit, in miliseconds.
@@ -539,6 +540,8 @@ class SupervisedExecutor(_SIOSupervisedExecutor):
 
           ``ignore_return`` Do not treat non-zero return code as runtime error.
 
+          ``java_sandbox`` Sandbox name with JRE.
+
        Executed programs may only use stdin/stdout/stderr and manage it's
        own memory. Returns extended statistics in ``renv`` containing:
 
@@ -567,9 +570,19 @@ class SupervisedExecutor(_SIOSupervisedExecutor):
         options = self.options
         if kwargs.get('ignore_return', False):
             options = options + ['-R']
+
+        if kwargs.get('java_sandbox', ''):
+            java = get_sandbox(kwargs['java_sandbox'])
+            options = options + ['-j',
+                                 os.path.join(java.path, 'usr', 'bin', 'java')]
+        else:
+            # Null context-manager
+            java = null_ctx_manager()
+
         command = [os.path.join(self.rpath, 'bin', 'supervisor')] + \
                   options + command
-        return super(SupervisedExecutor, self)._execute(command, **kwargs)
+        with java:
+            return super(SupervisedExecutor, self)._execute(command, **kwargs)
 
 class PRootExecutor(BaseExecutor):
     """PRootExecutor executor mimics ``chroot`` with ``mount --bind``.

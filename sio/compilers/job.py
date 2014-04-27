@@ -3,6 +3,7 @@ import os.path
 
 try:
     import json
+
     json.dumps
 except (ImportError, AttributeError):
     import simplejson as json
@@ -15,13 +16,14 @@ def run(environ):
         _, extension = os.path.splitext(environ['source_file'])
         environ['compiler'] = 'default-' + extension[1:].lower()
     compiler = first_entry_point('sio.compilers',
-            environ['compiler'].split('.')[0])
+                                 environ['compiler'].split('.')[0])
     environ = compiler(environ)
     assert 'compiler_output' in environ, \
         "Mandatory key 'compiler_output' not returned by job."
     assert 'result_code' in environ, \
         "Mandatory key 'result_code' not returned by job."
     return environ
+
 
 def main():
     if len(sys.argv) < 3:
@@ -40,6 +42,10 @@ def main():
             'extra_compilation_args': sys.argv[4:]
         }
     if len(sys.argv) > 3:
-        environ['compiler'] = 'default-' + sys.argv[3].lower()
+        compiler = sys.argv[3].lower()
+        if '-' not in compiler:
+            compiler = 'default-' + compiler
+        environ['compiler'] = compiler
+
     run(environ)
     print json.dumps(environ)

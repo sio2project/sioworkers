@@ -7,5 +7,5 @@ int main() {
         n *= m;
         m %= n | 1;
     }
-    return 0;
+    return m;
 }

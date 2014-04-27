@@ -16,7 +16,8 @@ from sio.workers import ft
 from sio.workers.execute import execute
 from sio.workers.executors import UnprotectedExecutor, \
         DetailedUnprotectedExecutor, SupervisedExecutor, VCPUExecutor, \
-        ExecError
+        ExecError, _SIOSupervisedExecutor
+from sio.workers.file_runners import get_file_runner
 
 # sio2-executors tests
 #
@@ -75,35 +76,45 @@ def upload_files():
     for path in glob.glob(os.path.join(SOURCES, '*')):
         ft.upload({'path': '/' + os.path.basename(path)}, 'path', path)
 
-def compile(source, output='/exe'):
+def compile(source, output='/exe', use_sandboxes=ENABLE_SANDBOXES):
+    ext = os.path.splitext(source.split('@')[0])[1][1:]
     compiler_env = {
         'source_file': source,
-        'compiler':  ENABLE_SANDBOXES and 'default-c' or 'system-c',
+        'compiler': (use_sandboxes and 'default-' or 'system-') + ext,
         'out_file': output,
+        'time_limit': 90000,
     }
 
     # Dummy sandbox doesn't support asking for versioned filename
     out_file = compiler_env['out_file']
     result_env = run_compiler(compiler_env)
+    result_env['out_file'] = out_file
     print_env(result_env)
 
     eq_(result_env['result_code'], 'OK')
-    return out_file
+    return result_env
 
 def compile_and_execute(source, executor, **exec_args):
-    exe_file = compile(source)
-    ft.download({'exe_file': exe_file}, 'exe_file', 'exe')
+    cenv = compile(source,
+                   use_sandboxes=isinstance(executor, _SIOSupervisedExecutor))
+    frunner = get_file_runner(executor, cenv)
+
+    ft.download({'exe_file': cenv['out_file']}, 'exe_file',
+                frunner.preferred_filename())
     os.chmod('exe', 0700)
     ft.download({'in_file': '/input'}, 'in_file', 'in')
 
-    with executor as e:
+    with frunner:
         with open('in', 'rb') as inf:
-                renv = e(['./exe'], stdin=inf, **exec_args)
+            renv = frunner('./exe', [], stdin=inf, **exec_args)
 
     return renv
 
 def compile_and_run(source, executor_env, executor, use_sandboxes=False):
-    executor_env['exe_file'] = compile(source)
+    renv = compile(source,
+                   use_sandboxes=isinstance(executor, _SIOSupervisedExecutor))
+    executor_env['exe_file'] = renv['out_file']
+    executor_env['exec_info'] = renv['exec_info']
     return run_executor(executor_env, executor, use_sandboxes=use_sandboxes)
 
 def print_env(env):
@@ -115,11 +126,11 @@ def fail(*args, **kwargs):
 
 MEMORY_CHECKS = ['30MiB-bss.c', '30MiB-data.c', '30MiB-malloc.c',
         '30MiB-stack.c']
+JAVA_MEMORY_CHECKS = ['mem30MiBheap.java', 'mem30MiBstack.java']
 MEMORY_CHECKS_LIMIT = 30 * 1024  # in KiB
 SMALL_OUTPUT_LIMIT = 50  # in B
 CHECKING_EXECUTORS = [DetailedUnprotectedExecutor]
 SANDBOXED_CHECKING_EXECUTORS = [SupervisedExecutor, VCPUExecutor]
-
 
 # Status helpers
 def res_ok(env):
@@ -153,6 +164,27 @@ def due_signal(code):
     return inner
 
 # High-level tests
+def test_running():
+    def _test(source, executor, callback):
+        with TemporaryCwd():
+            upload_files()
+            result_env = compile_and_run(source, {
+                'in_file': '/input',
+                'exec_time_limit': 1000
+            }, executor)
+            print_env(result_env)
+            callback(result_env)
+
+    executors = CHECKING_EXECUTORS
+    if ENABLE_SANDBOXES:
+        executors = executors + SANDBOXED_CHECKING_EXECUTORS
+
+    for executor in executors:
+        yield _test, '/add_print.c', executor(), res_ok
+
+        if executor != VCPUExecutor:
+            yield _test, '/add_print.java', executor(), res_ok
+
 def test_zip():
     with TemporaryCwd():
         upload_files()
@@ -183,10 +215,10 @@ def test_common_memory_limiting():
 
     for test in MEMORY_CHECKS:
         for executor in CHECKING_EXECUTORS:
-            yield _test, "/" + test, int(MEMORY_CHECKS_LIMIT*1.2), executor(), \
-                    res_ok
-            yield _test, "/" + test, int(MEMORY_CHECKS_LIMIT*0.9), executor(), \
-                    res_not_ok
+            yield _test, "/" + test, int(MEMORY_CHECKS_LIMIT*1.2),\
+                executor(), res_ok
+            yield _test, "/" + test, int(MEMORY_CHECKS_LIMIT*0.9), \
+                executor(), res_not_ok
 
         if ENABLE_SANDBOXES:
             for executor in SANDBOXED_CHECKING_EXECUTORS:
@@ -194,6 +226,23 @@ def test_common_memory_limiting():
                         executor(),  res_ok
                 yield _test, "/" + test, int(MEMORY_CHECKS_LIMIT*0.9), \
                         executor(), res_mle_or_fail
+
+    for test in JAVA_MEMORY_CHECKS:
+        for executor in CHECKING_EXECUTORS:
+            # XXX: The OpenJDK JVM has enormous stack memory overhead!
+            oh = 2.5 if 'stack' in test else 1.2
+
+            yield _test, "/" + test, int(MEMORY_CHECKS_LIMIT*oh), \
+                executor(), res_ok
+            yield _test, "/" + test, int(MEMORY_CHECKS_LIMIT*0.9), \
+                executor(), res_not_ok
+
+        if ENABLE_SANDBOXES:
+            executor = SupervisedExecutor
+            yield _test, "/" + test, int(MEMORY_CHECKS_LIMIT*1.2), \
+                executor(), res_ok
+            yield _test, "/" + test, int(MEMORY_CHECKS_LIMIT*0.8), \
+                executor(), res_not_ok
 
 def test_common_time_limiting():
     def _test(source, time_limit, executor, callback):
@@ -207,15 +256,19 @@ def test_common_time_limiting():
             callback(result_env)
 
     for executor in CHECKING_EXECUTORS:
-        yield _test, '/procspam.c', 1000, executor(), res_tle
+        yield _test, '/procspam.c', 500, executor(), res_tle
+        yield _test, '/procspam.java', 500, executor(), res_tle
 
     if ENABLE_SANDBOXES:
         for executor in SANDBOXED_CHECKING_EXECUTORS:
-            yield _test, "/procspam.c", 1000, executor(), res_tle
+            yield _test, "/procspam.c", 200, executor(), res_tle
             yield _test, "/1-sec-prog.c", 10, executor(), res_tle
 
         yield _test, "/1-sec-prog.c", 1000, SupervisedExecutor(), res_ok
+        yield _test, "/1-sec-prog.c", 990, VCPUExecutor(), res_tle
         yield _test, "/1-sec-prog.c", 1100, VCPUExecutor(), res_ok
+        yield _test, "/proc1secprog.java", 100, SupervisedExecutor(), res_tle
+        yield _test, "/proc1secprog.java", 1000, SupervisedExecutor(), res_ok
 
 def test_outputting_non_utf8():
     if ENABLE_SANDBOXES:
@@ -234,7 +287,7 @@ def test_untrusted_checkers():
     def _test(checker, callback, sandboxed=True):
         with TemporaryCwd():
             upload_files()
-            checker_bin = compile(checker, '/chk.e')
+            checker_bin = compile(checker, '/chk.e')['out_file']
         with TemporaryCwd():
             executor = SupervisedExecutor(use_program_return_code=True) if \
                     sandboxed else DetailedUnprotectedExecutor()
@@ -271,7 +324,7 @@ def test_inwer():
     def _test(inwer, in_file, use_sandboxes, callback):
         with TemporaryCwd():
             upload_files()
-            inwer_bin = compile(inwer, '/inwer.e')
+            inwer_bin = compile(inwer, '/inwer.e')['out_file']
         with TemporaryCwd():
             env = {
                     'in_file': in_file,
@@ -322,7 +375,7 @@ def test_ingen():
     def _test(ingen, re_string, upload_dir, use_sandboxes, callback):
         with TemporaryCwd():
             upload_files()
-            ingen_bin = compile(ingen, '/ingen.e')
+            ingen_bin = compile(ingen, '/ingen.e')['out_file']
         with TemporaryCwd():
             env = {
                     're_string': re_string,
@@ -442,7 +495,7 @@ def test_capturing_stdout():
 
     executors = [UnprotectedExecutor]
     if ENABLE_SANDBOXES:
-        executors += [VCPUExecutor]
+        executors = executors + [VCPUExecutor]
 
     for executor in executors:
         yield _test_exec, '/add_print.c', executor(), only_stdout, \
@@ -469,7 +522,7 @@ def test_return_codes():
 
     checking_executors = CHECKING_EXECUTORS
     if ENABLE_SANDBOXES:
-        checking_executors += SANDBOXED_CHECKING_EXECUTORS
+        checking_executors = checking_executors + SANDBOXED_CHECKING_EXECUTORS
 
     for executor in checking_executors:
         yield _test_exec, '/return-scanf.c', executor(), res_re(42), {}
@@ -495,7 +548,7 @@ def test_output_limit():
 
     checking_executors = [] # UnprotectedExecutor doesn't support OLE
     if ENABLE_SANDBOXES:
-        checking_executors += SANDBOXED_CHECKING_EXECUTORS
+        checking_executors = checking_executors + SANDBOXED_CHECKING_EXECUTORS
 
     for executor in checking_executors:
         yield _test_exec, '/add_print.c', executor(), ole, \
@@ -505,7 +558,7 @@ def test_output_limit():
 def test_signals():
     checking_executors = CHECKING_EXECUTORS
     if ENABLE_SANDBOXES:
-        checking_executors += SANDBOXED_CHECKING_EXECUTORS
+        checking_executors = checking_executors + SANDBOXED_CHECKING_EXECUTORS
 
     SIGNALS_CHECKS = [
             ('sigabrt.c', 6),
@@ -520,7 +573,7 @@ def test_signals():
 def test_rule_violation():
     checking_executors = []
     if ENABLE_SANDBOXES:
-        checking_executors += SANDBOXED_CHECKING_EXECUTORS
+        checking_executors = checking_executors + SANDBOXED_CHECKING_EXECUTORS
 
     for executor in checking_executors:
         yield _test_exec, '/open.c', executor(), res_rv('opening files'), {}
@@ -572,7 +625,8 @@ def test_real_time_limit():
 
     checking_executors = CHECKING_EXECUTORS
     if ENABLE_SANDBOXES:
-        checking_executors += [VCPUExecutor] # FIXME: Supervised ignores realtime
+        # FIXME: Supervised ignores realtime
+        checking_executors = checking_executors + [VCPUExecutor]
 
     for executor in checking_executors:
         yield _test_exec, '/procspam.c', executor(), real_tle, \

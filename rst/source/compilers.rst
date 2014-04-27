@@ -60,6 +60,11 @@ The following parameters are recognized in ``environ``:
     ones (e.g. ``additional_includes``) or if they would end up outside of
     the compilation directory (when their path starts with ``..``).
 
+  ``extra_files``
+    This option allows additional files to be available, in the same directory,
+    during compilation. It should be a ``dict`` with
+    keys representing intended filenames and values -- paths in the filetracker.
+
 Parameters added to the environment:
 
   ``compiler_output``

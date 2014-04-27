@@ -45,6 +45,7 @@ setup(
             'default-cc = sio.compilers.gcc:run_default_cpp',
             'default-cpp = sio.compilers.gcc:run_default_cpp',
             'default-pas = sio.compilers.fpc:run_default',
+            'default-java = sio.compilers.java:run_default',
 
             # Sandboxed compilers:
             'c = sio.compilers.gcc:run_gcc',
@@ -57,6 +58,8 @@ setup(
             'pas = sio.compilers.fpc:run',
             'fpc = sio.compilers.fpc:run',
 
+            'java = sio.compilers.java:run',
+
             # Non-sandboxed compilers
             'system-c = sio.compilers.system_gcc:run_gcc',
             'system-gcc = sio.compilers.system_gcc:run_gcc',
@@ -67,6 +70,8 @@ setup(
 
             'system-pas = sio.compilers.system_fpc:run',
             'system-fpc = sio.compilers.system_fpc:run',
+
+            'system-java = sio.compilers.system_java:run',
         ],
         'console_scripts': [
             'sio-batch = sio.workers.runner:main',

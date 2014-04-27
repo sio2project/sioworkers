@@ -7,6 +7,7 @@
 # E128 - continuation line under-indented for visual indent
 # E133 - closing bracket is missing indentation
 # E226 - missing whitespace around arithmetic operator
+# E302 - expected 2 blank lines, found 1
 # E501 - line too long (checked by pylint)
-ignore=E121,E122,E123,E126,E127,E128,E133,E226,E501
+ignore=E121,E122,E123,E126,E127,E128,E133,E226,E302,E501
 exclude=migrations
