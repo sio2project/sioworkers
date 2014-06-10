@@ -44,11 +44,15 @@ def in_(a, b, msg=None):
 class TemporaryCwd(object):
     "Helper class for changing the working directory."
 
-    def __init__(self):
-        self.path = os.tmpnam()
+    def __init__(self, inner_directory=None):
+        self.temp_directory = os.tmpnam()
+        if inner_directory:
+            self.path = os.path.join(self.temp_directory, inner_directory)
+        else:
+            self.path = self.temp_directory
 
     def __enter__(self):
-        os.mkdir(self.path)
+        os.makedirs(self.path)
         self.previousCwd = os.getcwd()
         os.chdir(self.path)
 
@@ -56,7 +60,7 @@ class TemporaryCwd(object):
 
     def __exit__(self, exc_type, exc_value, traceback):
         os.chdir(self.previousCwd)
-        shutil.rmtree(self.path)
+        shutil.rmtree(self.temp_directory)
 
 def upload_files():
     "Uploads all files from SOURCES to a newly created dummy filetracker"
@@ -172,6 +176,31 @@ def test_compilation_with_additional_library_and_dictionary_params():
               '/simple-lib.cpp'
         yield _test, 'Hello World from pas-lib', 'default-pas', \
               '/simple-lib.pas'
+
+def test_compilation_with_additional_archive():
+    def _test(message, compiler, source, sources, archive, unexpected_files):
+        with TemporaryCwd(inner_directory='one_more_level'):
+            upload_files()
+
+            compile_and_run({
+                    'source_file': source,
+                    'additional_sources': sources,
+                    'additional_archive': archive,
+                    'compiler': compiler,
+                    'out_file': '/out',
+                    }, message)
+
+            for f in unexpected_files:
+                ok_(not os.path.exists(f))
+
+
+    yield _test, 'Hello World from c-lib', 'system-c', '/simple-lib.c', \
+          '/library.c', '/library-archive.zip', ['../b.txt']
+
+    if ENABLE_SANDBOXED_COMPILERS:
+        yield _test, 'Hello World from c-lib', 'default-c', \
+              '/simple-lib.c', '/library.c', '/library-archive.zip', \
+              ['../b.txt']
 
 COMPILATION_TIME_HARD_LIMIT = 2 + 3 * DEFAULT_COMPILER_TIME_LIMIT
 COMPILATION_OUTPUT_LIMIT = 100

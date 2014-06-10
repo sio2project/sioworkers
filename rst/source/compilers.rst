@@ -54,6 +54,12 @@ The following parameters are recognized in ``environ``:
     Allows additional source files to be compiled and linked with the
     ``source_file``. This option is analogous to ``additional_includes``
 
+  ``additional_archive``
+    An archive in Zip format to be extracted in the compilation directory.
+    Individual files are not extracted in case they would overwrite existing
+    ones (e.g. ``additional_includes``) or if they would end up outside of
+    the compilation directory (when their path starts with ``..``).
+
 Parameters added to the environment:
 
   ``compiler_output``

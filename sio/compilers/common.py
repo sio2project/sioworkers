@@ -1,11 +1,17 @@
 import os.path
+import logging
+from zipfile import ZipFile
+
 from sio.workers import ft
 from sio.workers.executors import UnprotectedExecutor, PRootExecutor
 from sio.workers.util import replace_invalid_UTF
 
+logger = logging.getLogger(__name__)
+
 DEFAULT_COMPILER_TIME_LIMIT = 30000  # in ms
 DEFAULT_COMPILER_MEM_LIMIT = 256 * 2**10  # in KiB
 DEFAULT_COMPILER_OUTPUT_LIMIT = 5 * 2**10  # in KiB
+
 
 def _lang_option(environ, key, lang):
     value = environ.get(key, ())
@@ -14,6 +20,24 @@ def _lang_option(environ, key, lang):
     if isinstance(value, basestring):
         value = (value,)
     return value
+
+
+def _extract_all(archive_path):
+    target_path = os.getcwd()
+    with ZipFile(archive_path, 'r') as zipf:
+        for name in zipf.namelist():
+            filename = name.rstrip('/')
+            extract_path = os.path.join(target_path, filename)
+            extract_path = os.path.normpath(os.path.realpath(extract_path))
+            if os.path.exists(extract_path):
+                logger.warning("Cannot extract %s, file already exists.",
+                        extract_path)
+            elif not extract_path.startswith(target_path):
+                logger.warning("Cannot extract %s, target path outside "
+                        "working directory.", extract_path)
+            else:
+                zipf.extract(name, target_path)
+
 
 def run(environ, lang, compiler, extension, output_file, compiler_options=(),
         compile_additional_sources=True, sandbox=False,
@@ -79,6 +103,13 @@ def run(environ, lang, compiler, extension, output_file, compiler_options=(),
     for name, ft_path in extra_files.iteritems():
         tmp_environ['extra_file'] = ft_path
         ft.download(tmp_environ, 'extra_file', os.path.basename(name))
+
+    if 'additional_archive' in environ:
+        archive = environ['additional_archive']
+        tmp_environ['additional_archive'] = archive
+        archive_path = os.path.basename(archive)
+        ft.download(tmp_environ, 'additional_archive', archive_path)
+        _extract_all(archive_path)
 
     with executor:
         if sandbox_callback:
