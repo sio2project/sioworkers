@@ -4,8 +4,7 @@ import os
 from optparse import OptionParser
 import urlparse
 from celery import Celery
-from celery.bin.celeryd import WorkerCommand
-from celery.apps import worker
+from celery.bin.worker import worker
 import celery.loaders.default
 from filetracker.servers.run import DEFAULT_PORT as DEFAULT_FILETRACKER_PORT
 
@@ -23,7 +22,7 @@ host as the Celery broker uses, with default Filetracker port."""
 
     os.environ.setdefault('CELERY_CONFIG_MODULE', 'sio.celery.default_config')
     app = Celery()
-    cmd = WorkerCommand(app)
+    cmd = worker(app)
     for x in cmd.get_options():
         parser.add_option(x)
 
