@@ -12,7 +12,7 @@ setup(
     namespace_packages = ['sio', 'sio.compilers', 'sio.executors'],
 
     install_requires = [
-        'filetracker>=0.95',
+        'filetracker>=1.0.dev',
         'simplejson',
         'Celery>=3.1.15',
     ],
