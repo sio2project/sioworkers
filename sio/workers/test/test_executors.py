@@ -2,6 +2,7 @@ import glob
 import os.path
 import shutil
 import re
+import filecmp
 
 from nose.tools import ok_, eq_, assert_not_equal, nottest, raises, \
         assert_raises
@@ -152,6 +153,18 @@ def due_signal(code):
     return inner
 
 # High-level tests
+def test_zip():
+    with TemporaryCwd():
+        upload_files()
+        result_env = compile_and_run("/echo.c", {
+            'in_file': '/input.zip',
+            'out_file': '/output',
+            'exec_mem_limit': 102400
+            }, DetailedUnprotectedExecutor())
+        ft.download({'in_file': '/input'}, 'in_file', 'out.expected')
+        ft.download({'out_file': '/output'}, 'out_file', 'out.real')
+        ok_(filecmp.cmp('out.expected', 'out.real'))
+
 def test_common_memory_limiting():
     def _test(source, mem_limit, executor, callback):
         with TemporaryCwd():

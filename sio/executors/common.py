@@ -1,4 +1,6 @@
 import os
+from shutil import rmtree
+from zipfile import ZipFile, is_zipfile
 from sio.workers import ft
 from sio.workers.util import replace_invalid_UTF
 
@@ -22,26 +24,48 @@ def run(environ, executor, use_sandboxes=True):
     :param: use_sandboxes Enables safe checking output correctness.
                        See `sio.executors.checkers`. True by default.
     """
+
+    input_name = 'in'
+
     ft.download(environ, 'exe_file', 'exe', add_to_cache=True)
     os.chmod('exe', 0700)
-    ft.download(environ, 'in_file', 'in', add_to_cache=True)
+    ft.download(environ, 'in_file', input_name, add_to_cache=True)
 
-    with executor as e:
-        with open('in', 'rb') as inf:
-            with open('out', 'wb') as outf:
-                renv = e(['./exe'], stdin=inf, stdout=outf, ignore_errors=True,
-                            environ=environ, environ_prefix='exec_')
+    zipdir = 'in_dir'
+    os.mkdir(zipdir)
+    try:
+        if is_zipfile(input_name):
+            try:
+                # If not a zip file, will pass it directly to exe
+                with ZipFile('in', 'r') as f:
+                    if len(f.namelist()) != 1:
+                        raise Exception("Archive should have only one file.")
 
-    _populate_environ(renv, environ)
+                    f.extract(f.namelist()[0], zipdir)
+                    input_name = os.path.join(zipdir, f.namelist()[0])
+            # zipfile throws some undocumented exceptions
+            except Exception as e:
+                raise StandardError("Failed to open archive: " + unicode(e))
 
-    if renv['result_code'] == 'OK' and environ.get('check_output'):
-        environ = checker.run(environ, use_sandboxes=use_sandboxes)
+        with executor as e:
+            with open(input_name, 'rb') as inf:
+                with open('out', 'wb') as outf:
+                    renv = e(['./exe'], stdin=inf, stdout=outf,
+                                ignore_errors=True,
+                                environ=environ, environ_prefix='exec_')
 
-    for key in ('result_code', 'result_string'):
-        environ[key] = replace_invalid_UTF(environ[key])
+        _populate_environ(renv, environ)
 
-    if 'out_file' in environ:
-        ft.upload(environ, 'out_file', 'out',
-            to_remote_store=environ.get('upload_out', False))
+        if renv['result_code'] == 'OK' and environ.get('check_output'):
+            environ = checker.run(environ, use_sandboxes=use_sandboxes)
+
+        for key in ('result_code', 'result_string'):
+            environ[key] = replace_invalid_UTF(environ[key])
+
+        if 'out_file' in environ:
+            ft.upload(environ, 'out_file', 'out',
+                to_remote_store=environ.get('upload_out', False))
+    finally:
+        rmtree(zipdir)
 
     return environ
