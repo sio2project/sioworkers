@@ -19,5 +19,5 @@ def run(environ):
                sandbox_callback=sandbox_callback)
 
 def run_default(environ):
-    environ['compiler'] = 'fpc.2_4_4'
+    environ['compiler'] = 'fpc.2_6_2'
     return run(environ)

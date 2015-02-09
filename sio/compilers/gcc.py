@@ -32,7 +32,7 @@ def run_gplusplus(environ):
     return run(environ, 'cpp')
 
 def run_default(environ, lang):
-    environ['compiler'] = 'gcc.4_6_3'
+    environ['compiler'] = 'gcc.4_8_2'
     extra_options = []
     if lang == 'cpp':
         extra_options = ['-std=gnu++0x']
