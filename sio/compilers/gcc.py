@@ -35,7 +35,7 @@ def run_default(environ, lang):
     environ['compiler'] = 'gcc.4_8_2'
     extra_options = []
     if lang == 'cpp':
-        extra_options = ['-std=gnu++0x']
+        extra_options = ['-std=c++11']
     return run(environ, lang, extra_options)
 
 def run_default_c(environ):
