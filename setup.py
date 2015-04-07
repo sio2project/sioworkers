@@ -1,24 +1,28 @@
 from setuptools import setup, find_packages
 setup(
     name = "sioworkers",
-    version = '1.0',
+    version = '1.1',    # TODO: bump version when new protocol is done
     author = "SIO2 Project Team",
     author_email = 'sio2@sio2project.mimuw.edu.pl',
     description = "Programming contest judging infrastructure",
     url = 'https://github.com/sio2project/sioworkers',
     license = 'GPL',
 
-    packages = find_packages(),
+    # we need twisted.plugins in packages to install the sio twisted command
+    packages = find_packages() + ['twisted.plugins'],
     namespace_packages = ['sio', 'sio.compilers', 'sio.executors'],
 
     install_requires = [
         'filetracker>=0.96',
         'simplejson',
         'Celery>=3.1.15',
+        'Twisted',
+        'enum34',  # backport from py3
     ],
 
     setup_requires = [
         'nose',
+        'enum34',
     ],
 
     entry_points = {
@@ -74,3 +78,13 @@ setup(
     }
 )
 
+
+# Make Twisted regenerate the dropin.cache, if possible.  This is necessary
+# because in a site-wide install, dropin.cache cannot be rewritten by
+# normal users.
+try:
+    from twisted.plugin import IPlugin, getPlugins
+except ImportError:
+    pass
+else:
+    list(getPlugins(IPlugin))

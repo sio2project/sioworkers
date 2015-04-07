@@ -4,3 +4,4 @@
 *.egg
 *.pyc
 .*.swp
+twisted/plugins/dropin.cache
