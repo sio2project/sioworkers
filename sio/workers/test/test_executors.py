@@ -40,6 +40,7 @@ from sio.workers.file_runners import get_file_runner
 
 SOURCES = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'sources')
 ENABLE_SANDBOXES = os.environ.get('TEST_SANDBOXES', False)
+NO_JAVA_TESTS = os.environ.get('NO_JAVA_TESTS', False)
 
 def in_(a, b, msg=None):
     """Shorthand for 'assert a in b, "%r not in %r" % (a, b)"""
@@ -82,7 +83,7 @@ def compile(source, output='/exe', use_sandboxes=ENABLE_SANDBOXES):
         'source_file': source,
         'compiler': (use_sandboxes and 'default-' or 'system-') + ext,
         'out_file': output,
-        'time_limit': 90000,
+        'compilation_time_limit': 180000,
     }
 
     # Dummy sandbox doesn't support asking for versioned filename
@@ -182,7 +183,7 @@ def test_running():
     for executor in executors:
         yield _test, '/add_print.c', executor(), res_ok
 
-        if executor != VCPUExecutor:
+        if executor != VCPUExecutor and not NO_JAVA_TESTS:
             yield _test, '/add_print.java', executor(), res_ok
 
 def test_zip():
@@ -227,22 +228,23 @@ def test_common_memory_limiting():
                 yield _test, "/" + test, int(MEMORY_CHECKS_LIMIT*0.9), \
                         executor(), res_mle_or_fail
 
-    for test in JAVA_MEMORY_CHECKS:
-        for executor in CHECKING_EXECUTORS:
-            # XXX: The OpenJDK JVM has enormous stack memory overhead!
-            oh = 2.5 if 'stack' in test else 1.2
+    if not NO_JAVA_TESTS:
+        for test in JAVA_MEMORY_CHECKS:
+            for executor in CHECKING_EXECUTORS:
+                # XXX: The OpenJDK JVM has enormous stack memory overhead!
+                oh = 2.5 if 'stack' in test else 1.2
 
-            yield _test, "/" + test, int(MEMORY_CHECKS_LIMIT*oh), \
-                executor(), res_ok
-            yield _test, "/" + test, int(MEMORY_CHECKS_LIMIT*0.9), \
-                executor(), res_not_ok
+                yield _test, "/" + test, int(MEMORY_CHECKS_LIMIT*oh), \
+                    executor(), res_ok
+                yield _test, "/" + test, int(MEMORY_CHECKS_LIMIT*0.9), \
+                    executor(), res_not_ok
 
-        if ENABLE_SANDBOXES:
-            executor = SupervisedExecutor
-            yield _test, "/" + test, int(MEMORY_CHECKS_LIMIT*1.2), \
-                executor(), res_ok
-            yield _test, "/" + test, int(MEMORY_CHECKS_LIMIT*0.8), \
-                executor(), res_not_ok
+            if ENABLE_SANDBOXES:
+                executor = SupervisedExecutor
+                yield _test, "/" + test, int(MEMORY_CHECKS_LIMIT*1.2), \
+                    executor(), res_ok
+                yield _test, "/" + test, int(MEMORY_CHECKS_LIMIT*0.8), \
+                    executor(), res_not_ok
 
 def test_common_time_limiting():
     def _test(source, time_limit, executor, callback):
@@ -257,7 +259,8 @@ def test_common_time_limiting():
 
     for executor in CHECKING_EXECUTORS:
         yield _test, '/procspam.c', 500, executor(), res_tle
-        yield _test, '/procspam.java', 500, executor(), res_tle
+        if not NO_JAVA_TESTS:
+            yield _test, '/procspam.java', 500, executor(), res_tle
 
     if ENABLE_SANDBOXES:
         for executor in SANDBOXED_CHECKING_EXECUTORS:
@@ -267,8 +270,11 @@ def test_common_time_limiting():
         yield _test, "/1-sec-prog.c", 1000, SupervisedExecutor(), res_ok
         yield _test, "/1-sec-prog.c", 990, VCPUExecutor(), res_tle
         yield _test, "/1-sec-prog.c", 1100, VCPUExecutor(), res_ok
-        yield _test, "/proc1secprog.java", 100, SupervisedExecutor(), res_tle
-        yield _test, "/proc1secprog.java", 1000, SupervisedExecutor(), res_ok
+        if not NO_JAVA_TESTS:
+            yield _test, "/proc1secprog.java", 100, SupervisedExecutor(), \
+                    res_tle
+            yield _test, "/proc1secprog.java", 1000, SupervisedExecutor(), \
+                    res_ok
 
 def test_outputting_non_utf8():
     if ENABLE_SANDBOXES:

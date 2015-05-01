@@ -35,6 +35,7 @@ from sio.workers.file_runners import get_file_runner
 
 SOURCES = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'sources')
 ENABLE_SANDBOXED_COMPILERS = os.environ.get('TEST_SANDBOXES', False)
+NO_JAVA_TESTS = os.environ.get('NO_JAVA_TESTS', False)
 
 
 def in_(a, b, msg=None):
@@ -83,6 +84,8 @@ def compile_and_run(compiler_env, expected_output, program_args=None):
 
     # Dummy sandbox doesn't support asking for versioned filename
     out_file = compiler_env['out_file']
+    if compiler_env.get('compiler', '').endswith('-java'):
+        compiler_env['compilation_time_limit'] = 180000
     result_env = run(compiler_env)
     print_env(result_env)
 
@@ -101,7 +104,6 @@ def compile_and_run(compiler_env, expected_output, program_args=None):
     if compiler_env.get('compiler') == 'default-java':
         executor = PRootExecutor('compiler-java.1_8')
         frkwargs['proot_options'] = ['-b', '/proc']
-        frkwargs['time_limit'] = 90000
 
     frunner = get_file_runner(executor, result_env)
     with frunner:
@@ -134,7 +136,9 @@ def test_compilation():
         yield _test, 'Hello World from cc', compiler + 'cc', '/simple.cc'
         yield _test, '3\n5\n5\n7\n9\n10', compiler + 'cpp', '/libstdc++.cpp'
         yield _test, 'Hello World from pas', compiler + 'pas', '/simple.pas'
-        yield _test, 'Hello World from java', compiler + 'java', '/simple.java'
+        if not NO_JAVA_TESTS:
+            yield _test, 'Hello World from java', compiler + 'java', \
+                    '/simple.java'
 
     if ENABLE_SANDBOXED_COMPILERS:
         yield _test, '12903', 'default-cpp', '/cpp11.cpp'
@@ -163,8 +167,9 @@ def test_compilation_with_additional_library():
               '/simple-lib.cpp', '/library.cpp', '/library.h'
         yield _test, 'Hello World from pas-lib', compiler + 'pas', \
               '/simple-lib.pas', '/pas_library.pas'
-        yield _test, 'Hello World from java-lib', compiler + 'java', \
-                '/simple_lib.java', '/library.java'
+        if not NO_JAVA_TESTS:
+            yield _test, 'Hello World from java-lib', compiler + 'java', \
+                    '/simple_lib.java', '/library.java'
 
 def test_compilation_with_additional_library_and_dictionary_params():
     def _test(message, compiler, source):
@@ -197,8 +202,9 @@ def test_compilation_with_additional_library_and_dictionary_params():
             '/simple-lib.cpp'
         yield _test, 'Hello World from pas-lib', compiler + 'pas', \
             '/simple-lib.pas'
-        yield _test, 'Hello World from java-lib', compiler + 'java', \
-            '/simple_lib.java'
+        if not NO_JAVA_TESTS:
+            yield _test, 'Hello World from java-lib', compiler + 'java', \
+                '/simple_lib.java'
 
 
 def test_compilation_with_additional_archive():
