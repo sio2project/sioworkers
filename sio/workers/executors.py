@@ -339,7 +339,7 @@ class DetailedUnprotectedExecutor(UnprotectedExecutor):
                 'Captured output: %s' % output)
 
         if kwargs['time_limit'] is not None \
-                and renv['time_used'] >= 0.99 * kwargs['time_limit']:
+                and renv['time_used'] >= 0.98 * kwargs['time_limit']:
             renv['result_string'] = 'time limit exceeded'
             renv['result_code'] = 'TLE'
         elif 'real_time_killed' in renv:
