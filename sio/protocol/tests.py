@@ -41,9 +41,9 @@ def decode(x):
     data = x.partition(':')[2][:-1]
     return json.loads(data)
 
-hello_msg = encode({'type': 'hello'})
+hello_msg = {'type': 'hello', 'data': {}}
 
-hello_ack_msg = encode({'type': 'hello_ack'})
+hello_ack_msg = {'type': 'hello_ack'}
 
 
 class ServerTestCase(unittest.TestCase):
@@ -54,8 +54,8 @@ class ServerTestCase(unittest.TestCase):
         self.proto.makeConnection(self.tr)
 
     def _hello(self):
-        self.proto.dataReceived(hello_msg)
-        self.assertEqual(self.tr.value(), hello_ack_msg)
+        self.proto.dataReceived(encode(hello_msg))
+        self.assertEqual(decode(self.tr.value()), hello_ack_msg)
         self.assertEqual(self.proto.state, rpc.State.established)
 
     def test_server_hello(self):
@@ -78,9 +78,9 @@ class ClientTestCase(unittest.TestCase):
         self.proto.makeConnection(self.tr)
 
     def _hello(self):
-        self.assertEqual(self.tr.value(), hello_msg)
+        self.assertEqual(decode(self.tr.value()), hello_msg)
         self.assertEqual(self.proto.state, rpc.State.sent_hello)
-        self.proto.dataReceived(hello_ack_msg)
+        self.proto.dataReceived(encode(hello_ack_msg))
         self.assertEqual(self.proto.state, rpc.State.established)
 
     def test_client_hello(self):

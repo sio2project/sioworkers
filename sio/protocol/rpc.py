@@ -17,8 +17,14 @@ class ProtocolError(Exception):
 
 
 class RemoteError(Exception):
-    pass
+    def __init__(self, err, tb=None):
+        super(RemoteError, self).__init__(err)
+        self.traceback = tb
 
+
+class NoSuchMethodError(RemoteError):
+    def __init__(self, err=None):
+        super(NoSuchMethodError, self).__init__(err)
 
 # This function doesn't do much right now, but it can easily be extended
 # for passing any exceptions with arbitrary parameters (JSON serializable)
@@ -26,9 +32,10 @@ def makeRemoteException(msg):
     """Make an Exception instance from message dict.
     This function does *not* throw, just returns the object."""
     if msg['kind'] == 'method_not_found':
-        return RemoteError("no such method")
+        return NoSuchMethodError()
     else:
-        return RemoteError("unknown error")
+        return RemoteError('%s: %s' % (msg['kind'], msg['data']),
+                msg.get('traceback'))
 
 
 class WorkerRPC(NetstringReceiver):
@@ -44,11 +51,12 @@ class WorkerRPC(NetstringReceiver):
         # Fired when state changes to established.
         self.ready = defer.Deferred()
         self.defaultTimeout = timeout
+        self.clientInfo = {}
 
     def connectionMade(self):
         self.state = State.connected
         if not self.isServer:
-            self.sendMsg('hello')
+            self.sendMsg('hello', data=self.getHelloData())
             self.state = State.sent_hello
             print 'sent hello'
 
@@ -70,6 +78,7 @@ class WorkerRPC(NetstringReceiver):
                     return
                 d = defer.maybeDeferred(f, *msg['args'])
                 d.addCallback(self._reply, request=msg['id'])
+                d.addErrback(self._replyError, request=msg['id'])
             elif msg['type'] == 'error':
                 d = self.pendingCalls.get(msg['id'])
                 if d is None:
@@ -85,6 +94,7 @@ class WorkerRPC(NetstringReceiver):
             else:
                 if msg['type'] == 'hello':
                     print 'got hello'
+                    self.clientInfo = msg['data']
                     self.sendMsg('hello_ack')
                     self.state = State.established
                     self.ready.callback(None)
@@ -99,6 +109,11 @@ class WorkerRPC(NetstringReceiver):
             else:
                 raise ProtocolError("expected hello_ack, got %s" % str(msg))
 
+    def getHelloData(self):
+        """Placeholder method, reimplement in derived class.
+        Should return a dict."""
+        return {}
+
     def stringReceived(self, string):
         try:
             try:
@@ -109,13 +124,19 @@ class WorkerRPC(NetstringReceiver):
             self._processMessage(msg)
         except ProtocolError as e:
             log.err(e, "Fatal protocol error. Terminating.")
-            self.loseConnection()
+            self.transport.loseConnection()
         except:
-            self.loseConnection()
+            self.transport.loseConnection()
             raise
 
     def _reply(self, value, request=None):
         self.sendMsg('result', id=request, result=value)
+
+    def _replyError(self, err, request=None):
+        self.sendMsg('error', id=request, kind='exception', data=repr(err),
+                traceback=err.getTraceback())
+        # Don't return here - we would get potentially useless
+        # 'unhandled error' messages
 
     def _timeout(self, d):
         d.errback(TimeoutError())
