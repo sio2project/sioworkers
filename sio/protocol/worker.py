@@ -4,6 +4,11 @@ from sio.workers import runner
 from sio.protocol import rpc
 import platform
 
+# ingen replaces the environment, so merge it
+def _runner_wrap(env):
+    renv = runner.run(env)
+    env.update(renv)
+    return env
 
 class WorkerProtocol(rpc.WorkerRPC):
     def __init__(self):
@@ -24,7 +29,7 @@ class WorkerProtocol(rpc.WorkerRPC):
         task_id = env['task_id']
         print 'running', task_id
         self.running[task_id] = env
-        d = threads.deferToThread(runner.run, env)
+        d = threads.deferToThread(_runner_wrap, env)
 
         # Log errors, but pass them to sioworkersd anyway
         def _error(x):

@@ -84,7 +84,7 @@ class DBWrapper(service.MultiService):
         # check_same_thread=False is safe according to
         # https://twistedmatrix.com/trac/ticket/3629
         self.pool = adbapi.ConnectionPool('sqlite3', self.path,
-                check_same_thread=False)
+                check_same_thread=False, cp_max=1, cp_min=1)
         print 'db open'
         tables = yield self.pool.runQuery(
                 "select name from sqlite_master where type = 'table'")

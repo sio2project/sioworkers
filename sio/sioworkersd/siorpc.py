@@ -60,6 +60,8 @@ class SIORPC(XMLRPC):
     def _sync_wrap(self, err, orig_env):
         orig_env['error'] = {'message': err.getErrorMessage(),
                              'traceback': err.getTraceback()}
+        print 'Synchronous task failed with', err
+        err.printTraceback()
         return orig_env
 
     def xmlrpc_sync_run(self, task):
