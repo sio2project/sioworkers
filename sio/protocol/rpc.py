@@ -40,8 +40,9 @@ def makeRemoteException(msg):
 
 class WorkerRPC(NetstringReceiver):
     MAX_LENGTH = 2**20  # 1MB should be enough
+    DEFAULT_TIMEOUT = 30
 
-    def __init__(self, server=False, timeout=15):
+    def __init__(self, server=False, timeout=DEFAULT_TIMEOUT):
         self.requestID = 0
         # dictionary of pending call() requests,
         # pendingCalls[requestID] = (returned deferred, timeout deferred)

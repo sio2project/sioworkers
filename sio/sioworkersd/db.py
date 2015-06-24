@@ -10,12 +10,15 @@ Schema:
             env - task/group environment as json
             is_group - true if this row describes a group
             time - time when task was received
-    workers: TODO
-    worker_tag: TODO
+    worker: List of workers. Names are unique.
+    worker_tag: Many-to-many mapping worker-tag
 """
 from twisted.enterprise import adbapi
 from twisted.internet import defer
 from twisted.application import service
+from twisted.logger import Logger
+
+log = Logger()
 
 
 class DBWrapper(service.MultiService):
@@ -60,7 +63,6 @@ class DBWrapper(service.MultiService):
         # starts children, which we want do do on our own
         service.Service.startService(self)
         yield self.openDB()
-        print 'starting children'
         for srv in self:
             yield srv.startService()
 
@@ -70,8 +72,8 @@ class DBWrapper(service.MultiService):
             yield self.pool.runOperation(i)
         tables = yield self.pool.runQuery(
                 "select name from sqlite_master where type = 'table'")
-        print 'Created database version', self.DB_VERSION, 'tables', \
-                tables
+        log.info('Created database version {ver}, tables: {t!r}',
+                ver=self.DB_VERSION, t=tables)
         yield self.pool.runQuery("insert into config values ('version', ?)",
                 str(self.DB_VERSION))
 
@@ -85,7 +87,7 @@ class DBWrapper(service.MultiService):
         # https://twistedmatrix.com/trac/ticket/3629
         self.pool = adbapi.ConnectionPool('sqlite3', self.path,
                 check_same_thread=False, cp_max=1, cp_min=1)
-        print 'db open'
+        log.info('DB open')
         tables = yield self.pool.runQuery(
                 "select name from sqlite_master where type = 'table'")
         if 'config' not in [i[0] for i in tables]:

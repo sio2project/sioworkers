@@ -1,6 +1,12 @@
 from twisted.application.service import Service
 from sio.sioworkersd.server import WorkerServerFactory, DuplicateWorker
 from twisted.internet import reactor, defer
+from twisted.logger import Logger
+
+log = Logger()
+
+TASK_TIMEOUT = 60 * 15
+
 
 class WorkerGone(Exception):
     """Worker disconnected while executing task."""
@@ -27,6 +33,7 @@ class WorkerManager(Service):
         self.db = db
         self.workers = {}
         self.workerData = {}
+        self.deferreds = {}
         self.serverFactory = None
         self.newWorkerCallback = None
 
@@ -42,31 +49,33 @@ class WorkerManager(Service):
 
     @defer.inlineCallbacks
     def newWorker(self, uid, proto):
-        n = proto.name
-        if n in self.workers:
+        name = proto.name
+        if name in self.workers:
             proto.transport.loseConnection()
-            print 'WARNING: Worker %s connected twice and was dropped' % n
+            log.warn('WARNING: Worker {w} connected twice and was dropped',
+                    w=name)
             raise DuplicateWorker()
         present = yield self.db.runQuery(
-                "select * from worker where name = ?;", (n,))
+                "select * from worker where name = ?;", (name,))
         tags = set()
         if present:
             tags = yield self.db.runQuery(
                     "select tag from worker_tag, worker where worker = ?;",
-                    (n,))
+                    (name,))
             tags = {i[0] for i in tags}
         else:
             yield self.db.runOperation(
-                    "insert into worker values (?)", (n,))
-        self.workers[n] = proto
-        self.workerData[n] = Worker(proto.clientInfo, tags, set(), False)
+                    "insert into worker values (?)", (name,))
+        self.workers[name] = proto
+        self.workerData[name] = Worker(proto.clientInfo, tags, set(), False)
         if self.newWorkerCallback:
-            self.newWorkerCallback(n)
+            self.newWorkerCallback(name)
 
     def workerLost(self, proto):
         wd = self.workerData[proto.name]
-        for i in wd.tasks:
-            i.errback(WorkerGone())
+        # _free in runOnWorker will delete from wd.tasks, so copy here
+        for i in wd.tasks.copy():
+            self.deferreds[i].errback(WorkerGone())
         del self.workers[proto.name]
         del self.workerData[proto.name]
 
@@ -90,7 +99,7 @@ class WorkerManager(Service):
             raise ValueError()
         self.workerData[wid].tags.discard(tag)
         return self.db.runOperation(
-                "delete from worker_tag where tag = ? and id = ?",
+                "delete from worker_tag where tag = ? and worker = ?",
                 (tag, wid))
 
     def runOnWorker(self, worker, task):
@@ -99,20 +108,22 @@ class WorkerManager(Service):
         if wd.exclusive:
             raise RuntimeError('Tried to send task to exclusive worker')
         tid = task['task_id']
-        print 'Running %s on %s' % (tid, worker)
+        log.info('Running {tid} on {w}', tid=tid, w=worker)
         if task.get('exclusive', True):
             if wd.tasks:
                 raise RuntimeError(
                         'Tried to send exclusive task to busy worker')
             wd.exclusive = True
         wd.tasks.add(tid)
-        d = w.call('run', task)
+        d = w.call('run', task, timeout=TASK_TIMEOUT)
+        self.deferreds[tid] = d
 
         def _free(x):
             wd.tasks.discard(tid)
+            del self.deferreds[tid]
             if wd.exclusive and wd.tasks:
-                print 'FATAL: impossible happened: worker was exclusive,'\
-                        'but still has tasks left. Aborting.'
+                log.critical('FATAL: impossible happened: worker was,'
+                        'exclusive, but still has tasks left. Aborting.')
                 reactor.crash()
             wd.exclusive = False
             return x

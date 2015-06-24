@@ -1,6 +1,9 @@
 from twisted.internet.protocol import ServerFactory
 from twisted.internet import defer
 from sio.protocol import rpc
+from twisted.logger import Logger
+
+log = Logger()
 
 
 class DuplicateWorker(Exception):
@@ -19,13 +22,14 @@ class WorkerServer(rpc.WorkerRPC):
         self.clientInfo['host'] = (addr.host, addr.port)
         self.name = self.clientInfo.get('name', '<unnamed>')
         self.uniqueID = '%s@%s:%d' % (self.name, addr.host, addr.port)
-        print '%s connected,' % str(addr), 'name:', self.name
+        log.info('{addr!s} connected, name: {name}',
+                addr=addr, name=self.name)
         return self.factory.workerConnected(self)
 
     def connectionLost(self, reason):
         self.factory.workerDisconnected(self)
-        print '%s disconnected,' % str(self.transport.getPeer()), \
-                'reason:', reason
+        log.info('{addr!s} disconnected, reason: {reason!r}',
+                addr=self.transport.getPeer(), reason=reason)
 
 class WorkerServerFactory(ServerFactory):
     protocol = WorkerServer

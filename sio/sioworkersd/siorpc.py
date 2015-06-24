@@ -3,10 +3,10 @@ from twisted.web import server
 from uuid import uuid4
 from sio.sioworkersd.quirks import apply_quirks
 from twisted.internet import defer
+from twisted.logger import Logger
 
-def _dbg_print(x):
-    print x
-    return x
+log = Logger()
+
 
 # It seems that every Twisted JSONRPC library sucks or is missing features,
 # so we have to settle for XMLRPC.
@@ -52,15 +52,14 @@ class SIORPC(XMLRPC):
         task['task_id'] = task_id
         apply_quirks(task)
         d = self.taskm.addTask(task)
-        #d.addCallback(_dbg_print)
-        d.addCallback(self.taskm.return_to_sio, url=task['return_url'],
+        d.addBoth(self.taskm.return_to_sio, url=task['return_url'],
                 orig_env=task)
         return task_id
 
     def _sync_wrap(self, err, orig_env):
         orig_env['error'] = {'message': err.getErrorMessage(),
                              'traceback': err.getTraceback()}
-        print 'Synchronous task failed with', err
+        log.failure('Synchronous task failed', err)
         err.printTraceback()
         return orig_env
 
@@ -84,8 +83,7 @@ class SIORPC(XMLRPC):
     def xmlrpc_run_group(self, env):
         self._prepare_group(env)
         d = self.taskm.addTaskGroup(env)
-        #d.addCallback(_dbg_print)
-        d.addCallback(self.taskm.return_to_sio, url=env['return_url'],
+        d.addBoth(self.taskm.return_to_sio, url=env['return_url'],
                 orig_env=env)
         return env['group_id']
 

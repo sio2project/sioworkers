@@ -16,7 +16,7 @@ setup(
         'filetracker>=0.96',
         'simplejson',
         'Celery>=3.1.15',
-        'Twisted',
+        'Twisted>=15.2.0',
         'enum34',  # backport from py3
     ],
 
@@ -90,6 +90,9 @@ setup(
 try:
     from twisted.plugin import IPlugin, getPlugins
 except ImportError:
+    pass
+# HACK: workaround for hudson
+except TypeError:
     pass
 else:
     list(getPlugins(IPlugin))
