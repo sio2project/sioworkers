@@ -4,6 +4,8 @@ def apply_quirks(environ):
     if 'exclusive' not in environ:
         job = environ['job_type']
         if job == 'exec' or job == 'cpu-exec':
-            environ['exclusive'] = False
+            environ['exclusive'] = True
         else:
             environ['exclusive'] = False
+    if 'tags' not in environ:
+        environ['tags'] = ['default']

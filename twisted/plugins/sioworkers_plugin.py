@@ -15,6 +15,7 @@ from sio.sioworkersd.db import DBWrapper
 from sio.sioworkersd import siorpc
 
 from sio.sioworkersd.fifo import FIFOScheduler
+from sio.sioworkersd.prioritizing_scheduler import PrioritizingScheduler
 
 
 def _host_from_url(url):
@@ -75,7 +76,7 @@ class ServerServiceMaker(object):
         workerm = WorkerManager(db)
         workerm.setServiceParent(db)
 
-        taskm = TaskManager(db, workerm, FIFOScheduler(workerm))
+        taskm = TaskManager(db, workerm, PrioritizingScheduler(workerm))
         taskm.setServiceParent(db)
 
         rpc = siorpc.makeSite(workerm, taskm)
