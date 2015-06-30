@@ -159,10 +159,10 @@ class TaskManager(Service):
                     ret[idMap[result['task_id']]] = result
                 else:
                     if issubclass(result.type, RemoteError):
-                        tb = "Remote traceback:\n" + result.traceback
+                        tb = "Remote traceback:\n" + result.value.traceback
                     else:
                         tb = result.getTraceback()
-                    failed.append(result.value, tb)
+                    failed.append((result.value, tb))
             group_env['workers_jobs.results'] = ret
             if failed:
                 raise MultiException("Some tasks in a group failed.", failed)
@@ -191,14 +191,18 @@ class TaskManager(Service):
         else:
             env = x
 
+        if not tid:
+            tid = env.get('task_id', env['group_id'])
+
         if error:
             env['error'] = error
+            self.database.runOperation(
+                    'update return_task set env = ? where id = ?;',
+                    (json.dumps(env), tid))
+
         bodygen, hdr = encode.multipart_encode({
                         'data': json.dumps(env)})
         body = ''.join(bodygen)
-
-        if not tid:
-            tid = env.get('task_id', env['group_id'])
 
         headers = Headers({'User-Agent': ['sioworkersd']})
         for k, v in hdr.iteritems():
