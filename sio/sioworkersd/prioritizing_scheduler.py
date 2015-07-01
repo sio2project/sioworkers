@@ -149,7 +149,7 @@ class PrioritizingScheduler(Scheduler):
                         ter = ter + 1
                         ans.append((tid, wid))
                         self.delTask(tid)
-                if ter < limit:
+                if ter >= limit:
                     # current worker is already full so no other jobs can
                     # be assigned to it
                     break
