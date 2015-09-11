@@ -4,9 +4,12 @@ import time
 import logging
 import stat
 import os
+import tempfile
 import shutil
+import threading
 
 logger = logging.getLogger(__name__)
+
 
 def first_entry_point(group, name=None):
     for ep in pkg_resources.iter_entry_points(group, name):
@@ -77,6 +80,42 @@ def rmtree(path):
             fn(path)
 
     shutil.rmtree(path, onerror=remove_readonly)
+
+
+threadlocal_dir = threading.local()
+
+def tempcwd(path=None):
+    # Someone might call tempcwd twice, i.e. tempcwd(tempcwd('something'))
+    # Do nothing in this case.
+    if path is not None and os.path.isabs(path):
+        return path
+    d = threadlocal_dir.tmpdir
+    if path:
+        return os.path.join(d, path)
+    else:
+        return d
+
+class TemporaryCwd(object):
+    """Helper class for changing the working directory."""
+
+    def __init__(self, inner_directory=None):
+        self.extra = inner_directory
+        self.path = None
+
+    def __enter__(self):
+        self.path = tempfile.mkdtemp(prefix='sioworkers_')
+        logger.info('Using temporary directory %s', self.path)
+        p = self.path
+        if self.extra:
+            p = os.path.join(self.path, self.extra)
+            os.mkdir(p)
+        threadlocal_dir.tmpdir = p
+
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        shutil.rmtree(self.path)
+
 
 def path_join_abs(base, subpath):
     """Joins two absolute paths making ``subpath`` relative to ``base``.

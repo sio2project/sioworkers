@@ -1,6 +1,5 @@
 import os
 import urllib2
-import urlparse
 import time
 import shutil
 import logging
@@ -9,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 import filetracker
 from sio.workers import _original_cwd, util
+
 
 _instance = None
 def instance():
@@ -59,13 +59,15 @@ def download(environ, key, dest=None, skip_if_exists=False, **kwargs):
        Returns the path to the saved file.
     """
 
-    if dest and skip_if_exists and os.path.exists(dest):
+    if dest and skip_if_exists and os.path.exists(util.tempcwd(dest)):
         return dest
     source = environ[key]
     if dest is None:
         dest = os.path.split(source)[1]
     elif dest.endswith(os.sep):
         dest = os.path.join(dest, os.path.split(source)[1])
+
+    dest = util.tempcwd(dest)
     if not _use_filetracker(source, environ):
         source = os.path.join(_original_cwd, source)
         if not os.path.exists(dest) or not os.path.samefile(source, dest):

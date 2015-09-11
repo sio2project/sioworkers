@@ -5,7 +5,7 @@ from zipfile import ZipFile
 
 from sio.workers import ft
 from sio.workers.executors import UnprotectedExecutor, PRootExecutor
-from sio.workers.util import replace_invalid_UTF
+from sio.workers.util import replace_invalid_UTF, tempcwd
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +24,8 @@ def _lang_option(environ, key, lang):
 
 
 def _extract_all(archive_path):
-    target_path = os.getcwd()
-    with ZipFile(archive_path, 'r') as zipf:
+    target_path = tempcwd()
+    with ZipFile(tempcwd(archive_path), 'r') as zipf:
         for name in zipf.namelist():
             filename = name.rstrip('/')
             extract_path = os.path.join(target_path, filename)
@@ -147,7 +147,7 @@ class Compiler(object):
         if renv['return_code']:
             self.environ['result_code'] = 'CE'
         elif 'compilation_result_size_limit' in self.environ and \
-                os.path.getsize(self.output_file) > \
+                os.path.getsize(tempcwd(self.output_file)) > \
                 self.environ['compilation_result_size_limit']:
             self.environ['result_code'] = 'CE'
             self.environ['compiler_output'] = \
@@ -155,6 +155,6 @@ class Compiler(object):
         else:
             self.environ['result_code'] = 'OK'
             self.environ['exec_info'] = {'mode': 'executable'}
-            ft.upload(self.environ, 'out_file', self.output_file)
+            ft.upload(self.environ, 'out_file', tempcwd(self.output_file))
 
         return self.environ

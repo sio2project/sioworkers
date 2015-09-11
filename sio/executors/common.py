@@ -2,7 +2,7 @@ import os
 from shutil import rmtree
 from zipfile import ZipFile, is_zipfile
 from sio.workers import ft
-from sio.workers.util import replace_invalid_UTF
+from sio.workers.util import replace_invalid_UTF, tempcwd
 from sio.workers.file_runners import get_file_runner
 
 from sio.executors import checker
@@ -25,22 +25,22 @@ def run(environ, executor, use_sandboxes=True):
     :param: use_sandboxes Enables safe checking output correctness.
                        See `sio.executors.checkers`. True by default.
     """
-    input_name = 'in'
+    input_name = tempcwd('in')
 
     file_executor = get_file_runner(executor, environ)
     exe_filename = file_executor.preferred_filename()
 
     ft.download(environ, 'exe_file', exe_filename, add_to_cache=True)
-    os.chmod(exe_filename, 0700)
+    os.chmod(tempcwd(exe_filename), 0700)
     ft.download(environ, 'in_file', input_name, add_to_cache=True)
 
-    zipdir = 'in_dir'
+    zipdir = tempcwd('in_dir')
     os.mkdir(zipdir)
     try:
         if is_zipfile(input_name):
             try:
                 # If not a zip file, will pass it directly to exe
-                with ZipFile('in', 'r') as f:
+                with ZipFile(tempcwd('in'), 'r') as f:
                     if len(f.namelist()) != 1:
                         raise Exception("Archive should have only one file.")
 
@@ -52,8 +52,8 @@ def run(environ, executor, use_sandboxes=True):
 
         with file_executor as fe:
             with open(input_name, 'rb') as inf:
-                with open('out', 'wb') as outf:
-                    renv = fe(exe_filename, [],
+                with open(tempcwd('out'), 'wb') as outf:
+                    renv = fe(tempcwd(exe_filename), [],
                               stdin=inf, stdout=outf, ignore_errors=True,
                               environ=environ, environ_prefix='exec_')
 
@@ -66,7 +66,7 @@ def run(environ, executor, use_sandboxes=True):
             environ[key] = replace_invalid_UTF(environ[key])
 
         if 'out_file' in environ:
-            ft.upload(environ, 'out_file', 'out',
+            ft.upload(environ, 'out_file', tempcwd('out'),
                 to_remote_store=environ.get('upload_out', False))
     finally:
         rmtree(zipdir)

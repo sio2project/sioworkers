@@ -1,6 +1,5 @@
 import glob
 import os.path
-import shutil
 import stat
 import sys
 
@@ -13,6 +12,7 @@ from sio.compilers.common import DEFAULT_COMPILER_OUTPUT_LIMIT, \
         DEFAULT_COMPILER_TIME_LIMIT, DEFAULT_COMPILER_MEM_LIMIT
 from sio.workers.executors import UnprotectedExecutor, PRootExecutor
 from sio.workers.file_runners import get_file_runner
+from sio.workers.util import TemporaryCwd
 
 # sio2-compilers tests
 #
@@ -43,27 +43,6 @@ def in_(a, b, msg=None):
     if a not in b:
         raise AssertionError(msg or "%r not in %r" % (a, b))
 
-
-class TemporaryCwd(object):
-    "Helper class for changing the working directory."
-
-    def __init__(self, inner_directory=None):
-        self.temp_directory = os.tmpnam()
-        if inner_directory:
-            self.path = os.path.join(self.temp_directory, inner_directory)
-        else:
-            self.path = self.temp_directory
-
-    def __enter__(self):
-        os.makedirs(self.path)
-        self.previousCwd = os.getcwd()
-        os.chdir(self.path)
-
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        os.chdir(self.previousCwd)
-        shutil.rmtree(self.temp_directory)
 
 def upload_files():
     "Uploads all files from SOURCES to a newly created dummy filetracker"

@@ -14,7 +14,6 @@ from sio.sioworkersd.taskmanager import TaskManager
 from sio.sioworkersd.db import DBWrapper
 from sio.sioworkersd import siorpc
 
-from sio.sioworkersd.fifo import FIFOScheduler
 from sio.sioworkersd.prioritizing_scheduler import PrioritizingScheduler
 
 
@@ -23,7 +22,9 @@ def _host_from_url(url):
 
 
 class WorkerOptions(usage.Options):
-    optParameters = [['port', 'p', 7888, "sioworkersd port number"]]
+    # TODO: default concurrency to number of detected cpus
+    optParameters = [['port', 'p', 7888, "sioworkersd port number"],
+                     ['concurrency', 'c', 1, "maximum concurrent jobs"]]
     optFlags = [
             ['local-filetracker', 'l',
                 "Do not set FILETRACKER_URL automatically."]]
@@ -50,7 +51,7 @@ class WorkerServiceMaker(object):
                         % (default_filetracker_host, DEFAULT_FILETRACKER_PORT)
 
         return internet.TCPClient(options['host'], int(options['port']),
-                WorkerFactory())
+                WorkerFactory(options['concurrency']))
 
 
 class ServerOptions(usage.Options):

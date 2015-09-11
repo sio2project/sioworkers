@@ -1,8 +1,6 @@
 import os
 import sys
 import traceback
-import tempfile
-import shutil
 import logging
 
 try:
@@ -12,7 +10,7 @@ except (ImportError, AttributeError):
     import simplejson as json
 
 from sio.workers import Failure
-from sio.workers.util import first_entry_point
+from sio.workers.util import first_entry_point, TemporaryCwd
 
 logger = logging.getLogger(__name__)
 
@@ -52,23 +50,19 @@ def run(environ):
        Refer to :ref:`sio-workers-filters` for more information about filters.
     """
 
-    original_cwd = os.getcwd()
-    tmpdir = tempfile.mkdtemp()
-    try:
-        os.chdir(tmpdir)
-        environ = _run_filters('prefilters', environ)
-        environ = first_entry_point('sio.jobs', environ['job_type'])(environ)
-        environ['result'] = 'SUCCESS'
-        environ = _run_filters('postfilters', environ)
-    except Failure, e:
-        environ = _save_failure(e, environ)
+    with TemporaryCwd():
         try:
+            environ = _run_filters('prefilters', environ)
+            environ = first_entry_point('sio.jobs',
+                                        environ['job_type'])(environ)
+            environ['result'] = 'SUCCESS'
             environ = _run_filters('postfilters', environ)
         except Failure, e:
-            pass
-    finally:
-        os.chdir(original_cwd)
-        shutil.rmtree(tmpdir)
+            environ = _save_failure(e, environ)
+            try:
+                environ = _run_filters('postfilters', environ)
+            except Failure, e:
+                pass
 
     return environ
 

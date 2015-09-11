@@ -1,6 +1,7 @@
 import os.path
 
 from sio.compilers.common import Compiler
+from sio.workers.util import tempcwd
 
 
 class CStyleCompiler(Compiler):
@@ -11,10 +12,11 @@ class CStyleCompiler(Compiler):
     options = []  # Compiler options
 
     def _make_cmdline(self, executor):
-        cmdline = [self.compiler, self.source_file] + self.options \
-                  + list(self.extra_compilation_args)
+        cmdline = [self.compiler, tempcwd(self.source_file),
+                    '-o', tempcwd(self.output_file)] + \
+                    self.options + list(self.extra_compilation_args)
 
-        cmdline.extend(os.path.basename(source)
+        cmdline.extend(tempcwd(os.path.basename(source))
             for source in self.additional_sources)
         return cmdline
 

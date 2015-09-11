@@ -4,6 +4,7 @@ import logging
 from sio.workers import ft
 from sio.workers.executors import UnprotectedExecutor, SandboxExecutor, \
         ExecError, SupervisedExecutor
+from sio.workers.util import tempcwd
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +60,7 @@ def run(environ, use_sandboxes=True):
             ft.download(environ, 'in_file', 'in', skip_if_exists=True,
                     add_to_cache=True)
             ft.download(environ, 'chk_file', 'chk', add_to_cache=True)
-            os.chmod('chk', 0700)
+            os.chmod(tempcwd('chk'), 0700)
 
             output = _run_checker(environ, use_sandboxes)
         elif use_sandboxes:

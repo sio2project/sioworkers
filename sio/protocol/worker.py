@@ -19,10 +19,8 @@ class WorkerProtocol(rpc.WorkerRPC):
         self.running = {}
 
     def getHelloData(self):
-        # concurrency should be passed from command line,
-        # but runner currently isn't thread-safe, so for now return 1
         return {'name': platform.node(),
-                'concurrency': 1}   # TODO
+                'concurrency': self.factory.concurrency}
 
     def cmd_run(self, env):
         if (env['exclusive'] and self.running) or \
@@ -54,3 +52,6 @@ class WorkerProtocol(rpc.WorkerRPC):
 class WorkerFactory(ReconnectingClientFactory):
     maxDelay = 60
     protocol = WorkerProtocol
+
+    def __init__(self, concurrency=1):
+        self.concurrency = concurrency

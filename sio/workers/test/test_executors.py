@@ -1,6 +1,5 @@
 import glob
 import os.path
-import shutil
 import re
 import filecmp
 
@@ -18,6 +17,7 @@ from sio.workers.executors import UnprotectedExecutor, \
         DetailedUnprotectedExecutor, SupervisedExecutor, VCPUExecutor, \
         ExecError, _SIOSupervisedExecutor
 from sio.workers.file_runners import get_file_runner
+from sio.workers.util import tempcwd, TemporaryCwd
 
 # sio2-executors tests
 #
@@ -52,22 +52,6 @@ def not_in_(a, b, msg=None):
     if a in b:
         raise AssertionError(msg or "%r not in %r" % (a, b))
 
-class TemporaryCwd(object):
-    """Helper class for changing the working directory."""
-
-    def __init__(self):
-        self.path = os.tmpnam()
-
-    def __enter__(self):
-        os.mkdir(self.path)
-        self.previousCwd = os.getcwd()
-        os.chdir(self.path)
-
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        os.chdir(self.previousCwd)
-        shutil.rmtree(self.path)
 
 def upload_files():
     """Uploads all files from SOURCES to a newly created dummy filetracker"""
@@ -102,12 +86,12 @@ def compile_and_execute(source, executor, **exec_args):
 
     ft.download({'exe_file': cenv['out_file']}, 'exe_file',
                 frunner.preferred_filename())
-    os.chmod('exe', 0700)
+    os.chmod(tempcwd('exe'), 0700)
     ft.download({'in_file': '/input'}, 'in_file', 'in')
 
     with frunner:
-        with open('in', 'rb') as inf:
-            renv = frunner('./exe', [], stdin=inf, **exec_args)
+        with open(tempcwd('in'), 'rb') as inf:
+            renv = frunner(tempcwd('exe'), [], stdin=inf, **exec_args)
 
     return renv
 
@@ -189,14 +173,15 @@ def test_running():
 def test_zip():
     with TemporaryCwd():
         upload_files()
-        result_env = compile_and_run("/echo.c", {
+        compile_and_run("/echo.c", {
             'in_file': '/input.zip',
             'out_file': '/output',
             'exec_mem_limit': 102400
             }, DetailedUnprotectedExecutor())
         ft.download({'in_file': '/input'}, 'in_file', 'out.expected')
         ft.download({'out_file': '/output'}, 'out_file', 'out.real')
-        ok_(filecmp.cmp('out.expected', 'out.real'))
+        ok_(filecmp.cmp(tempcwd('out.expected'),
+                        tempcwd('out.real')))
 
 def test_common_memory_limiting():
     def _test(source, mem_limit, executor, callback):
@@ -409,7 +394,7 @@ def test_ingen():
                 ok_(upload_re.match(path), 'Unexpected filetracker path')
 
                 ft.download({'in': unversioned_path}, 'in', filename)
-                eq_(expected_files[filename], open(filename).read())
+                eq_(expected_files[filename], open(tempcwd(filename)).read())
         return inner
 
     def check_proot_fail(env):
@@ -462,13 +447,13 @@ def test_uploading_out():
         print_env(renv)
 
         ft.download({'path': '/output'}, 'path', 'd_out')
-        in_('84', open('d_out').read())
+        in_('84', open(tempcwd('d_out')).read())
 
 @nottest
 def _test_transparent_exec(source, executor, callback, kwargs):
     with TemporaryCwd():
         upload_files()
-        ft.download({'path': '/somefile'}, 'path', 'somefile')
+        ft.download({'path': '/somefile'}, 'path', tempcwd('somefile'))
         result_env = compile_and_execute(source, executor, **kwargs)
         print_env(result_env)
         if callback:
@@ -587,13 +572,13 @@ def test_rule_violation():
 def test_local_opens():
     def change(env):
         res_ok(env)
-        eq_('13', open('somefile').read().strip())
-        ok_(os.path.exists('./not_existing'))
+        eq_('13', open(tempcwd('somefile')).read().strip())
+        ok_(os.path.exists(tempcwd('./not_existing')))
 
     def nochange(env):
         res_re(1)(env)
-        eq_('42', open('somefile').read().strip())
-        ok_(not os.path.exists('./not_existing'))
+        eq_('42', open(tempcwd('somefile')).read().strip())
+        ok_(not os.path.exists(tempcwd('./not_existing')))
 
     # Test that this is in fact unsafe
     yield _test_exec, '/openrw.c', DetailedUnprotectedExecutor(), change, {}
@@ -657,8 +642,8 @@ def test_execute():
 
         assert_raises(ExecError, execute, ['exit', '1'])
 
-        rc, out = execute(['mkdir', 'spam'])
+        rc, out = execute(['mkdir', tempcwd('spam')])
         eq_(rc, 0)
-        rc, out = execute(['ls'])
+        rc, out = execute(['ls', tempcwd()])
         in_('spam', out)
 

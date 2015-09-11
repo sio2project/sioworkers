@@ -1,6 +1,7 @@
 import os.path
 
 from sio.compilers.common import Compiler
+from sio.workers.util import tempcwd
 
 
 class FPCCompiler(Compiler):
@@ -19,7 +20,7 @@ class FPCCompiler(Compiler):
         with open(os.path.join(executor.path, 'fpc.cfg.in')) as f:
             fpc_cfg = f.read()
         fpc_cfg = fpc_cfg.replace('__DIR__', executor.rpath.rstrip(os.sep))
-        with open('fpc.cfg', 'w') as f:
+        with open(tempcwd('fpc.cfg'), 'w') as f:
             f.write(fpc_cfg)
 
         return super(FPCCompiler, self)._run_in_executor(executor)

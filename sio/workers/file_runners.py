@@ -2,6 +2,7 @@ from sio.workers.executors import UnprotectedExecutor, \
     DetailedUnprotectedExecutor, VCPUExecutor, SupervisedExecutor, \
     PRootExecutor
 from sio.workers.util import RegisteredSubclassesBase
+import os.path
 
 
 class LanguageModeWrapper(RegisteredSubclassesBase):
@@ -86,7 +87,11 @@ class Executable(LanguageModeWrapper):
         PRootExecutor, VCPUExecutor, SupervisedExecutor
 
     def __call__(self, file, args, **kwargs):
-        return self.executor(['./%s' % file] + args, **kwargs)
+        if os.path.isabs(file):
+            cmd = file
+        else:
+            cmd = './%s' % file
+        return self.executor([cmd] + args, **kwargs)
 
     def preferred_filename(self):
         return 'exe'
@@ -126,6 +131,8 @@ class Java(_BaseJava):
             entry_point = self.exec_info['main_class']
 
         if entry_point:
+            if not os.path.isdir(file):
+                file = os.path.dirname(file)
             cmd = ['java'] + options + ['-classpath', file, entry_point]
         else:
             cmd = ['java'] + options + ['-jar', file]

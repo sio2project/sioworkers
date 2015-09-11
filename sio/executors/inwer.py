@@ -4,6 +4,7 @@ import os
 from sio.workers import ft
 from sio.workers.executors import DetailedUnprotectedExecutor, \
         SupervisedExecutor
+from sio.workers.util import tempcwd
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,7 @@ DEFAULT_INWER_OUTPUT_LIMIT = 10 * 2**10  # in B
 
 def _run_in_executor(environ, command, executor, **kwargs):
     with executor:
-        with open('in', 'rb') as inf:
+        with open(tempcwd('in'), 'rb') as inf:
             return executor(command, stdin=inf,
                 capture_output=True, split_lines=True, forward_stderr=True,
                 mem_limit=DEFAULT_INWER_MEM_LIMIT,
@@ -22,7 +23,7 @@ def _run_in_executor(environ, command, executor, **kwargs):
                 environ=environ, environ_prefix='inwer_', **kwargs)
 
 def _run_inwer(environ, use_sandboxes=False):
-    command = ['./inwer']
+    command = [tempcwd('inwer')]
     if use_sandboxes:
         executor = SupervisedExecutor()
     else:
@@ -69,7 +70,7 @@ def run(environ):
             add_to_cache=True)
     ft.download(environ, 'in_file', 'in', skip_if_exists=True,
             add_to_cache=True)
-    os.chmod('inwer', 0500)
+    os.chmod(tempcwd('inwer'), 0500)
 
     renv = _run_inwer(environ, use_sandboxes)
     if renv['result_code'] != "OK":

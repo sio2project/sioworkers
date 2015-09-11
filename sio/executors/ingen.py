@@ -4,6 +4,7 @@ import re
 
 from sio.workers import ft
 from sio.workers.executors import UnprotectedExecutor, PRootExecutor
+from sio.workers.util import tempcwd
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +17,8 @@ def _collect_and_upload(env, path, upload_path, re_string):
     env['collected_files'] = dict()
     for out_file in os.listdir(path):
         if names_re.match(out_file):
-            ft.upload(env['collected_files'], out_file, out_file,
+            ft.upload(env['collected_files'], out_file,
+                    os.path.join(path, out_file),
                     '%s/%s' % (upload_path, out_file))
 
 def _run_in_executor(environ, command, executor, **kwargs):
@@ -28,12 +30,12 @@ def _run_in_executor(environ, command, executor, **kwargs):
             output_limit=DEFAULT_INGEN_OUTPUT_LIMIT,
             environ=environ, environ_prefix='ingen_', **kwargs)
         if renv['return_code'] == 0:
-            _collect_and_upload(renv, os.getcwd(),
+            _collect_and_upload(renv, tempcwd(),
                     environ['collected_files_path'], environ['re_string'])
         return renv
 
 def _run_ingen(environ, use_sandboxes=False):
-    command = ['./ingen']
+    command = [tempcwd('ingen')]
     if use_sandboxes:
         executor = PRootExecutor('null-sandbox')
     else:
@@ -76,7 +78,7 @@ def run(environ):
     use_sandboxes = environ.get('use_sandboxes', False)
     ft.download(environ, 'exe_file', 'ingen', skip_if_exists=True,
             add_to_cache=True)
-    os.chmod('ingen', 0500)
+    os.chmod(tempcwd('ingen'), 0500)
     renv = _run_ingen(environ, use_sandboxes)
     if renv['return_code'] != 0:
         logger.error("Ingen failed!\nEnviron dump: %s\nExecution environ: %s",

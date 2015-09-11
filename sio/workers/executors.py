@@ -12,7 +12,7 @@ from os import path
 from sio.workers import util, elf_loader_patch
 from sio.workers.sandbox import get_sandbox
 from sio.workers.util import ceil_ms2s, ms2s, s2ms, path_join_abs, \
-    null_ctx_manager
+    null_ctx_manager, tempcwd
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +114,7 @@ def execute_command(command, env=None, split_lines=False, stdin=None,
                          close_fds=True,
                          universal_newlines=True,
                          env=env,
+                         cwd=tempcwd(),
                          preexec_fn=os.setpgrp)
 
     kill_timer = None
@@ -451,7 +452,7 @@ class _SIOSupervisedExecutor(SandboxExecutor):
         extra_ignore_errors = kwargs.pop('extra_ignore_errors')
         renv = {}
         try:
-            result_file = tempfile.NamedTemporaryFile(dir=os.getcwd())
+            result_file = tempfile.NamedTemporaryFile(dir=tempcwd())
             kwargs['ignore_errors'] = True
             renv = execute_command(
                         command + [noquote('3>'), result_file.name],
@@ -479,7 +480,7 @@ class _SIOSupervisedExecutor(SandboxExecutor):
         except Exception as e:
             logger.error('SupervisedExecutor error: %s', traceback.format_exc())
             logger.error('SupervisedExecutor error dirlist: %s: %s',
-                         os.getcwd(), str(os.listdir('.')))
+                         tempcwd(), str(os.listdir(tempcwd())))
 
             result_code = 'SE'
             for i in ('time_used', 'mem_used', 'num_syscalls'):
@@ -671,11 +672,11 @@ class PRootExecutor(BaseExecutor):
                 self._bind(sh_patched, sh_target, force=True)
 
         self._bind(os.path.join(self.proot.path, 'lib'), 'lib')
-        self._bind(os.getcwd(), 'tmp', force=True)
+        self._bind(tempcwd(), 'tmp', force=True)
 
         # Make absolute `outside paths' visible in sandbox
         self._bind(self.chroot.path, force=True)
-        self._bind(os.getcwd(), force=True)
+        self._bind(tempcwd(), force=True)
 
     def _execute(self, command, **kwargs):
         if kwargs['time_limit'] and kwargs['real_time_limit'] is None:
