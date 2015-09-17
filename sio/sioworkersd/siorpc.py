@@ -1,3 +1,5 @@
+import json
+from functools import wraps
 from twisted.web.xmlrpc import XMLRPC
 from twisted.web import server
 from uuid import uuid4
@@ -6,6 +8,20 @@ from twisted.internet import defer
 from twisted.logger import Logger
 
 log = Logger()
+
+def escape_arguments(func):
+    def unpack(a):
+        try:
+            return json.loads(a)
+        except (ValueError, TypeError):
+            return a
+
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        return func(self,
+                    *[unpack(a) for a in args],
+                    **{k: unpack(v) for (k, v) in kwargs.iteritems()})
+    return wrapper
 
 
 # It seems that every Twisted JSONRPC library sucks or is missing features,
@@ -47,6 +63,7 @@ class SIORPC(XMLRPC):
     def xmlrpc_get_queue(self):
         return self.taskm.getQueue()
 
+    @escape_arguments
     def xmlrpc_run(self, task):
         task_id = uuid4().urn
         task['task_id'] = task_id
@@ -63,6 +80,7 @@ class SIORPC(XMLRPC):
         err.printTraceback()
         return orig_env
 
+    @escape_arguments
     def xmlrpc_sync_run(self, task):
         task_id = uuid4().urn
         task['task_id'] = task_id
@@ -80,6 +98,7 @@ class SIORPC(XMLRPC):
             task['group_id'] = group_id
             task['task_id'] = uuid4().urn
 
+    @escape_arguments
     def xmlrpc_run_group(self, env):
         self._prepare_group(env)
         d = self.taskm.addTaskGroup(env)
@@ -87,6 +106,7 @@ class SIORPC(XMLRPC):
                 orig_env=env)
         return env['group_id']
 
+    @escape_arguments
     def xmlrpc_sync_run_group(self, env):
         self._prepare_group(env)
         d = self.taskm.addTaskGroup(env)
