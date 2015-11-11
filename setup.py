@@ -16,7 +16,7 @@ setup(
         'filetracker>=0.96',
         'simplejson',
         'Celery>=3.1.15',
-        'Twisted>=15.2.0',
+        'Twisted>=15.2.1',
         'enum34',  # backport from py3
     ],
 

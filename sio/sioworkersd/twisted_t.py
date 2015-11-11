@@ -1,12 +1,12 @@
 # This file is named twisted_t.py to avoid it being found by nosetests,
 # which hangs on some Twisted test cases. Use trial <module>.
 from twisted.trial import unittest
-from twisted.internet import defer, interfaces
+from twisted.internet import defer, interfaces, reactor, protocol, task
 from twisted.application.service import Application
 from zope.interface import implementer
 
 from sio.sioworkersd import manager, db, fifo, taskmanager, server
-from sio.protocol.rpc import RemoteError
+from sio.protocol import rpc
 import shutil
 import tempfile
 
@@ -90,6 +90,7 @@ class TestWorker(server.WorkerServer):
         self.name = 'test_worker'
         self.wm = None
         self.transport = MockTransport()
+        self.running = []
 
     def call(self, method, *a, **kw):
         if method == 'run':
@@ -98,9 +99,11 @@ class TestWorker(server.WorkerServer):
                 env['foo'] = 'bar'
                 return defer.succeed(env)
             elif env['task_id'] == 'fail':
-                return defer.fail(RemoteError('test'))
+                return defer.fail(rpc.RemoteError('test'))
             elif env['task_id'].startswith('hang'):
                 return defer.Deferred()
+        elif method == 'get_running':
+            return self.running
 
 
 class WorkerManagerTest(TestWithDB):
@@ -138,7 +141,7 @@ class WorkerManagerTest(TestWithDB):
     def test_fail(self):
         d = self.wm.runOnWorker('test_worker', {'task_id': 'fail'})
         d.addBoth(_print)
-        return self.assertFailure(d, RemoteError)
+        return self.assertFailure(d, rpc.RemoteError)
 
     def test_exclusive(self):
         self.wm.runOnWorker('test_worker', {'task_id': 'hang1'})
@@ -160,4 +163,109 @@ class WorkerManagerTest(TestWithDB):
         w2 = TestWorker()
         d = self.wm.newWorker('unique2', w2)
         self.assertFalse(w2.transport.connected)
-        return self.assertFailure(d, manager.DuplicateWorker)
+        return self.assertFailure(d, server.DuplicateWorker)
+
+    def test_rejected(self):
+        w2 = TestWorker()
+        w2.running = ['asdf']
+        w2.name = 'name2'
+        d = self.wm.newWorker('unique2', w2)
+        return self.assertFailure(d, server.WorkerRejected)
+
+class TestClient(rpc.WorkerRPC):
+    def __init__(self, running):
+        rpc.WorkerRPC.__init__(self, server=False)
+        self.running = running
+
+    def getHelloData(self):
+        return {'name': 'test'}
+
+    def cmd_get_running(self):
+        return list(self.running)
+
+    def do_run(self, env):
+        if env['task_id'].startswith('hang'):
+            return defer.Deferred()
+        else:
+            return defer.succeed(env)
+
+    def cmd_run(self, env):
+        self.running.add(env['task_id'])
+        d = self.do_run(env)
+
+        def _rm(x):
+            self.running.remove(env['task_id'])
+            return x
+        d.addBoth(_rm)
+        return d
+
+class IntegrationTest(TestWithDB):
+    def __init__(self, *args, **kwargs):
+        super(IntegrationTest, self).__init__(*args, **kwargs)
+        self.notifyCalled = False
+        self.wm = None
+        self.taskm = None
+        self.port = None
+
+    def setUp2(self, _=None):
+        manager.TASK_TIMEOUT = 3
+        self.wm = manager.WorkerManager(self.db)
+        self.sched = fifo.FIFOScheduler(self.wm)
+        self.taskm = taskmanager.TaskManager(self.db, self.wm, self.sched)
+
+        factory = self.wm.makeFactory()
+        self.port = reactor.listenTCP(0, factory, interface='127.0.0.1')
+        self.addCleanup(self.port.stopListening)
+
+    def setUp(self):
+        super(IntegrationTest, self).setUp()
+        d = self._prepare_svc()
+        d.addCallback(self.setUp2)
+        return d
+
+    def _wrap_test(self, callback, *client_args):
+        creator = protocol.ClientCreator(reactor, TestClient, *client_args)
+
+        def cb(client):
+            self.addCleanup(client.transport.loseConnection)
+            # We have to wait for a few (local) network roundtrips, hence the
+            # magic one-second delay.
+            return task.deferLater(reactor, 1, callback, client)
+        return creator.connectTCP('127.0.0.1', self.port.getHost().port).\
+                addCallback(cb)
+
+    def test_remote_run(self):
+        def cb(client):
+            self.assertIn('test', self.wm.workers)
+            d = self.taskm.addTask({'task_id': 'asdf'})
+            d.addCallback(lambda x: self.assertIn('task_id', x))
+            return d
+        return self._wrap_test(cb, set())
+
+    def test_timeout(self):
+        def cb2(_):
+            self.assertEqual(self.wm.workers, {})
+
+        def cb(client):
+            d = self.taskm.addTask({'task_id': 'hang'})
+            d = self.assertFailure(d, rpc.TimeoutError)
+            d.addBoth(cb2)
+            return d
+        return self._wrap_test(cb, set())
+
+    def test_gone(self):
+        def cb3(client, d):
+            self.assertFalse(d.called)
+            self.assertDictEqual(self.wm.workers, {})
+            self.assertListEqual(list(self.sched.queue), ['hang'])
+
+        def cb2(client, d):
+            client.transport.loseConnection()
+            # Wait for the connection to drop
+            return task.deferLater(reactor, 1, cb3, client, d)
+
+        def cb(client):
+            d = self.taskm.addTask({'task_id': 'hang'})
+            # Allow the task to schedule
+            return task.deferLater(reactor, 0, cb2, client, d)
+        return self._wrap_test(cb, set())

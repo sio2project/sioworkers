@@ -90,13 +90,20 @@ class TaskManager(Service):
             d = self.workerm.runOnWorker(worker, task.env)
 
             def _retry_on_disconnect(failure, task_id=task_id, task=task):
-                failure.trap(WorkerGone)
+                exc = failure.check(WorkerGone)
+                # Handle WorkerGone and don't return anything. For other
+                # exceptions, errback the original Deferred.
+                if exc is None:
+                    return task.d.errback(failure)
+                log.warn('Worker executing task {t} disappeared. '
+                         'Will retry on another.', t=task_id)
                 # someone could write a scheduler that requires this
                 self.scheduler.delTask(task_id)
                 self.scheduler.addTask(task.env)
                 self._tryExecute()
-            d.addErrback(_retry_on_disconnect)
-            d.chainDeferred(task.d)
+
+            # chain manually - we don't want to errback d when retrying
+            d.addCallbacks(task.d.callback, _retry_on_disconnect)
         # Return the argument to allow this function to be used
         # as a (transparent) callback
         return x

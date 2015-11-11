@@ -1,11 +1,12 @@
 from twisted.application.service import Service
-from sio.sioworkersd.server import WorkerServerFactory, DuplicateWorker
+from sio.sioworkersd import server
+from sio.protocol.rpc import TimeoutError
 from twisted.internet import reactor, defer
 from twisted.logger import Logger
 
 log = Logger()
 
-TASK_TIMEOUT = 60 * 15
+TASK_TIMEOUT = 60 * 60
 
 
 class WorkerGone(Exception):
@@ -38,7 +39,7 @@ class WorkerManager(Service):
         self.newWorkerCallback = None
 
     def makeFactory(self):
-        f = WorkerServerFactory(self)
+        f = server.WorkerServerFactory(self)
         self.serverFactory = f
         return f
 
@@ -49,12 +50,19 @@ class WorkerManager(Service):
 
     @defer.inlineCallbacks
     def newWorker(self, uid, proto):
+        log.info('New worker {w} uid={uid}', w=proto.name, uid=uid)
         name = proto.name
         if name in self.workers:
             proto.transport.loseConnection()
             log.warn('WARNING: Worker {w} connected twice and was dropped',
                     w=name)
-            raise DuplicateWorker()
+            raise server.DuplicateWorker()
+        running = yield proto.call('get_running', timeout=5)
+        # if running is non-empty the worker is executing something
+        if running:
+            log.warn('Rejecting worker {w} because it is running tasks',
+                    w=name)
+            raise server.WorkerRejected()
         present = yield self.db.runQuery(
                 "select * from worker where name = ?;", (name,))
         tags = set()
@@ -74,10 +82,12 @@ class WorkerManager(Service):
     def workerLost(self, proto):
         wd = self.workerData[proto.name]
         # _free in runOnWorker will delete from wd.tasks, so copy here
-        for i in wd.tasks.copy():
-            self.deferreds[i].errback(WorkerGone())
         del self.workers[proto.name]
         del self.workerData[proto.name]
+        # Those errbacks will try to reschedule, so they *must* be run *after*
+        # this worker is removed from those dicts
+        for i in wd.tasks.copy():
+            self.deferreds[i].errback(WorkerGone())
 
     def getWorkers(self):
         return self.workerData
@@ -127,5 +137,16 @@ class WorkerManager(Service):
                 reactor.crash()
             wd.exclusive = False
             return x
+
+        def _trap_timeout(failure):
+            failure.trap(TimeoutError)
+            # This is probably the ugliest, most blunt solution possible,
+            # but it at least works. TODO kill the task on the worker.
+            w.transport.loseConnection()
+            log.warn('WARNING: Worker {w} timed out while executing {tid}',
+                    w=worker, tid=tid)
+            return failure
+
         d.addBoth(_free)
+        d.addErrback(_trap_timeout)
         return d

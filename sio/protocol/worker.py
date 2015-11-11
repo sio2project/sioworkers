@@ -46,7 +46,8 @@ class WorkerProtocol(rpc.WorkerRPC):
         return d
 
     def cmd_get_running(self):
-        return self.running.keys()
+        # sets are not json-serializable
+        return list(self.running.keys())
 
 
 class WorkerFactory(ReconnectingClientFactory):

@@ -1,6 +1,8 @@
 from twisted.protocols.basic import NetstringReceiver
 from twisted.internet import defer, reactor
-from twisted.python import log
+from twisted.logger import Logger
+
+log = Logger()
 
 import json
 from enum import Enum
@@ -59,7 +61,13 @@ class WorkerRPC(NetstringReceiver):
         if not self.isServer:
             self.sendMsg('hello', data=self.getHelloData())
             self.state = State.sent_hello
-            print 'sent hello'
+            log.debug('sent hello')
+
+    def connectionLost(self, reason):
+        NetstringReceiver.connectionLost(self, reason)
+        for (_, timer) in self.pendingCalls.itervalues():
+            if not timer.called:
+                timer.cancel()
 
     def _processMessage(self, msg):
         if self.state == State.established:
@@ -94,7 +102,7 @@ class WorkerRPC(NetstringReceiver):
                                     % str(msg))
             else:
                 if msg['type'] == 'hello':
-                    print 'got hello'
+                    log.debug('got hello')
                     self.clientInfo = msg['data']
                     self.sendMsg('hello_ack')
                     self.state = State.established
@@ -104,7 +112,7 @@ class WorkerRPC(NetstringReceiver):
                                         % str(msg))
         elif self.state == State.sent_hello:
             if msg['type'] == 'hello_ack':
-                print 'got hello_ack'
+                log.debug('got hello_ack')
                 self.state = State.established
                 self.ready.callback(None)
             else:
@@ -119,12 +127,12 @@ class WorkerRPC(NetstringReceiver):
         try:
             try:
                 msg = json.loads(string)
-            except ValueError as e:
-                log.err(e, "Received message with invalid JSON. Terminating.")
+            except ValueError:
+                log.failure("Received message with invalid JSON. Terminating.")
                 raise
             self._processMessage(msg)
-        except ProtocolError as e:
-            log.err(e, "Fatal protocol error. Terminating.")
+        except ProtocolError:
+            log.failure("Fatal protocol error. Terminating.")
             self.transport.loseConnection()
         except:
             self.transport.loseConnection()

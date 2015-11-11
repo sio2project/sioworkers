@@ -7,7 +7,10 @@ log = Logger()
 
 
 class DuplicateWorker(Exception):
-    pass
+    """A worker connected twice"""
+
+class WorkerRejected(Exception):
+    """This worker was rejected for some reason."""
 
 
 class WorkerServer(rpc.WorkerRPC):
@@ -27,6 +30,7 @@ class WorkerServer(rpc.WorkerRPC):
         return self.factory.workerConnected(self)
 
     def connectionLost(self, reason):
+        rpc.WorkerRPC.connectionLost(self, reason)
         self.factory.workerDisconnected(self)
         log.info('{addr!s} disconnected, reason: {reason!r}',
                 addr=self.transport.getPeer(), reason=reason)
@@ -44,7 +48,7 @@ class WorkerServerFactory(ServerFactory):
         self.workers[proto.uniqueID] = proto
         try:
             yield self.manager.newWorker(proto.uniqueID, proto)
-        except DuplicateWorker:
+        except (DuplicateWorker, WorkerRejected):
             self.ignore_set.add(proto.uniqueID)
             raise
 
