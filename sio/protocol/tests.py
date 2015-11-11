@@ -100,7 +100,10 @@ class ClientTestCase(unittest.TestCase):
         self._hello()
         self.tr.clear()
         d = self.proto.call('foobar', timeout=0.5)
-        return self.assertFailure(d, rpc.TimeoutError)
+        d = self.assertFailure(d, rpc.TimeoutError)
+        d.addCallback(
+                lambda _: self.assertDictEqual(self.proto.pendingCalls, {}))
+        return d
 
 
 class IntegrationTestCase(unittest.TestCase):

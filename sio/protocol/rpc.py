@@ -147,7 +147,9 @@ class WorkerRPC(NetstringReceiver):
         # Don't return here - we would get potentially useless
         # 'unhandled error' messages
 
-    def _timeout(self, d):
+    def _timeout(self, rid):
+        d = self.pendingCalls[rid][0]
+        del self.pendingCalls[rid]
         d.errback(TimeoutError())
 
     def sendMsg(self, msg_type, **kwargs):
@@ -165,13 +167,14 @@ class WorkerRPC(NetstringReceiver):
         else:
             timeout = self.defaultTimeout
         d = defer.Deferred()
-        timer = reactor.callLater(timeout, self._timeout, d)
+        current_id = self.requestID
+        self.requestID += 1
+        timer = reactor.callLater(timeout, self._timeout, current_id)
 
         def cb(ignore):
-            self.pendingCalls[self.requestID] = (d, timer)
-            s = json.dumps({'type': 'call', 'id': self.requestID,
+            self.pendingCalls[current_id] = (d, timer)
+            s = json.dumps({'type': 'call', 'id': current_id,
                 'method': cmd, 'args': args})
-            self.requestID += 1
             self.sendString(s)
         if self.state != State.established:
             # wait for connection
