@@ -2,6 +2,7 @@ import os
 import sys
 import traceback
 import logging
+import platform
 
 try:
     import json
@@ -17,6 +18,10 @@ logger = logging.getLogger(__name__)
 def _run_filters(key, environ):
     for f in environ.get(key, ()):
         environ = first_entry_point('sio.workers.filters', f)(environ)
+    return environ
+
+def _add_meta(environ):
+    environ['worker'] = platform.node()
     return environ
 
 def _save_failure(exc, environ):
@@ -47,12 +52,19 @@ def run(environ):
        ``postfilters``
          Optional list of filter names to apply after performing the work.
 
+       The following are added during processing:
+
+       ``worker``
+         Hostname of the machine running the job (i.e. the machine executing
+         this function).
+
        Refer to :ref:`sio-workers-filters` for more information about filters.
     """
 
     with TemporaryCwd():
         try:
             environ = _run_filters('prefilters', environ)
+            environ = _add_meta(environ)
             environ = first_entry_point('sio.jobs',
                                         environ['job_type'])(environ)
             environ['result'] = 'SUCCESS'
