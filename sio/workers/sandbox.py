@@ -8,6 +8,7 @@ import logging
 import weakref
 import urllib2
 import email
+import errno
 
 from sio.workers import ft, _original_cwd
 from sio.workers.elf_loader_patch import _patch_elf_loader
