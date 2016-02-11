@@ -30,6 +30,13 @@ def _filetracker_path(name):
 def _urllib_path(name):
     return '%s.tar.gz' % name
 
+def _mkdir(name):
+    try:
+        os.makedirs(name, 0700)
+    except OSError, e:
+        if e.errno != errno.EEXIST:
+            raise
+
 def _sha1_file(filename, block_size=65536):
     import hashlib
     sha1 = hashlib.sha1()
@@ -119,8 +126,7 @@ class Sandbox(object):
         self.name = name
 
         self.path = os.path.join(SANDBOXES_BASEDIR, name)
-        if not os.path.isdir(SANDBOXES_BASEDIR):
-            os.makedirs(SANDBOXES_BASEDIR, 0700)
+        _mkdir(SANDBOXES_BASEDIR)
 
         self._in_context = 0
 
