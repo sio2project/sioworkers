@@ -1,4 +1,5 @@
 import urlparse
+import importlib
 from zope.interface import implements
 
 from twisted.python import usage
@@ -13,8 +14,6 @@ from sio.sioworkersd.manager import WorkerManager
 from sio.sioworkersd.taskmanager import TaskManager
 from sio.sioworkersd.db import DBWrapper
 from sio.sioworkersd import siorpc
-
-from sio.sioworkersd.prioritizing_scheduler import PrioritizingScheduler
 
 
 def _host_from_url(url):
@@ -55,12 +54,16 @@ class WorkerServiceMaker(object):
 
 
 class ServerOptions(usage.Options):
+    default_scheduler = \
+        'sio.sioworkersd.fifo.FIFOScheduler'
+
     optParameters = [
             ['worker-listen', 'w', '', "workers listen address"],
             ['worker-port', '', 7888, "workers port number"],
             ['rpc-listen', 'r', '', "RPC listen address"],
             ['rpc-port', '', 7889, "RPC listen port"],
             ['database', 'db', 'sioworkersd.sqlite', "database file path"],
+            ['scheduler', 's', default_scheduler, "scheduler class"],
             ]
 
 
@@ -77,7 +80,18 @@ class ServerServiceMaker(object):
         workerm = WorkerManager(db)
         workerm.setServiceParent(db)
 
-        taskm = TaskManager(db, workerm, PrioritizingScheduler(workerm))
+        sched_module, sched_class = options['scheduler'].rsplit('.', 1)
+        try:
+            SchedulerClass = \
+                getattr(importlib.import_module(sched_module), sched_class)
+        except ImportError:
+            print "[ERROR] Invalid scheduler module: " + sched_module + "\n"
+            raise
+        except AttributeError:
+            print "[ERROR] Invalid scheduler class: " + sched_class + "\n"
+            raise
+
+        taskm = TaskManager(db, workerm, SchedulerClass(workerm))
         taskm.setServiceParent(db)
 
         rpc = siorpc.makeSite(workerm, taskm)
