@@ -76,6 +76,10 @@ class WorkerManager(Service):
                     "insert into worker values (?)", (name,))
         self.workers[name] = proto
         self.workerData[name] = Worker(proto.clientInfo, tags, set(), False)
+        # if worker connects for the first time he gets 'default' tag
+        # for now, workers without any tags don't check anything
+        if not present:
+            self.addWorkerTag(name, 'default')
         if self.newWorkerCallback:
             self.newWorkerCallback(name)
 

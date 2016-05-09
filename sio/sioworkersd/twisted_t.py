@@ -33,6 +33,8 @@ class TestWithDB(unittest.TestCase):
         self.db_path = self.db_dir + '/sio_tests.sqlite'
 
     def tearDown(self):
+        if self.db:
+            self.db.stopService()
         shutil.rmtree(self.db_dir)
 
     def _prepare_svc(self):

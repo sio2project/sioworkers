@@ -66,6 +66,10 @@ class DBWrapper(service.MultiService):
         for srv in self:
             yield srv.startService()
 
+    def stopService(self):
+        if self.pool:
+            return self.pool.close()
+
     @defer.inlineCallbacks
     def makeDB(self):
         for i in self.schema:
