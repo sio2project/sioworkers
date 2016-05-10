@@ -12,6 +12,8 @@ except (ImportError, AttributeError):
 
 from sio.workers import Failure
 from sio.workers.util import first_entry_point, TemporaryCwd
+from sio.workers.ft import init_instance
+
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +65,7 @@ def run(environ):
 
     with TemporaryCwd():
         try:
+            init_instance(environ['filetracker_url'])
             environ = _run_filters('prefilters', environ)
             environ = _add_meta(environ)
             environ = first_entry_point('sio.jobs',

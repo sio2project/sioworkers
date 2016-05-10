@@ -34,14 +34,4 @@ host as the Celery broker uses, with default Filetracker port."""
         broker_url = args[0]
         os.environ['CELERY_BROKER_URL'] = args[0]
 
-    if 'FILETRACKER_URL' not in os.environ:
-        default_filetracker_host = None
-        if 'CELERY_BROKER_URL' in os.environ:
-            default_filetracker_host = \
-                    _host_from_url(os.environ['CELERY_BROKER_URL'])
-        if not default_filetracker_host:
-            default_filetracker_host = '127.0.0.1'
-        os.environ['FILETRACKER_URL'] = 'http://%s:%d' \
-                % (default_filetracker_host, DEFAULT_FILETRACKER_PORT)
-
     return cmd.run(**vars(options))

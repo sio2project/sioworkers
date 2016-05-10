@@ -3,27 +3,59 @@ import urllib2
 import time
 import shutil
 import logging
+import threading
+import hashlib
 
 logger = logging.getLogger(__name__)
 
 import filetracker
 from sio.workers import _original_cwd, util
 
+lock = threading.Lock()
 
-_instance = None
+# We don't want to create new client everytime a run(environ) is called so
+# we cache clients in dict
+ft_clients = dict()
+
+
+def get_url_hash(filetracker_url):
+    return hashlib.md5(filetracker_url).hexdigest()
+
+
+def get_cache_dir(filetracker_url):
+    folder_name = 'ft_cache_' + get_url_hash(filetracker_url)
+    return os.path.expanduser(os.path.join('~',
+                              '.filetracker_cache', folder_name))
+
+
+# This function is called at the beginning of run(environ) to
+# set thread local client instance (stored in _instance).
+# Every Client has to have seperate cache folder
+def init_instance(filetracker_url):
+    url_hash = get_url_hash(filetracker_url)
+    lock.acquire()
+    if not url_hash in ft_clients:
+        ft_clients[url_hash] = \
+            filetracker.Client(remote_url=filetracker_url,
+                               cache_dir=get_cache_dir(filetracker_url))
+
+    util.threadlocal_dir.ft_client_instance = ft_clients[url_hash]
+    lock.release()
+
+
 def instance():
     """Returns a singleton instance of :class:`filetracker.Client`."""
-    global _instance
-    if _instance is None:
+    if getattr(util.threadlocal_dir, 'ft_client_instance', None) is None:
         launch_filetracker_server()
-        _instance = filetracker.Client()
-    return _instance
+        util.threadlocal_dir.ft_client_instance = filetracker.Client()
+    return util.threadlocal_dir.ft_client_instance
+
 
 def set_instance(client):
     """Sets the singleton :class:`filetracker.Client` to the given
        object."""
-    global _instance
-    _instance = client
+    util.threadlocal_dir.ft_client_instance = client
+
 
 def _use_filetracker(name, environ):
     mode = environ.get('use_filetracker', True)
