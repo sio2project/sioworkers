@@ -306,8 +306,6 @@ def test_untrusted_checkers():
         yield _test, '/chk.c', ok_42
         # Broken checker
         yield _test, '/open2.c', res_wa
-        # Hostile checker
-        yield raises(SystemError)(_test), '/fork.c', None
         # Wrong model solution
         yield raises(SystemError)(_test), '/chk-rtn2.c', None
 

@@ -3,7 +3,7 @@ import logging
 
 from sio.workers import ft
 from sio.workers.executors import UnprotectedExecutor, SandboxExecutor, \
-        ExecError, SupervisedExecutor
+        ExecError, PRootExecutor
 from sio.workers.util import tempcwd
 
 logger = logging.getLogger(__name__)
@@ -30,10 +30,8 @@ def _run_diff(env):
 def _run_checker(env, use_sandboxes=False):
     command = ['./chk', 'in', 'out', 'hint']
     if env.get('untrusted_checker', False) and use_sandboxes:
-        renv = _run_in_executor(env, command,
-                SupervisedExecutor(allow_local_open=True,
-                        use_program_return_code=True), ignore_return=False,
-                extra_ignore_errors=[1])
+        renv = _run_in_executor(env, command, PRootExecutor('null-sandbox'),
+                ignore_return=True)
     else:
         renv = _run_in_executor(env, command, UnprotectedExecutor(),
                 ignore_errors=True)
