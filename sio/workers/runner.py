@@ -65,7 +65,8 @@ def run(environ):
 
     with TemporaryCwd():
         try:
-            init_instance(environ['filetracker_url'])
+            if environ.get('filetracker_url', None):
+                init_instance(environ['filetracker_url'])
             environ = _run_filters('prefilters', environ)
             environ = _add_meta(environ)
             environ = first_entry_point('sio.jobs',
