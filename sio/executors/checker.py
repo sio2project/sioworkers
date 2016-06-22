@@ -29,17 +29,23 @@ def _run_diff(env):
 
 def _run_checker(env, use_sandboxes=False):
     command = ['./chk', 'in', 'out', 'hint']
-    if env.get('untrusted_checker', False) and use_sandboxes:
-        renv = _run_in_executor(env, command, PRootExecutor('null-sandbox'),
-                ignore_return=True)
-    else:
-        renv = _run_in_executor(env, command, UnprotectedExecutor(),
-                ignore_errors=True)
 
+    def execute_checker(with_stderr=False):
+        if env.get('untrusted_checker', False) and use_sandboxes:
+            return _run_in_executor(env, command,
+                    PRootExecutor('null-sandbox'), ignore_return=True,
+                    forward_stderr=with_stderr)
+        else:
+            return _run_in_executor(env, command, UnprotectedExecutor(),
+                    ignore_errors=True, forward_stderr=with_stderr)
+
+    renv = execute_checker()
     if renv['return_code'] >= 2:
+        renv = execute_checker(with_stderr=True)
         raise CheckerError(
-                'Checker returned code(%d) >= 2. Checker environ dump: %s' \
-                        % (renv['return_code'], env))
+                'Checker returned code(%d) >= 2. Checker stdout and stderr: ' \
+                '"%s". Checker environ dump: %s' \
+                        % (renv['return_code'], renv['stdout'], env))
 
     return renv['stdout']
 
