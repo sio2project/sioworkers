@@ -24,9 +24,6 @@ class WorkerOptions(usage.Options):
     # TODO: default concurrency to number of detected cpus
     optParameters = [['port', 'p', 7888, "sioworkersd port number"],
                      ['concurrency', 'c', 1, "maximum concurrent jobs"]]
-    optFlags = [
-            ['local-filetracker', 'l',
-                "Do not set FILETRACKER_URL automatically."]]
 
     def parseArgs(self, host):
         self['host'] = host
@@ -41,14 +38,6 @@ class WorkerServiceMaker(object):
     options = WorkerOptions
 
     def makeService(self, options):
-        if not options['local-filetracker']:
-            if 'FILETRACKER_URL' not in os.environ:
-                default_filetracker_host = None
-                if not default_filetracker_host:
-                    default_filetracker_host = options['host']
-                os.environ['FILETRACKER_URL'] = 'http://%s:%d' \
-                        % (default_filetracker_host, DEFAULT_FILETRACKER_PORT)
-
         return internet.TCPClient(options['host'], int(options['port']),
                 WorkerFactory(options['concurrency']))
 
