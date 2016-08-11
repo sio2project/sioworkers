@@ -65,7 +65,8 @@ def compile_and_run(compiler_env, expected_output, program_args=None):
     out_file = compiler_env['out_file']
     if compiler_env.get('compiler', '').endswith('-java'):
         compiler_env['compilation_time_limit'] = 180000
-    result_env = run(compiler_env)
+    with TemporaryCwd('compile'):
+        result_env = run(compiler_env)
     print_env(result_env)
 
     eq_(result_env['result_code'], 'OK')

@@ -131,8 +131,6 @@ class Java(_BaseJava):
             entry_point = self.exec_info['main_class']
 
         if entry_point:
-            if not os.path.isdir(file):
-                file = os.path.dirname(file)
             cmd = ['java'] + options + ['-classpath', file, entry_point]
         else:
             cmd = ['java'] + options + ['-jar', file]

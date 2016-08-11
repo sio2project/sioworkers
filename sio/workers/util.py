@@ -101,6 +101,7 @@ class TemporaryCwd(object):
     def __init__(self, inner_directory=None):
         self.extra = inner_directory
         self.path = None
+        self.old_path = None
 
     def __enter__(self):
         self.path = tempfile.mkdtemp(prefix='sioworkers_')
@@ -109,12 +110,14 @@ class TemporaryCwd(object):
         if self.extra:
             p = os.path.join(self.path, self.extra)
             os.mkdir(p)
+        self.old_path = getattr(threadlocal_dir, 'tmpdir', None)
         threadlocal_dir.tmpdir = p
 
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         shutil.rmtree(self.path)
+        threadlocal_dir.tmpdir = self.old_path
 
 
 def path_join_abs(base, subpath):
