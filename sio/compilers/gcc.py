@@ -4,7 +4,7 @@ from sio.compilers.system_gcc import CStyleCompiler
 class CCompiler(CStyleCompiler):
     sandbox = 'gcc.4_8_2'
     lang = 'c'
-    options = ['-static', '-O2', '-s', '-lm']
+    options = ['-std=gnu99', '-static', '-O2', '-s', '-lm']
 
 
 class CPPCompiler(CStyleCompiler):
