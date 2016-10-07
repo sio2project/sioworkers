@@ -122,6 +122,7 @@ def test_compilation():
 
     if ENABLE_SANDBOXED_COMPILERS:
         yield _test, '12903', 'default-cpp', '/cpp11.cpp'
+        yield _test, 'Hello World from GNU99', 'default-c', '/gnu99.c'
 
 def test_compilation_with_additional_library():
     def _test(message, compiler, source, sources, includes=()):
