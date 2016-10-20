@@ -19,7 +19,7 @@ class WorkerProtocol(rpc.WorkerRPC):
         self.running = {}
 
     def getHelloData(self):
-        return {'name': platform.node(),
+        return {'name': self.factory.name,
                 'concurrency': self.factory.concurrency}
 
     def cmd_run(self, env):
@@ -54,5 +54,9 @@ class WorkerFactory(ReconnectingClientFactory):
     maxDelay = 60
     protocol = WorkerProtocol
 
-    def __init__(self, concurrency=1):
+    def __init__(self, concurrency=1, name=None):
         self.concurrency = concurrency
+        if name is None:
+            self.name = platform.node()
+        else:
+            self.name = name

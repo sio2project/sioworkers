@@ -1,5 +1,6 @@
 import urlparse
 import importlib
+import platform
 from zope.interface import implements
 
 from twisted.python import usage
@@ -23,7 +24,8 @@ def _host_from_url(url):
 class WorkerOptions(usage.Options):
     # TODO: default concurrency to number of detected cpus
     optParameters = [['port', 'p', 7888, "sioworkersd port number"],
-                     ['concurrency', 'c', 1, "maximum concurrent jobs"]]
+                     ['concurrency', 'c', 1, "maximum concurrent jobs"],
+                     ['name', 'n', platform.node(), "worker name"]]
 
     def parseArgs(self, host):
         self['host'] = host
@@ -39,7 +41,7 @@ class WorkerServiceMaker(object):
 
     def makeService(self, options):
         return internet.TCPClient(options['host'], int(options['port']),
-                WorkerFactory(options['concurrency']))
+                WorkerFactory(options['concurrency'], options['name']))
 
 
 class ServerOptions(usage.Options):
