@@ -19,25 +19,28 @@ class ProtocolError(Exception):
 
 
 class RemoteError(Exception):
-    def __init__(self, err, tb=None):
+    def __init__(self, err, tb=None, uid=None):
+        if uid is not None:
+            err = "received from " + uid + ("" if err is None else ": " + err)
         super(RemoteError, self).__init__(err)
         self.traceback = tb
+        self.uid = uid
 
 
 class NoSuchMethodError(RemoteError):
-    def __init__(self, err=None):
-        super(NoSuchMethodError, self).__init__(err)
+    def __init__(self, err=None, uid=None):
+        super(NoSuchMethodError, self).__init__(err, uid=uid)
 
 # This function doesn't do much right now, but it can easily be extended
 # for passing any exceptions with arbitrary parameters (JSON serializable)
-def makeRemoteException(msg):
+def makeRemoteException(msg, uid=None):
     """Make an Exception instance from message dict.
     This function does *not* throw, just returns the object."""
+    err = '%s: %s' % (msg['kind'], msg['data'])
     if msg['kind'] == 'method_not_found':
-        return NoSuchMethodError()
+        return NoSuchMethodError(err, uid=uid)
     else:
-        return RemoteError('%s: %s' % (msg['kind'], msg['data']),
-                msg.get('traceback'))
+        return RemoteError(err=err, tb=msg.get('traceback'), uid=uid)
 
 
 class WorkerRPC(NetstringReceiver):
@@ -83,7 +86,8 @@ class WorkerRPC(NetstringReceiver):
                     f = getattr(self, 'cmd_' + msg['method'])
                 except AttributeError:
                     self.sendMsg('error',
-                                    kind='method_not_found', id=msg['id'])
+                                    kind='method_not_found', id=msg['id'],
+                                    data=msg['method'])
                     return
                 d = defer.maybeDeferred(f, *msg['args'])
                 d.addCallback(self._reply, request=msg['id'])
@@ -93,7 +97,8 @@ class WorkerRPC(NetstringReceiver):
                 if d is None:
                     raise ProtocolError("got error for unknown call")
                 del self.pendingCalls[msg['id']]
-                exc = makeRemoteException(msg)
+                exc = makeRemoteException(msg,
+                        uid=getattr(self, 'uniqueID', None))
                 d[0].errback(exc)
                 d[1].cancel()
         elif self.state == State.connected:

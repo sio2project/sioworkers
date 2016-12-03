@@ -166,7 +166,10 @@ class TaskManager(Service):
                     ret[idMap[result['task_id']]] = result
                 else:
                     if issubclass(result.type, RemoteError):
-                        tb = "Remote traceback:\n" + result.value.traceback
+                        if result.value.traceback is None:
+                            tb = ""
+                        else:
+                            tb = "Remote traceback:\n" + result.value.traceback
                     else:
                         tb = result.getTraceback()
                     failed.append((result.value, tb))
