@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_CHECKER_TIME_LIMIT = 30000  # in ms
 DEFAULT_CHECKER_MEM_LIMIT = 256 * 2**10  # in KiB
+RESULT_STRING_LENGTH_LIMIT = 1024  # in bytes
 
 class CheckerError(Exception):
     pass
@@ -55,6 +56,12 @@ def _run_compare(env):
             'hint', 'out'], e, ignore_errors=True)
     return renv['stdout']
 
+def _limit_length(s):
+    if len(s) > RESULT_STRING_LENGTH_LIMIT:
+        suffix = '[...]'
+        return s[:max(0, RESULT_STRING_LENGTH_LIMIT - len(suffix))] + suffix
+    return s
+
 def run(environ, use_sandboxes=True):
     ft.download(environ, 'out_file', 'out', skip_if_exists=True)
     ft.download(environ, 'hint_file', 'hint', add_to_cache=True)
@@ -81,10 +88,10 @@ def run(environ, use_sandboxes=True):
     if output[0] == 'OK':
         environ['result_code'] = 'OK'
         if output[1]:
-            environ['result_string'] = output[1]
+            environ['result_string'] = _limit_length(output[1])
         environ['result_percentage'] = float(output[2] or 100)
     else:
         environ['result_code'] = 'WA'
-        environ['result_string'] = output[1]
+        environ['result_string'] = _limit_length(output[1])
         environ['result_percentage'] = 0
     return environ

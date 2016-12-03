@@ -11,6 +11,7 @@ from sio.compilers.job import run as run_compiler
 from sio.executors.common import run as run_executor
 from sio.executors.ingen import run as run_ingen
 from sio.executors.inwer import run as run_inwer
+from sio.executors.checker import RESULT_STRING_LENGTH_LIMIT
 from sio.workers import ft
 from sio.workers.execute import execute
 from sio.workers.executors import UnprotectedExecutor, \
@@ -273,6 +274,23 @@ def test_outputting_non_utf8():
             print_env(renv)
             in_('42', renv['result_string'])
             ok_(renv['result_string'].decode('utf8'))
+
+def test_truncating_output():
+    with TemporaryCwd():
+        upload_files()
+        checker_bin = compile('/chk-output-too-long.c',
+                '/chk-output-too-long.e')['out_file']
+    with TemporaryCwd():
+        renv = compile_and_run('/output-too-long.c', {
+                'in_file': '/input',
+                'check_output': True,
+                'hint_file': '/input',
+                'chk_file': checker_bin,
+                }, DetailedUnprotectedExecutor(), use_sandboxes=False)
+        length = len(renv['result_string'])
+        if length > RESULT_STRING_LENGTH_LIMIT:
+            raise AssertionError("result_string too long, %d > %d"
+                    % (length, RESULT_STRING_LENGTH_LIMIT))
 
 def test_untrusted_checkers():
     def _test(checker, callback, sandboxed=True):
