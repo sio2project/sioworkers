@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 setup(
     name = "sioworkers",
-    version = '1.1',    # TODO: bump version when new protocol is done
+    version = '1.2',
     author = "SIO2 Project Team",
     author_email = 'sio2@sio2project.mimuw.edu.pl',
     description = "Programming contest judging infrastructure",
@@ -13,11 +13,12 @@ setup(
     namespace_packages = ['sio', 'sio.compilers', 'sio.executors'],
 
     install_requires = [
-        'filetracker>=0.97',
+        'filetracker>=1.1.0',
         'simplejson',
         'Celery>=3.1.15',
         'Twisted>=15.2.1',
         'enum34',  # backport from py3
+        'supervisor>=3.3.1',
     ],
 
     setup_requires = [

@@ -1,0 +1,27 @@
+#!/bin/bash
+
+
+export WORKER_USER="${USER}"
+export WORKER_HOME="${HOME}"
+
+
+# Cache cleaner config
+export FILETRACKER_CACHE_CLEANER_ENABLED="true"
+export CACHE_SIZE="10G"
+export SCAN_INTERVAL="1h"
+export CLEAN_LEVEL="50" # in percents
+
+
+# Workers config
+export WORKER_ENABLED="true"
+export SIOWORKERSD_HOST="oioioi"
+export FILETRACKER_URL="http://oioioi:9999"
+PROBLEM_MEMORY_MAX_LIMIT=600000 # in kB
+
+# Calculate worker concurrency
+# Use min(memory requirements, nproc*1.5) workers
+MEM_TOTAL=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+MEM_CONC=$((MEM_TOTAL / PROBLEM_MEMORY_MAX_LIMIT))
+PROC_CONC=$(($(nproc) * 3/2))
+export WORKER_CONCURRENCY=$((MEM_CONC < PROC_CONC ? MEM_CONC : PROC_CONC))
+
