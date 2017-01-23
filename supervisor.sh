@@ -42,25 +42,25 @@ if [ -z "$command" ]; then
     exit 1
 fi
 
-if ! [ -e config/supervisord.conf ] || \
-   ! [ -e config/supervisord-conf-vars.conf ]; then
+# Set CWD to directory with config.
+cd $(dirname $BASH_SOURCE)/config
+
+if ! [ -e supervisord.conf ] || \
+   ! [ -e supervisord-conf-vars.conf ]; then
     echo "Please make sure that supervisord.conf and " \
          "supervisord-conf-vars.conf exist in config/ directory!"
     echo "You can copy example configs that resides in config/ directory."
     exit 1
 fi
 
+# Activate venv:
+source ../../venv/bin/activate
+
 # Set all config variables.
-source config/supervisord-conf-vars.conf
+source supervisord-conf-vars.conf
 
 # Create necessary directories.
 mkdir -pv ${WORKER_HOME}/{logs,pidfiles}
-
-# Optionally activate venv:
-# . venv/bin/activate
-
-# Set CWD to directory with config.
-cd $(dirname $BASH_SOURCE)/config
 
 # And run supervisor.*
 case "$command" in

@@ -5,3 +5,5 @@
 *.pyc
 .*.swp
 twisted/plugins/dropin.cache
+config/supervisord.conf
+config/supervisord-conf-vars.conf
