@@ -1,4 +1,7 @@
+# pylint: disable=no-name-in-module
 from sio.sioworkersd.prioritizing_scheduler import PrioritizingScheduler
+from sio.sioworkersd.fifo import FIFOScheduler
+from nose.tools import assert_equals
 
 # Worker class copied from manager.py to keep this test twisted-free :-)
 class Worker(object):
@@ -15,12 +18,13 @@ class Worker(object):
         self.tasks = tasks
         self.exclusive = False
         self.count_exclusive = 0
+        self.concurrency = int(info.get('concurrency', 1))
 
     def printInfo(self):
         print '%s, %s, %s' % (str(self.info), str(self.tags), str(self.tasks))
 # --------------------------------------------------------------------------#
 
-def create_task(tid, ex, tags, prio):
+def create_task(tid, ex, tags={'default'}, prio=0):
     return {'task_id': tid,
             'exclusive': ex,
             'tags': tags,
@@ -45,7 +49,7 @@ class Manager(object):
             del self.tasks[tid]
             del self.workers[wid].tasks[0]
 
-    def createWorker(self, wid, conc, tags):
+    def createWorker(self, wid, conc, tags={'default'}):
         self.workers[wid] = Worker({'concurrency': conc},
             tags, [])
 
@@ -68,7 +72,7 @@ class Manager(object):
         for tid, wid in res:
             assert tid in self.tasks
             self.assignTaskToWorker(wid, self.tasks[tid])
-        assert self.checkInnerState() == 'OK'
+        assert_equals(self.checkInnerState(), 'OK')
 
     def checkInnerState(self):
         for wid, w in self.workers.iteritems():
@@ -86,6 +90,66 @@ class Manager(object):
         for wid, w in self.workers.iteritems():
             print 'Worker (id: %d, concurr: %d, tags: %s) does %s' % \
                 (wid, w.info['concurrency'], w.tags, w.tasks)
+
+def test_fifo():
+    man = Manager()
+    sch = FIFOScheduler(man)
+    man.createWorker(1, 2)
+    man.addTask(sch, create_task(100, True))
+    man.addTask(sch, create_task(200, False))
+    man.addTask(sch, create_task(300, True))
+    man.addTask(sch, create_task(400, False))
+    man.addTask(sch, create_task(500, False))
+    man.schedule(sch)
+    assert_equals(sch.queue[-1][0], 200)
+    man.completeOneTask(1)
+    man.schedule(sch)
+    assert_equals(sch.queue[-1][0], 300)
+    man.completeOneTask(1)
+    man.schedule(sch)
+    man.completeOneTask(1)
+    man.schedule(sch)
+    assert_equals(len(sch.queue), 0)
+    man.completeOneTask(1)
+    man.completeOneTask(1)
+    assert not man.tasks
+
+def test_fifo_many():
+    man = Manager()
+    sch = FIFOScheduler(man)
+    man.createWorker(1, 2)
+    man.createWorker(2, 2)
+    man.createWorker(3, 2)
+    man.addTask(sch, create_task(100, True))
+    man.addTask(sch, create_task(100, True))
+    man.schedule(sch)
+    assert_equals(len(sch.queue), 0)
+    man.addTask(sch, create_task(200, False))
+    man.addTask(sch, create_task(300, False))
+    man.addTask(sch, create_task(400, True))
+    man.schedule(sch)
+    man.schedule(sch)
+    assert_equals(sch.queue[0], (400, True))
+    assert_equals(len(sch.queue), 1)
+
+def test_fifo_greed():
+    man = Manager()
+    sch = FIFOScheduler(man)
+    man.createWorker(1, 1)
+    man.createWorker(2, 2)
+    man.createWorker(3, 1)
+    man.addTask(sch, create_task(100, True))
+    man.addTask(sch, create_task(200, False))
+    man.schedule(sch)
+    man.addTask(sch, create_task(300, True))
+    man.addTask(sch, create_task(400, False))
+    man.schedule(sch)
+    assert_equals(len(sch.queue), 0)
+    man.completeOneTask(1)
+    man.completeOneTask(2)
+    man.completeOneTask(2)
+    man.completeOneTask(3)
+    assert not man.tasks
 
 def test_exclusive():
     man = Manager()
