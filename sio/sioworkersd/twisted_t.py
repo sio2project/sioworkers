@@ -259,7 +259,7 @@ class IntegrationTest(TestWithDB):
         def cb3(client, d):
             self.assertFalse(d.called)
             self.assertDictEqual(self.wm.workers, {})
-            self.assertListEqual(list(self.sched.queue), [('hang', True)])
+            self.assertListEqual(list(self.sched.queue), ['hang'])
 
         def cb2(client, d):
             client.transport.loseConnection()

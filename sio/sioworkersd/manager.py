@@ -22,14 +22,11 @@ class Worker(object):
     ``tasks``: set() of currently executing ``task_id``s
     ``exclusive``: bool, True if the worker is executing an exclusive task
     """
-    DEFAULT_CAPACITY = 1
     def __init__(self, info, tags, tasks, exclusive):
         self.info = info
         self.tags = tags
         self.tasks = tasks
         self.exclusive = exclusive
-        self.concurrency = int(
-                info.get('concurrency', Worker.DEFAULT_CAPACITY))
 
 
 class WorkerManager(Service):
@@ -124,8 +121,6 @@ class WorkerManager(Service):
         wd = self.workerData[worker]
         if wd.exclusive:
             raise RuntimeError('Tried to send task to exclusive worker')
-        if len(wd.tasks) >= wd.concurrency:
-            raise RuntimeError('Tried to send task to fully loaded worker')
         tid = task['task_id']
         log.info('Running {tid} on {w}', tid=tid, w=worker)
         if task.get('exclusive', True):
