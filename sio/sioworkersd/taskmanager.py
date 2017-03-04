@@ -221,6 +221,12 @@ class TaskManager(Service):
         def do_return():
             # This looks a bit too complicated for just POSTing a string,
             # but there seems to be no other way. Blame Twisted.
+
+            # agent.request() will add content-length based on length
+            # from FileBodyProducer. If we have another in headers,
+            # there will be a duplicate, so remove it.
+            headers.removeHeader('content-length')
+
             producer = client.FileBodyProducer(StringIO(body))
             d = self.agent.request('POST', url.encode('utf-8'),
                     headers, producer)
