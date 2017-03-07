@@ -21,12 +21,14 @@ class Worker(object):
     ``tags``: set() of tags (strings)
     ``tasks``: set() of currently executing ``task_id``s
     ``exclusive``: bool, True if the worker is executing an exclusive task
+    ``concurrency``: number of tasks that worker can handle at the same time
     """
     def __init__(self, info, tags, tasks, exclusive):
         self.info = info
         self.tags = tags
         self.tasks = tasks
         self.exclusive = exclusive
+        self.concurrency = int(info['concurrency'])
 
 
 class WorkerManager(Service):
@@ -71,11 +73,19 @@ class WorkerManager(Service):
                     "select tag from worker_tag, worker where worker = ?;",
                     (name,))
             tags = {i[0] for i in tags}
-        else:
+        # if information received from worker doesn't meet expectations
+        # reject it
+        try:
+            worker = Worker(proto.clientInfo, tags, set(), False)
+        except Exception, e:
+            log.warn('Rejecting worker {w} because it sent invalid ({e})'
+                    ' client info: {d}', w=name, e=e, d=proto.clientInfo)
+            raise server.WorkerRejected()
+        if not present:
             yield self.db.runOperation(
                     "insert into worker values (?)", (name,))
         self.workers[name] = proto
-        self.workerData[name] = Worker(proto.clientInfo, tags, set(), False)
+        self.workerData[name] = worker
         # if worker connects for the first time he gets 'default' tag
         # for now, workers without any tags don't check anything
         if not present:
@@ -121,6 +131,8 @@ class WorkerManager(Service):
         wd = self.workerData[worker]
         if wd.exclusive:
             raise RuntimeError('Tried to send task to exclusive worker')
+        if len(wd.tasks) >= wd.concurrency:
+            raise RuntimeError('Tried to send task to fully loaded worker')
         tid = task['task_id']
         log.info('Running {tid} on {w}', tid=tid, w=worker)
         if task.get('exclusive', True):

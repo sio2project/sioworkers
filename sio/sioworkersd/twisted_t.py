@@ -87,12 +87,17 @@ class MockTransport(object):
 
 
 class TestWorker(server.WorkerServer):
-    def __init__(self):
+    def __init__(self, clientInfo=None):
         server.WorkerServer.__init__(self)
-        self.name = 'test_worker'
         self.wm = None
         self.transport = MockTransport()
         self.running = []
+        if not clientInfo:
+            self.name = 'test_worker'
+            self.clientInfo = {'name': self.name, 'concurrency': 2}
+        else:
+            self.name = clientInfo['name']
+            self.clientInfo = clientInfo
 
     def call(self, method, *a, **kw):
         if method == 'run':
@@ -174,13 +179,23 @@ class WorkerManagerTest(TestWithDB):
         d = self.wm.newWorker('unique2', w2)
         return self.assertFailure(d, server.WorkerRejected)
 
+    def test_reject_incomplete_worker(self):
+        w3 = TestWorker({'name': 'no_concurrency'})
+        d = self.wm.newWorker('no_concurrency', w3)
+        self.assertFailure(d, server.WorkerRejected)
+
+        w4 = TestWorker({'name': 'unique4', 'concurrency': 'not a number'})
+        d = self.wm.newWorker('unique4', w4)
+        self.assertFailure(d, server.WorkerRejected)
+
+
 class TestClient(rpc.WorkerRPC):
     def __init__(self, running):
         rpc.WorkerRPC.__init__(self, server=False)
         self.running = running
 
     def getHelloData(self):
-        return {'name': 'test'}
+        return {'name': 'test', 'concurrency': '1'}
 
     def cmd_get_running(self):
         return list(self.running)
@@ -259,7 +274,7 @@ class IntegrationTest(TestWithDB):
         def cb3(client, d):
             self.assertFalse(d.called)
             self.assertDictEqual(self.wm.workers, {})
-            self.assertListEqual(list(self.sched.queue), ['hang'])
+            self.assertListEqual(list(self.sched.queue), [('hang', True)])
 
         def cb2(client, d):
             client.transport.loseConnection()

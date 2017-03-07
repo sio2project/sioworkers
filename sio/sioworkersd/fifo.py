@@ -1,37 +1,69 @@
 from sio.sioworkersd.scheduler import Scheduler
-from collections import deque
+from collections import deque, namedtuple
+from operator import attrgetter
+
+QueuedTask = namedtuple('QueuedTask', ['id', 'exclusive'])
+WorkerInfo = namedtuple('WorkerInfo', ['id', 'task_cnt', 'concurrency'])
 
 class FIFOScheduler(Scheduler):
+    """ Scheduler that runs tasks in arrival order, does not support tags.
+    """
     def __init__(self, manager):
         super(FIFOScheduler, self).__init__(manager)
         self.queue = deque()
 
     def addTask(self, env):
         tid = env['task_id']
-        self.queue.appendleft(tid)
+        exc = env.get('exclusive', True)
+        self.queue.appendleft(QueuedTask(tid, exc))
 
     def delTask(self, tid):
-        if tid in self.queue:
-            self.queue.remove(tid)
+        for i, task in enumerate(self.queue):
+            if tid == task.id:
+                del self.queue[i]
+                break
 
     def __unicode__(self):
         return unicode(self.queue)
 
     def schedule(self):
-        workers = self.manager.getWorkers()
-        # Horribly inefficient, but this scheduler is an example anyway
-        ret = []
-        used = set()
-        while self.queue:
-            chosen = None
-            for wid, data in workers.iteritems():
-                if not data.tasks and wid not in used:
-                    chosen = wid
-                    break
-            if chosen:
-                t = self.queue.pop()
-                ret.append((t, chosen))
-                used.add(chosen)
+        # Rather inefficient, but this scheduler is an example anyway
+        free = []           # Workers without any task running on it.
+        workers = deque()   # Workers with some space left.
+        for wid, wdata in self.manager.getWorkers().iteritems():
+            task_cnt = len(wdata.tasks)
+            concurrency = int(wdata.concurrency)
+            if wdata.exclusive or task_cnt >= concurrency:
+                continue
+            if task_cnt == 0:
+                free.append(WorkerInfo(wid, 0, concurrency))
             else:
-                break
-        return ret
+                workers.appendleft(WorkerInfo(wid, task_cnt, concurrency))
+        free = deque(sorted(free, key=attrgetter('concurrency')))
+        res = []
+        while self.queue:
+            if self.queue[-1].exclusive:
+            # If this task is exclusive, get free worker with smallest
+            # concurrency.
+                if not free:
+                    break
+                task = self.queue.pop()
+                worker = free.popleft()
+                res.append((task.id, worker.id))
+            else:
+            # If it's not, prefer busy workers. When there are only free ones,
+            # choose worker with highest concurrency.
+                worker = None
+                if workers:
+                    worker = workers.pop()
+                elif free:
+                    worker = free.pop()
+                else:
+                    break
+                task = self.queue.pop()
+                res.append((task.id, worker.id))
+                if (worker.task_cnt + 1) < worker.concurrency:
+                # If worker has some free space, use it again.
+                    workers.append(
+                            worker._replace(task_cnt=worker.task_cnt + 1))
+        return res
