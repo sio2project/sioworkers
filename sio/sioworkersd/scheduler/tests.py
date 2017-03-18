@@ -1,6 +1,6 @@
 # pylint: disable=no-name-in-module
-from sio.sioworkersd.prioritizing_scheduler import PrioritizingScheduler
-from sio.sioworkersd.fifo import FIFOScheduler
+from sio.sioworkersd.scheduler.prioritizing import PrioritizingScheduler
+from sio.sioworkersd.scheduler.fifo import FIFOScheduler
 from nose.tools import assert_equals
 
 # Worker class copied from manager.py to keep this test twisted-free :-)

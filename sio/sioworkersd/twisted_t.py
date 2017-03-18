@@ -5,7 +5,8 @@ from twisted.internet import defer, interfaces, reactor, protocol, task
 from twisted.application.service import Application
 from zope.interface import implementer
 
-from sio.sioworkersd import manager, db, fifo, taskmanager, server
+from sio.sioworkersd import manager, db, taskmanager, server
+from sio.sioworkersd.scheduler.fifo import FIFOScheduler
 from sio.protocol import rpc
 import shutil
 import tempfile
@@ -54,7 +55,7 @@ class TestWithDB(unittest.TestCase):
                         (tid, env))
             self.workerm = manager.WorkerManager(self.db)
             self.workerm.setServiceParent(self.db)
-            self.sched = fifo.FIFOScheduler(self.workerm)
+            self.sched = FIFOScheduler(self.workerm)
             self.taskm = taskmanager.TaskManager(self.db, self.workerm,
                     self.sched)
             self.taskm.setServiceParent(self.db)
@@ -227,7 +228,7 @@ class IntegrationTest(TestWithDB):
     def setUp2(self, _=None):
         manager.TASK_TIMEOUT = 3
         self.wm = manager.WorkerManager(self.db)
-        self.sched = fifo.FIFOScheduler(self.wm)
+        self.sched = FIFOScheduler(self.wm)
         self.taskm = taskmanager.TaskManager(self.db, self.wm, self.sched)
 
         factory = self.wm.makeFactory()
