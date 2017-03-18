@@ -100,7 +100,8 @@ class TestWorker(server.WorkerServer):
         self.running = []
         if not clientInfo:
             self.name = 'test_worker'
-            self.clientInfo = {'name': self.name, 'concurrency': 2}
+            self.clientInfo = {'name': self.name,
+                    'concurrency': 2, 'can_run_cpu_exec': True}
         else:
             self.name = clientInfo['name']
             self.clientInfo = clientInfo
@@ -198,14 +199,21 @@ class WorkerManagerTest(TestWithDB):
         d = self.wm.newWorker('unique4', w4)
         self.assertFailure(d, server.WorkerRejected)
 
+        w5 = TestWorker({'name': 'unique5', 'can_run_cpu_exec': 'not boolean'})
+        d = self.wm.newWorker('unique5', w5)
+        self.assertFailure(d, server.WorkerRejected)
+
 
 class TestClient(rpc.WorkerRPC):
-    def __init__(self, running):
+    def __init__(self, running, can_run_cpu_exec=True, name='test'):
         rpc.WorkerRPC.__init__(self, server=False)
         self.running = running
+        self.can_run_cpu_exec = can_run_cpu_exec
+        self.name = name
 
     def getHelloData(self):
-        return {'name': 'test', 'concurrency': '1'}
+        return {'name': self.name, 'concurrency': 1,
+                'can_run_cpu_exec': self.can_run_cpu_exec}
 
     def cmd_get_running(self):
         return list(self.running)
@@ -240,6 +248,9 @@ class IntegrationTest(TestWithDB):
         self.sched = FIFOScheduler(self.wm)
         self.taskm = taskmanager.TaskManager(self.db, self.wm, self.sched)
 
+        # Normally added by startService()
+        self.wm.notifyOnNewWorker(lambda name: self.taskm._tryExecute())
+
         factory = self.wm.makeFactory()
         self.port = reactor.listenTCP(0, factory, interface='127.0.0.1')
         self.addCleanup(self.port.stopListening)
@@ -250,14 +261,15 @@ class IntegrationTest(TestWithDB):
         d.addCallback(self.setUp2)
         return d
 
-    def _wrap_test(self, callback, *client_args):
+    def _wrap_test(self, callback, callback_args, *client_args):
         creator = protocol.ClientCreator(reactor, TestClient, *client_args)
 
         def cb(client):
             self.addCleanup(client.transport.loseConnection)
             # We have to wait for a few (local) network roundtrips, hence the
             # magic one-second delay.
-            return task.deferLater(reactor, 1, callback, client)
+            return task.deferLater(
+                    reactor, 1, callback, client, **callback_args)
         return creator.connectTCP('127.0.0.1', self.port.getHost().port).\
                 addCallback(cb)
 
@@ -267,7 +279,7 @@ class IntegrationTest(TestWithDB):
             d = self.taskm.addTask(_fill_env({'task_id': 'asdf'}))
             d.addCallback(lambda x: self.assertIn('task_id', x))
             return d
-        return self._wrap_test(cb, set())
+        return self._wrap_test(cb, {}, set())
 
     def test_timeout(self):
         def cb2(_):
@@ -278,14 +290,14 @@ class IntegrationTest(TestWithDB):
             d = self.assertFailure(d, rpc.TimeoutError)
             d.addBoth(cb2)
             return d
-        return self._wrap_test(cb, set())
+        return self._wrap_test(cb, {}, set())
 
     def test_gone(self):
         def cb3(client, d):
             self.assertFalse(d.called)
             self.assertDictEqual(self.wm.workers, {})
-            self.assertListEqual(list(self.sched.queue),
-                    [('hang', 'cpu-exec')])
+            self.assertEqual(self.sched.queues['cpu+vcpu'][-1][0], 'hang')
+            self.assertEqual(len(self.sched.queues['cpu+vcpu']), 1)
 
         def cb2(client, d):
             client.transport.loseConnection()
@@ -296,4 +308,25 @@ class IntegrationTest(TestWithDB):
             d = self.taskm.addTask(_fill_env({'task_id': 'hang'}))
             # Allow the task to schedule
             return task.deferLater(reactor, 0, cb2, client, d)
-        return self._wrap_test(cb, set())
+        return self._wrap_test(cb, {}, set())
+
+    def test_cpu_exec(self):
+        def cb4(d):
+            self.assertTrue(d.called)
+
+        def cb3(client, d):
+            self.assertIn('test1', self.wm.workers)
+            self.assertIn('test2', self.wm.workers)
+            return task.deferLater(reactor, 1, cb4, d)
+
+        def cb2(d):
+            self.assertIn('test1', self.wm.workers)
+            self.assertFalse(d.called)
+            return self._wrap_test(cb3, {'d': d}, set(), True, 'test2')
+
+        def cb(client):
+            d = self.taskm.addTask(
+                    _fill_env({'task_id': 'asdf', 'job_type': 'cpu-exec'}))
+            d.addCallback(lambda x: self.assertIn('task_id', x))
+            return task.deferLater(reactor, 1, cb2, d)
+        return self._wrap_test(cb, {}, set(), False, 'test1')

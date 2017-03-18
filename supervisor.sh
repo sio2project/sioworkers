@@ -43,7 +43,7 @@ if [ -z "$command" ]; then
 fi
 
 # Set CWD to directory with config.
-cd $(dirname $BASH_SOURCE)/config
+cd "$(dirname "$BASH_SOURCE")/config"
 
 if ! [ -e supervisord.conf ] || \
    ! [ -e supervisord-conf-vars.conf ]; then
@@ -59,8 +59,15 @@ source ../../venv/bin/activate
 # Set all config variables.
 source supervisord-conf-vars.conf
 
+# Set extra flags, currently there is a need only for --can-run-cpu-exec flag.
+if [ "$WORKER_ALLOW_RUN_CPU_EXEC" == "true" ]; then
+    export WORKER_EXTRA_FLAGS="--can-run-cpu-exec"
+else
+    export WORKER_EXTRA_FLAGS=""
+fi
+
 # Create necessary directories.
-mkdir -pv ${WORKER_HOME}/{logs,pidfiles}
+mkdir -pv "${WORKER_HOME}"/{logs,pidfiles}
 
 # And run supervisor.*
 case "$command" in
@@ -82,4 +89,3 @@ case "$command" in
         supervisorctl
         ;;
 esac
-

@@ -1,67 +1,127 @@
 from sio.sioworkersd.scheduler import Scheduler
 from collections import deque, namedtuple
-from operator import attrgetter
 
-QueuedTask = namedtuple('QueuedTask', ['id', 'job_type'])
-WorkerInfo = namedtuple('WorkerInfo', ['id', 'task_cnt', 'concurrency'])
+
+# Type can be either cpu (for cpu-exec tasks) or vcpu (for others).
+QueuedTask = namedtuple('QueuedTask', ['id', 'type'])
+
+
+class WorkerInfo(object):
+    """Wrapper around worker data, simulates changing worker state during
+       scheduling process without actually sending anything to it. It is
+       recreated for each scheduling process.
+    """
+    def __init__(self, wid, wdata):
+        self.id = wid
+        self.concurrency = wdata.concurrency
+        self.tasks_count = len(wdata.tasks)
+        self.can_run_cpu_exec = wdata.can_run_cpu_exec
+        self.is_running_cpu_exec = wdata.is_running_cpu_exec
+
+    def can_run(self, task):
+        if self.is_running_cpu_exec or (self.tasks_count >= self.concurrency):
+            return False
+        else:
+            if task.type == 'cpu':
+                return self.can_run_cpu_exec and self.tasks_count == 0
+            else:
+                return True
+
+    def assign(self, task):
+        assert self.can_run(task)
+        if task.type == 'cpu':
+            self.is_running_cpu_exec = True
+        self.tasks_count += 1
+
 
 class FIFOScheduler(Scheduler):
-    """ Scheduler that runs tasks in arrival order.
+    """Scheduler that runs tasks in arrival order.
+
+       First try scheduling as many tasks as possible only using workers
+       that can't run cpu-exec jobs. Then add remaining workers and schedule
+       all tasks together.
     """
     def __init__(self, manager):
         super(FIFOScheduler, self).__init__(manager)
-        self.queue = deque()
+        # Set of tasks that currently are in queue.
+        self.tasks = set()
+        # Two queues, on for all tasks ('cpu+vcpu') and other for non
+        # cpu-exec tasks ('vcpu').
+        self.queues = {'cpu+vcpu': deque(), 'vcpu': deque()}
 
     def addTask(self, env):
-        self.queue.appendleft(QueuedTask(env['task_id'], env['job_type']))
+        tid = env['task_id']
+        task = QueuedTask(tid,
+                'cpu' if env['job_type'] == 'cpu-exec' else 'vcpu')
+        if task.type == 'vcpu':
+            self.queues['vcpu'].appendleft(task)
+        self.queues['cpu+vcpu'].appendleft(task)
+        self.tasks.add(tid)
 
     def delTask(self, tid):
-        for i, task in enumerate(self.queue):
-            if tid == task.id:
-                del self.queue[i]
-                break
+        if tid not in self.tasks:
+            return
+        self.tasks.remove(tid)
+        for queue in self.queues.itervalues():
+            for i, task in enumerate(queue):
+                if tid == task.id:
+                    del queue[i]
+                    break
 
     def __unicode__(self):
         return unicode(self.queue)
 
-    def schedule(self):
-        # Rather inefficient, but this scheduler is an example anyway
-        free = []           # Workers without any task running on it.
-        workers = deque()   # Workers with some space left.
-        for wid, wdata in self.manager.getWorkers().iteritems():
-            task_cnt = len(wdata.tasks)
-            concurrency = int(wdata.concurrency)
-            if wdata.is_running_cpu_exec or task_cnt >= concurrency:
+    def _schedule_queue_with(self, queue, workers):
+        """Schedule tasks from a queue using given workers.
+        """
+        result = []
+        while queue:
+            # Some tasks may have been already executed, skip them.
+            if queue[-1].id not in self.tasks:
+                queue.pop()
                 continue
-            if task_cnt == 0:
-                free.append(WorkerInfo(wid, 0, concurrency))
+            if queue[-1].type == 'cpu':
+                workers_queue = workers['cpu+vcpu']
             else:
-                workers.appendleft(WorkerInfo(wid, task_cnt, concurrency))
-        free = deque(sorted(free, key=attrgetter('concurrency')))
-        res = []
-        while self.queue:
-            if self.queue[-1].job_type == 'cpu-exec':
-            # If this task is cpu-exec job, get free worker with smallest
-            # concurrency.
-                if not free:
-                    break
-                task = self.queue.pop()
-                worker = free.popleft()
-                res.append((task.id, worker.id))
-            else:
-            # If it's not, prefer busy workers. When there are only free ones,
-            # choose worker with highest concurrency.
-                worker = None
-                if workers:
-                    worker = workers.pop()
-                elif free:
-                    worker = free.pop()
-                else:
-                    break
-                task = self.queue.pop()
-                res.append((task.id, worker.id))
-                if (worker.task_cnt + 1) < worker.concurrency:
-                # If worker has some free space, use it again.
-                    workers.append(
-                            worker._replace(task_cnt=worker.task_cnt + 1))
-        return res
+                workers_queue = workers['vcpu']
+            # Some workers may have changed, skip as many as needed.
+            while workers_queue and not workers_queue[-1].can_run(queue[-1]):
+                workers_queue.pop()
+            if not workers_queue:
+                break
+            task = queue.pop()
+            worker = workers_queue[-1]
+            worker.assign(task)
+            result.append((task.id, worker.id))
+            self.tasks.remove(task.id)
+        return result
+
+    def schedule(self):
+        # Map from types of tasks worker can run ('cpu+vcpu' for workers that
+        # can run every type of job and 'vcpu' for workers that can't run
+        # cpu-exec jobs) to deques of workers. A worker may belong to any
+        # number of deques.
+        workers = {'cpu+vcpu': [], 'vcpu': []}
+        for wid, wdata in self.manager.getWorkers().iteritems():
+            worker = WorkerInfo(wid, wdata)
+            if worker.tasks_count >= worker.concurrency \
+                    or worker.is_running_cpu_exec:
+                continue
+            workers['vcpu'].append(worker)
+            if worker.can_run_cpu_exec and worker.tasks_count == 0:
+                workers['cpu+vcpu'].append(worker)
+
+        # Make it actually a map of sorted deques. Be greedy. For vcpu
+        # jobs prefer workers that can't run cpu-exec jobs, then prefer
+        # workers with huge concurrency. For cpu jobs prefer workers
+        # with small concurrency.
+        workers['vcpu'] = deque(sorted(workers['vcpu'],
+            key=lambda w: (not w.can_run_cpu_exec, w.concurrency)))
+        workers['cpu+vcpu'] = deque(sorted(workers['cpu+vcpu'],
+            key=lambda w: w.concurrency, reverse=True))
+
+        result = self._schedule_queue_with(self.queues['cpu+vcpu'], workers)
+        while workers['vcpu'] and workers['vcpu'][0].can_run_cpu_exec:
+            workers['vcpu'].popleft()
+        result += self._schedule_queue_with(self.queues['vcpu'], workers)
+        return result

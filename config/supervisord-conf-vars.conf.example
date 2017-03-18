@@ -25,3 +25,11 @@ MEM_CONC=$((MEM_TOTAL / PROBLEM_MEMORY_MAX_LIMIT))
 PROC_CONC=$(($(nproc) * 3/2))
 export WORKER_CONCURRENCY=$((MEM_CONC < PROC_CONC ? MEM_CONC : PROC_CONC))
 
+# Mark worker as suitable for judging on cpu (without oitimetool) in safe
+# execution mode. This can be used during contests which are judged on real
+# cpu (like Algorithmic Engagements) to ensure that each submission is run on
+# the same model of cpu. Works only for tasks from oioioi instances with
+# USE_UNSAFE_EXEC disabled, for others has no effect (precisely, only workers
+# with that option turned on will be used to judge tasks of type 'cpu-exec').
+# Disabled by default.
+export WORKER_ALLOW_RUN_CPU_EXEC="false"

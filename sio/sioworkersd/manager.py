@@ -27,7 +27,11 @@ class Worker(object):
         self.info = info
         self.tasks = tasks
         self.is_running_cpu_exec = is_running_cpu_exec
-        self.concurrency = int(info['concurrency'])
+        self.concurrency = info['concurrency']
+        self.can_run_cpu_exec = info['can_run_cpu_exec']
+        # These arguemnts should have been already parsed with json.loads
+        assert isinstance(self.concurrency, int)
+        assert isinstance(self.can_run_cpu_exec, bool)
 
 
 class WorkerManager(object):
@@ -102,6 +106,10 @@ class WorkerManager(object):
             if wd.tasks:
                 raise RuntimeError(
                         'Tried to send cpu-exec job to busy worker')
+            if not wd.can_run_cpu_exec:
+                raise RuntimeError(
+                        "Tried to send cpu-exec job to worker which "
+                        "isn't allowed to run them.")
             wd.is_running_cpu_exec = True
         tid = task['task_id']
         log.info('Running {job_type} {tid} on {w}',

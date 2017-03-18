@@ -20,15 +20,20 @@ class WorkerProtocol(rpc.WorkerRPC):
 
     def getHelloData(self):
         return {'name': self.factory.name,
-                'concurrency': self.factory.concurrency}
+                'concurrency': self.factory.concurrency,
+                'can_run_cpu_exec': self.factory.can_run_cpu_exec}
 
     def cmd_run(self, env):
         job_type = env['job_type']
-        if job_type == 'cpu-exec' and self.running:
-            raise AssertionError('Send cpu-exec job to busy worker')
+        if job_type == 'cpu-exec':
+            if self.running:
+                raise RuntimeError('Send cpu-exec job to busy worker')
+            if not self.factory.can_run_cpu_exec:
+                raise RuntimeError(
+                        'Send cpu-exec job to worker which can\'t run it')
         if any([(task['job_type'] == 'cpu-exec')
                 for task in self.running.itervalues()]):
-            raise AssertionError(
+            raise RuntimeError(
                     'Send job to worker already running cpu-exec job')
         task_id = env['task_id']
         log.info('running {job_type} {tid}', job_type=job_type, tid=task_id)
@@ -57,8 +62,9 @@ class WorkerFactory(ReconnectingClientFactory):
     maxDelay = 60
     protocol = WorkerProtocol
 
-    def __init__(self, concurrency=1, name=None):
+    def __init__(self, concurrency=1, can_run_cpu_exec=False, name=None):
         self.concurrency = concurrency
+        self.can_run_cpu_exec = can_run_cpu_exec
         if name is None:
             self.name = platform.node()
         else:

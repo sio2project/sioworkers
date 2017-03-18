@@ -13,12 +13,13 @@ class Worker(object):
     ``tasks``: set() of currently executing ``task_id``s
     ``is_running_cpu_exec``: bool, True if the worker is running cpu-exec job
     """
-    def __init__(self, info, tasks):
+    def __init__(self, info, tasks, can_run_cpu_exec=True):
         self.info = info
         self.tasks = tasks
         self.is_running_cpu_exec = False
         self.count_cpu_exec = 0
         self.concurrency = int(info.get('concurrency', 1))
+        self.can_run_cpu_exec = can_run_cpu_exec
 
     def printInfo(self):
         print '%s, %s' % (str(self.info), str(self.tasks))
@@ -49,8 +50,9 @@ class Manager(object):
             del self.tasks[tid]
             del self.workers[wid].tasks[0]
 
-    def createWorker(self, wid, conc):
-        self.workers[wid] = Worker({'concurrency': conc}, [])
+    def createWorker(self, wid, conc, can_run_cpu_exec=True):
+        self.workers[wid] = Worker({'concurrency': conc}, [],
+                can_run_cpu_exec=can_run_cpu_exec)
 
     def deleteWorker(self, wid):
         del self.workers[wid]
@@ -99,15 +101,15 @@ def test_fifo():
     man.addTask(sch, create_task(400, False))
     man.addTask(sch, create_task(500, False))
     man.schedule(sch)
-    assert_equals(sch.queue[-1][0], 200)
+    assert_equals(sch.queues['cpu+vcpu'][-1][0], 200)
     man.completeOneTask(1)
     man.schedule(sch)
-    assert_equals(sch.queue[-1][0], 300)
+    assert_equals(sch.queues['cpu+vcpu'][-1][0], 300)
     man.completeOneTask(1)
     man.schedule(sch)
     man.completeOneTask(1)
     man.schedule(sch)
-    assert_equals(len(sch.queue), 0)
+    assert_equals(len(sch.queues['cpu+vcpu']), 0)
     man.completeOneTask(1)
     man.completeOneTask(1)
     assert not man.tasks
@@ -119,16 +121,16 @@ def test_fifo_many():
     man.createWorker(2, 2)
     man.createWorker(3, 2)
     man.addTask(sch, create_task(100, True))
-    man.addTask(sch, create_task(100, True))
+    man.addTask(sch, create_task(200, True))
     man.schedule(sch)
-    assert_equals(len(sch.queue), 0)
-    man.addTask(sch, create_task(200, False))
+    assert_equals(len(sch.queues['cpu+vcpu']), 0)
     man.addTask(sch, create_task(300, False))
-    man.addTask(sch, create_task(400, True))
+    man.addTask(sch, create_task(400, False))
+    man.addTask(sch, create_task(500, True))
     man.schedule(sch)
     man.schedule(sch)
-    assert_equals(sch.queue[0][0], 400)
-    assert_equals(len(sch.queue), 1)
+    assert_equals(sch.queues['cpu+vcpu'][-1][0], 500)
+    assert_equals(len(sch.queues['cpu+vcpu']), 1)
 
 def test_fifo_greed():
     man = Manager()
@@ -142,7 +144,7 @@ def test_fifo_greed():
     man.addTask(sch, create_task(300, True))
     man.addTask(sch, create_task(400, False))
     man.schedule(sch)
-    assert_equals(len(sch.queue), 0)
+    assert_equals(len(sch.queues['cpu+vcpu']), 0)
     man.completeOneTask(1)
     man.completeOneTask(2)
     man.completeOneTask(2)
