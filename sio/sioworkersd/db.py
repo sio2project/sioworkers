@@ -10,8 +10,6 @@ Schema:
             env - task/group environment as json
             is_group - true if this row describes a group
             time - time when task was received
-    worker: List of workers. Names are unique.
-    worker_tag: Many-to-many mapping worker-tag
 """
 from twisted.enterprise import adbapi
 from twisted.internet import defer
@@ -27,7 +25,7 @@ class DBWrapper(service.MultiService):
     Any services which use the database must have this service as a parent.
     Children will be started only after the connection is ready.
     """
-    DB_VERSION = 1
+    DB_VERSION = 2
     schema = ["CREATE TABLE config \
                     (key TEXT PRIMARY KEY, value TEXT NOT NULL);",
             "CREATE TABLE task \
@@ -38,13 +36,7 @@ class DBWrapper(service.MultiService):
             "CREATE TABLE return_task \
                     (id TEXT PRIMARY KEY, \
                     env BLOB NOT NULL,  \
-                    count INTEGER NOT NULL DEFAULT 0);",
-            "CREATE TABLE worker \
-                    (name TEXT PRIMARY KEY);",
-            "CREATE TABLE worker_tag \
-                    (tag TEXT, worker TEXT, \
-                    FOREIGN KEY(worker) REFERENCES worker(name));",
-            "CREATE INDEX tag_idx ON worker_tag(tag);"]
+                    count INTEGER NOT NULL DEFAULT 0);"]
 
     def __init__(self, path):
         service.MultiService.__init__(self)
@@ -82,8 +74,17 @@ class DBWrapper(service.MultiService):
                 str(self.DB_VERSION))
 
     # if we ever need to change the db schema, we should migrate it here
+    @defer.inlineCallbacks
     def migrate(self, fromVersion):
-        raise RuntimeError('migration required but not implemented')
+        if fromVersion == 1:
+            for operation in ["drop table worker_tag;", "drop table worker;"]:
+                yield self.pool.runQuery(operation)
+        else:
+            raise RuntimeError(
+                    'migration from %d required but not implemented'
+                            % fromVersion)
+        yield self.pool.runQuery("update config set value = ? \
+                    where key = 'version'", str(self.DB_VERSION))
 
     @defer.inlineCallbacks
     def openDB(self):

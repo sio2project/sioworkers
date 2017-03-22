@@ -17,6 +17,12 @@ def _print(x):
     return x
 
 
+def _fill_env(env):
+    if 'job_type' not in env:
+        env['job_type'] = 'cpu-exec'
+    return env
+
+
 class TestWithDB(unittest.TestCase):
     """Abstract class for testing sioworkersd parts that need a database."""
     SAVED_TASKS = []
@@ -53,8 +59,7 @@ class TestWithDB(unittest.TestCase):
                 yield self.db.runOperation(
                     "insert into task (id, env) values (?, ?)",
                         (tid, env))
-            self.workerm = manager.WorkerManager(self.db)
-            self.workerm.setServiceParent(self.db)
+            self.workerm = manager.WorkerManager()
             self.sched = FIFOScheduler(self.workerm)
             self.taskm = taskmanager.TaskManager(self.db, self.workerm,
                     self.sched)
@@ -65,7 +70,7 @@ class TestWithDB(unittest.TestCase):
 
 class TaskManagerTest(TestWithDB):
     SAVED_TASKS = [
-            ('asdf', '{"task_id": "asdf"}')
+            ('asdf', '{"task_id": "asdf", "job_type": "cpu-exec"}')
             ]
 
     def test_restore(self):
@@ -74,7 +79,7 @@ class TaskManagerTest(TestWithDB):
                 self.assertIn('asdf', self.taskm.inProgress))
         d.addCallback(lambda _:
                 self.assertDictEqual(self.taskm.inProgress['asdf'].env,
-                            {'task_id': 'asdf'}))
+                        {'task_id': 'asdf', 'job_type': 'cpu-exec'}))
         return d
 
 
@@ -125,7 +130,7 @@ class WorkerManagerTest(TestWithDB):
         self.notifyCalled = True
 
     def setUp2(self, _=None):
-        self.wm = manager.WorkerManager(self.db)
+        self.wm = manager.WorkerManager()
         self.wm.notifyOnNewWorker(self._notify_cb)
         self.worker_proto = TestWorker()
         return self.wm.newWorker('unique1', self.worker_proto)
@@ -142,28 +147,32 @@ class WorkerManagerTest(TestWithDB):
     @defer.inlineCallbacks
     def test_run(self):
         yield self.assertIn('test_worker', self.wm.workers)
-        ret = yield self.wm.runOnWorker('test_worker', {'task_id': 'ok'})
+        ret = yield self.wm.runOnWorker('test_worker',
+                _fill_env({'task_id': 'ok'}))
         yield self.assertIn('foo', ret)
         yield self.assertEqual('bar', ret['foo'])
 
     def test_fail(self):
-        d = self.wm.runOnWorker('test_worker', {'task_id': 'fail'})
+        d = self.wm.runOnWorker('test_worker', _fill_env({'task_id': 'fail'}))
         d.addBoth(_print)
         return self.assertFailure(d, rpc.RemoteError)
 
-    def test_exclusive(self):
-        self.wm.runOnWorker('test_worker', {'task_id': 'hang1'})
+    def test_cpu_exec(self):
+        self.wm.runOnWorker('test_worker', _fill_env({'task_id': 'hang1'}))
         self.assertRaises(RuntimeError,
-                self.wm.runOnWorker, 'test_worker', {'task_id': 'hang2'})
+                self.wm.runOnWorker, 'test_worker',
+                _fill_env({'task_id': 'hang2'}))
 
-    def test_exclusive2(self):
+    def test_cpu_exec2(self):
         self.wm.runOnWorker('test_worker',
-                {'task_id': 'hang1', 'exclusive': False})
+                _fill_env({'task_id': 'hang1', 'job-type': 'vcpu-exec'}))
         self.assertRaises(RuntimeError,
-                self.wm.runOnWorker, 'test_worker', {'task_id': 'hang2'})
+                self.wm.runOnWorker, 'test_worker',
+                _fill_env({'task_id': 'hang2'}))
 
     def test_gone(self):
-        d = self.wm.runOnWorker('test_worker', {'task_id': 'hang'})
+        d = self.wm.runOnWorker('test_worker',
+                _fill_env({'task_id': 'hang', 'job_type': 'cpu-exec'}))
         self.wm.workerLost(self.worker_proto)
         return self.assertFailure(d, manager.WorkerGone)
 
@@ -227,7 +236,7 @@ class IntegrationTest(TestWithDB):
 
     def setUp2(self, _=None):
         manager.TASK_TIMEOUT = 3
-        self.wm = manager.WorkerManager(self.db)
+        self.wm = manager.WorkerManager()
         self.sched = FIFOScheduler(self.wm)
         self.taskm = taskmanager.TaskManager(self.db, self.wm, self.sched)
 
@@ -255,7 +264,7 @@ class IntegrationTest(TestWithDB):
     def test_remote_run(self):
         def cb(client):
             self.assertIn('test', self.wm.workers)
-            d = self.taskm.addTask({'task_id': 'asdf'})
+            d = self.taskm.addTask(_fill_env({'task_id': 'asdf'}))
             d.addCallback(lambda x: self.assertIn('task_id', x))
             return d
         return self._wrap_test(cb, set())
@@ -265,7 +274,7 @@ class IntegrationTest(TestWithDB):
             self.assertEqual(self.wm.workers, {})
 
         def cb(client):
-            d = self.taskm.addTask({'task_id': 'hang'})
+            d = self.taskm.addTask(_fill_env({'task_id': 'hang'}))
             d = self.assertFailure(d, rpc.TimeoutError)
             d.addBoth(cb2)
             return d
@@ -275,7 +284,8 @@ class IntegrationTest(TestWithDB):
         def cb3(client, d):
             self.assertFalse(d.called)
             self.assertDictEqual(self.wm.workers, {})
-            self.assertListEqual(list(self.sched.queue), [('hang', True)])
+            self.assertListEqual(list(self.sched.queue),
+                    [('hang', 'cpu-exec')])
 
         def cb2(client, d):
             client.transport.loseConnection()
@@ -283,7 +293,7 @@ class IntegrationTest(TestWithDB):
             return task.deferLater(reactor, 1, cb3, client, d)
 
         def cb(client):
-            d = self.taskm.addTask({'task_id': 'hang'})
+            d = self.taskm.addTask(_fill_env({'task_id': 'hang'}))
             # Allow the task to schedule
             return task.deferLater(reactor, 0, cb2, client, d)
         return self._wrap_test(cb, set())

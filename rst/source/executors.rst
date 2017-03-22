@@ -145,7 +145,9 @@ Builtin jobs
 |``exec``      |      |            |management relying on ``ulimit``.        |
 +--------------+------+------------+-----------------------------------------+
 |``cpu-exec``  |Yes   |``exec-``\  |Executes programs in a dedicated, secure |
-|              |      |``sandbox`` |sandbox.                                 |
+|              |      |``sandbox`` |sandbox. Because time used by real cpu   |
+|              |      |            |is returned, no other job will be        |
+|              |      |            |executed simultaneously.                 |
 +--------------+------+------------+-----------------------------------------+
 |``vcpu-exec`` |Yes   |``vcpu_``\  |This is machine-independent execution    |
 |              |      |``exec-``\  |job, which uses instruction counting     |

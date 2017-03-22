@@ -23,12 +23,15 @@ class WorkerProtocol(rpc.WorkerRPC):
                 'concurrency': self.factory.concurrency}
 
     def cmd_run(self, env):
-        if (env['exclusive'] and self.running) or \
-                any(i['exclusive'] for i in self.running.itervalues()):
-            raise AssertionError('Multiple tasks on exclusive worker')
+        job_type = env['job_type']
+        if job_type == 'cpu-exec' and self.running:
+            raise AssertionError('Send cpu-exec job to busy worker')
+        if any([(task['job_type'] == 'cpu-exec')
+                for task in self.running.itervalues()]):
+            raise AssertionError(
+                    'Send job to worker already running cpu-exec job')
         task_id = env['task_id']
-        log.info('running {tid}, exclusive: {excl}',
-                tid=task_id, excl=env['exclusive'])
+        log.info('running {job_type} {tid}', job_type=job_type, tid=task_id)
         self.running[task_id] = env
         d = threads.deferToThread(_runner_wrap, env)
 

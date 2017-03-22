@@ -18,22 +18,20 @@ class Worker(object):
     """Information about a worker.
     ``info``: clientInfo dictionary, passed from worker
         (see sio.protocol.worker.WorkerProtocol.getHelloData)
-    ``tags``: set() of tags (strings)
     ``tasks``: set() of currently executing ``task_id``s
-    ``exclusive``: bool, True if the worker is executing an exclusive task
+    ``is_running_cpu_exec``: bool, True if the worker is executing cpu-exec
+        job, and (because such jobs are exclusive) can't run any other job
     ``concurrency``: number of tasks that worker can handle at the same time
     """
-    def __init__(self, info, tags, tasks, exclusive):
+    def __init__(self, info, tasks, is_running_cpu_exec):
         self.info = info
-        self.tags = tags
         self.tasks = tasks
-        self.exclusive = exclusive
+        self.is_running_cpu_exec = is_running_cpu_exec
         self.concurrency = int(info['concurrency'])
 
 
-class WorkerManager(Service):
-    def __init__(self, db):
-        self.db = db
+class WorkerManager(object):
+    def __init__(self):
         self.workers = {}
         self.workerData = {}
         self.deferreds = {}
@@ -65,31 +63,16 @@ class WorkerManager(Service):
             log.warn('Rejecting worker {w} because it is running tasks',
                     w=name)
             raise server.WorkerRejected()
-        present = yield self.db.runQuery(
-                "select * from worker where name = ?;", (name,))
-        tags = set()
-        if present:
-            tags = yield self.db.runQuery(
-                    "select tag from worker_tag, worker where worker = ?;",
-                    (name,))
-            tags = {i[0] for i in tags}
         # if information received from worker doesn't meet expectations
         # reject it
         try:
-            worker = Worker(proto.clientInfo, tags, set(), False)
+            worker = Worker(proto.clientInfo, set(), False)
         except Exception, e:
             log.warn('Rejecting worker {w} because it sent invalid ({e})'
                     ' client info: {d}', w=name, e=e, d=proto.clientInfo)
             raise server.WorkerRejected()
-        if not present:
-            yield self.db.runOperation(
-                    "insert into worker values (?)", (name,))
         self.workers[name] = proto
         self.workerData[name] = worker
-        # if worker connects for the first time he gets 'default' tag
-        # for now, workers without any tags don't check anything
-        if not present:
-            self.addWorkerTag(name, 'default')
         if self.newWorkerCallback:
             self.newWorkerCallback(name)
 
@@ -106,40 +89,23 @@ class WorkerManager(Service):
     def getWorkers(self):
         return self.workerData
 
-    def addWorkerTag(self, wid, tag):
-        assert isinstance(tag, str)
-        if wid not in self.workerData:
-            raise ValueError()
-        # ignore if already present
-        if tag not in self.workerData[wid].tags:
-            self.workerData[wid].tags.add(tag)
-            return self.db.runOperation(
-                    "insert into worker_tag values (?, ?)", (tag, wid))
-
-    def removeWorkerTag(self, wid, tag):
-        assert isinstance(tag, str)
-        if wid not in self.workerData or \
-                tag not in self.workerData[wid].tags:
-            raise ValueError()
-        self.workerData[wid].tags.discard(tag)
-        return self.db.runOperation(
-                "delete from worker_tag where tag = ? and worker = ?",
-                (tag, wid))
-
     def runOnWorker(self, worker, task):
         w = self.workers[worker]
         wd = self.workerData[worker]
-        if wd.exclusive:
-            raise RuntimeError('Tried to send task to exclusive worker')
+        job_type = task['job_type']
+        if wd.is_running_cpu_exec:
+            raise RuntimeError(
+                    'Tried to send task to worker running cpu-exec job')
         if len(wd.tasks) >= wd.concurrency:
             raise RuntimeError('Tried to send task to fully loaded worker')
-        tid = task['task_id']
-        log.info('Running {tid} on {w}', tid=tid, w=worker)
-        if task.get('exclusive', True):
+        if job_type == 'cpu-exec':
             if wd.tasks:
                 raise RuntimeError(
-                        'Tried to send exclusive task to busy worker')
-            wd.exclusive = True
+                        'Tried to send cpu-exec job to busy worker')
+            wd.is_running_cpu_exec = True
+        tid = task['task_id']
+        log.info('Running {job_type} {tid} on {w}',
+                job_type=job_type, tid=tid, w=worker)
         wd.tasks.add(tid)
         d = w.call('run', task, timeout=TASK_TIMEOUT)
         self.deferreds[tid] = d
@@ -147,11 +113,11 @@ class WorkerManager(Service):
         def _free(x):
             wd.tasks.discard(tid)
             del self.deferreds[tid]
-            if wd.exclusive and wd.tasks:
-                log.critical('FATAL: impossible happened: worker was,'
-                        'exclusive, but still has tasks left. Aborting.')
+            if wd.is_running_cpu_exec and wd.tasks:
+                log.critical('FATAL: impossible happened: worker was running '
+                    'cpu-exec job, but still has tasks left. Aborting.')
                 reactor.crash()
-            wd.exclusive = False
+            wd.is_running_cpu_exec = False
             return x
 
         def _trap_timeout(failure):

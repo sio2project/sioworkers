@@ -46,7 +46,7 @@ class WorkerServiceMaker(object):
 
 class ServerOptions(usage.Options):
     default_scheduler = \
-        'sio.sioworkersd.fifo.FIFOScheduler'
+        'sio.sioworkersd.scheduler.fifo.FIFOScheduler'
 
     optParameters = [
             ['worker-listen', 'w', '', "workers listen address"],
@@ -68,8 +68,7 @@ class ServerServiceMaker(object):
 
         db = DBWrapper(options['database'])
 
-        workerm = WorkerManager(db)
-        workerm.setServiceParent(db)
+        workerm = WorkerManager()
 
         sched_module, sched_class = options['scheduler'].rsplit('.', 1)
         try:

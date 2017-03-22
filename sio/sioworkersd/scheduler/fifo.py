@@ -2,20 +2,18 @@ from sio.sioworkersd.scheduler import Scheduler
 from collections import deque, namedtuple
 from operator import attrgetter
 
-QueuedTask = namedtuple('QueuedTask', ['id', 'exclusive'])
+QueuedTask = namedtuple('QueuedTask', ['id', 'job_type'])
 WorkerInfo = namedtuple('WorkerInfo', ['id', 'task_cnt', 'concurrency'])
 
 class FIFOScheduler(Scheduler):
-    """ Scheduler that runs tasks in arrival order, does not support tags.
+    """ Scheduler that runs tasks in arrival order.
     """
     def __init__(self, manager):
         super(FIFOScheduler, self).__init__(manager)
         self.queue = deque()
 
     def addTask(self, env):
-        tid = env['task_id']
-        exc = env.get('exclusive', True)
-        self.queue.appendleft(QueuedTask(tid, exc))
+        self.queue.appendleft(QueuedTask(env['task_id'], env['job_type']))
 
     def delTask(self, tid):
         for i, task in enumerate(self.queue):
@@ -33,7 +31,7 @@ class FIFOScheduler(Scheduler):
         for wid, wdata in self.manager.getWorkers().iteritems():
             task_cnt = len(wdata.tasks)
             concurrency = int(wdata.concurrency)
-            if wdata.exclusive or task_cnt >= concurrency:
+            if wdata.is_running_cpu_exec or task_cnt >= concurrency:
                 continue
             if task_cnt == 0:
                 free.append(WorkerInfo(wid, 0, concurrency))
@@ -42,8 +40,8 @@ class FIFOScheduler(Scheduler):
         free = deque(sorted(free, key=attrgetter('concurrency')))
         res = []
         while self.queue:
-            if self.queue[-1].exclusive:
-            # If this task is exclusive, get free worker with smallest
+            if self.queue[-1].job_type == 'cpu-exec':
+            # If this task is cpu-exec job, get free worker with smallest
             # concurrency.
                 if not free:
                     break

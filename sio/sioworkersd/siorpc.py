@@ -3,8 +3,6 @@ from functools import wraps
 from twisted.web.xmlrpc import XMLRPC
 from twisted.web import server
 from uuid import uuid4
-from sio.sioworkersd.quirks import apply_quirks
-from twisted.internet import defer
 from twisted.logger import Logger
 
 log = Logger()
@@ -39,26 +37,9 @@ class SIORPC(XMLRPC):
         for k, v in self.workerm.getWorkers().iteritems():
             ret.append({'name': k,
                 'info': v.info,
-                'tags': list(v.tags),
                 'tasks': list(v.tasks),
-                'exclusive': v.exclusive})
+                'is_running_cpu_exec': v.is_running_cpu_exec})
         return ret
-
-    @defer.inlineCallbacks
-    def xmlrpc_add_tag(self, workers, tag):
-        for i in workers:
-            yield self.workerm.addWorkerTag(i, tag)
-
-    @defer.inlineCallbacks
-    def xmlrpc_del_tag(self, workers, tag):
-        for i in workers:
-            yield self.workerm.removeWorkerTag(i, tag)
-
-    def xmlrpc_list_tags(self):
-        ret = set()
-        for i in self.workerm.getWorkers().itervalues():
-            ret.update(i.tags)
-        return list(ret)
 
     def xmlrpc_get_queue(self):
         return self.taskm.getQueue()
@@ -67,7 +48,6 @@ class SIORPC(XMLRPC):
     def xmlrpc_run(self, task):
         task_id = uuid4().urn
         task['task_id'] = task_id
-        apply_quirks(task)
         d = self.taskm.addTask(task)
         d.addBoth(self.taskm.return_to_sio, url=task['return_url'],
                 orig_env=task)
@@ -84,7 +64,6 @@ class SIORPC(XMLRPC):
     def xmlrpc_sync_run(self, task):
         task_id = uuid4().urn
         task['task_id'] = task_id
-        apply_quirks(task)
         d = self.taskm.addTask(task)
         d.addErrback(self._sync_wrap, orig_env=task)
         return d
@@ -94,7 +73,6 @@ class SIORPC(XMLRPC):
         group_id = 'GROUP_' + uuid4().urn
         env['group_id'] = group_id
         for task in tasks.itervalues():
-            apply_quirks(task)
             task['group_id'] = group_id
             task['task_id'] = uuid4().urn
 
