@@ -21,3 +21,7 @@ class Scheduler(object):
         """Return a list of tasks to be executed now, as a list of pairs
         (task_id, worker_id)."""
         raise NotImplementedError()
+
+
+def get_default_scheduler_class_name():
+    return 'sio.sioworkersd.scheduler.fifo.FIFOScheduler'

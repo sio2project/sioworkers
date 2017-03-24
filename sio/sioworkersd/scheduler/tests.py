@@ -1,4 +1,6 @@
 # pylint: disable=no-name-in-module
+import importlib
+from sio.sioworkersd.scheduler import get_default_scheduler_class_name
 from sio.sioworkersd.scheduler.fifo import FIFOScheduler
 from nose.tools import assert_equals
 
@@ -90,6 +92,13 @@ class Manager(object):
         for wid, w in self.workers.iteritems():
             print 'Worker (id: %d, concurr: %d) does %s' % \
                 (wid, w.info['concurrency'], w.tasks)
+
+def test_default_scheduler_existence():
+    module_name, class_name = get_default_scheduler_class_name() \
+                                  .rsplit('.', 1)
+    # can throw ImportError and fail test
+    module = importlib.import_module(module_name)
+    assert hasattr(module, class_name)
 
 def test_fifo():
     man = Manager()

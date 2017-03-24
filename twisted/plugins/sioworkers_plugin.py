@@ -12,6 +12,7 @@ from sio.protocol.worker import WorkerFactory
 from filetracker.servers.run import DEFAULT_PORT as DEFAULT_FILETRACKER_PORT
 import os
 from sio.sioworkersd.manager import WorkerManager
+from sio.sioworkersd.scheduler import get_default_scheduler_class_name
 from sio.sioworkersd.taskmanager import TaskManager
 from sio.sioworkersd.db import DBWrapper
 from sio.sioworkersd import siorpc
@@ -55,16 +56,14 @@ class WorkerServiceMaker(object):
 
 
 class ServerOptions(usage.Options):
-    default_scheduler = \
-        'sio.sioworkersd.scheduler.fifo.FIFOScheduler'
-
     optParameters = [
             ['worker-listen', 'w', '', "workers listen address"],
             ['worker-port', '', 7888, "workers port number"],
             ['rpc-listen', 'r', '', "RPC listen address"],
             ['rpc-port', '', 7889, "RPC listen port"],
             ['database', 'db', 'sioworkersd.sqlite', "database file path"],
-            ['scheduler', 's', default_scheduler, "scheduler class"],
+            ['scheduler', 's', get_default_scheduler_class_name(),
+                 "scheduler class"],
             ]
 
 
