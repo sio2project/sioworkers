@@ -5,7 +5,7 @@ from twisted.internet import defer, interfaces, reactor, protocol, task
 from twisted.application.service import Application
 from zope.interface import implementer
 
-from sio.sioworkersd import workermanager, db, taskmanager, server
+from sio.sioworkersd import workermanager, taskmanager, server
 from sio.sioworkersd.scheduler.fifo import FIFOScheduler
 from sio.protocol import rpc
 import shutil
@@ -46,40 +46,36 @@ class TestWithDB(unittest.TestCase):
 
     def setUp(self):
         self.db_dir = tempfile.mkdtemp()
-        self.db_path = self.db_dir + '/sio_tests.sqlite'
+        self.db_path = self.db_dir + '/sio_tests.db'
 
     def tearDown(self):
-        if self.db:
-            self.db.stopService()
+        if self.taskm:
+            self.taskm.database.db.close()
         shutil.rmtree(self.db_dir)
 
     def _prepare_svc(self):
         self.app = Application('test')
-        self.db = db.DBWrapper(self.db_path)
-        self.db.setServiceParent(self.app)
-        d = self.db.openDB()
-        # HACK: we need to run openDB manually earlier to insert test values
-        # but it can't be called a second time in startService
-        self.db.openDB = lambda: None
+        self.workerm = workermanager.WorkerManager()
+        self.sched = FIFOScheduler(self.workerm)
+        self.taskm = taskmanager.TaskManager(self.db_path, self.workerm,
+                                             self.sched)
+        # HACK: tests needs clear twisted's reactor, so we're mocking
+        #       method that creates additional deferreds.
+        self.taskm.database.start_periodic_sync = lambda: None
 
-        @defer.inlineCallbacks
-        def db_callback(_):
-            for tid, env in self.SAVED_TASKS:
-                yield self.db.runOperation(
-                    "insert into task (id, env) values (?, ?)",
-                        (tid, env))
-            self.workerm = workermanager.WorkerManager()
-            self.sched = FIFOScheduler(self.workerm)
-            self.taskm = taskmanager.TaskManager(self.db, self.workerm,
-                    self.sched)
-            self.taskm.setServiceParent(self.db)
-            yield self.db.startService()
-        d.addCallback(db_callback)
-        return d
+        for tid, env in self.SAVED_TASKS:
+            self.taskm.database.update(tid, env)
+
+        return self.taskm.startService()
 
 class TaskManagerTest(TestWithDB):
     SAVED_TASKS = [
-            ('asdf_group', '''{
+        ('asdf_group', {
+            "id": "asdf_group",
+            "status": "to_judge",
+            "timestamp": "1491407526.72",
+            "retry_cnt": 0,
+            "env": {
                 "group_id": "asdf_group",
                 "return_url": "localhost",
                 "workers_jobs": {
@@ -89,8 +85,9 @@ class TaskManagerTest(TestWithDB):
                         "job_type": "cpu-exec"
                     }
                 }
-            }''')
-            ]
+            }
+        })
+    ]
 
     def test_restore(self):
         d = self._prepare_svc()

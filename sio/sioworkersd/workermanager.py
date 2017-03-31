@@ -1,5 +1,6 @@
 from sio.sioworkersd import server
 from sio.protocol.rpc import TimeoutError
+from twisted.application import service
 from twisted.internet import reactor, defer
 from twisted.logger import Logger
 
@@ -33,8 +34,9 @@ class Worker(object):
         assert isinstance(self.can_run_cpu_exec, bool)
 
 
-class WorkerManager(object):
+class WorkerManager(service.MultiService):
     def __init__(self):
+        service.MultiService.__init__(self)
         self.workers = {}
         self.workerData = {}
         self.deferreds = {}

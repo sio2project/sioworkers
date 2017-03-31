@@ -9,12 +9,9 @@ from twisted.application import service
 from twisted.application import internet
 
 from sio.protocol.worker import WorkerFactory
-from filetracker.servers.run import DEFAULT_PORT as DEFAULT_FILETRACKER_PORT
-import os
 from sio.sioworkersd.workermanager import WorkerManager
 from sio.sioworkersd.scheduler import get_default_scheduler_class_name
 from sio.sioworkersd.taskmanager import TaskManager
-from sio.sioworkersd.db import DBWrapper
 from sio.sioworkersd import siorpc
 
 
@@ -57,26 +54,24 @@ class WorkerServiceMaker(object):
 
 class ServerOptions(usage.Options):
     optParameters = [
-            ['worker-listen', 'w', '', "workers listen address"],
-            ['worker-port', '', 7888, "workers port number"],
-            ['rpc-listen', 'r', '', "RPC listen address"],
-            ['rpc-port', '', 7889, "RPC listen port"],
-            ['database', 'db', 'sioworkersd.sqlite', "database file path"],
-            ['scheduler', 's', get_default_scheduler_class_name(),
-                 "scheduler class"],
-            ]
+        ['worker-listen', 'w', '', "workers listen address"],
+        ['worker-port', '', 7888, "workers port number"],
+        ['rpc-listen', 'r', '', "RPC listen address"],
+        ['rpc-port', '', 7889, "RPC listen port"],
+        ['database', 'db', 'sioworkersd.db', "database file path"],
+        ['scheduler', 's', get_default_scheduler_class_name(),
+             "scheduler class"],
+    ]
 
 
 class ServerServiceMaker(object):
     implements(service.IServiceMaker, IPlugin)
     tapname = 'sioworkersd'
-    description = 'TODO'
+    description = 'workers and jobs execution manager'
     options = ServerOptions
 
     def makeService(self, options):
-
-        db = DBWrapper(options['database'])
-
+        # root service, leaf in the tree of dependency
         workerm = WorkerManager()
 
         sched_module, sched_class = options['scheduler'].rsplit('.', 1)
@@ -90,17 +85,18 @@ class ServerServiceMaker(object):
             print "[ERROR] Invalid scheduler class: " + sched_class + "\n"
             raise
 
-        taskm = TaskManager(db, workerm, SchedulerClass(workerm))
-        taskm.setServiceParent(db)
+        taskm = TaskManager(options['database'], workerm,
+                            SchedulerClass(workerm))
+        taskm.setServiceParent(workerm)
 
         rpc = siorpc.makeSite(workerm, taskm)
         internet.TCPServer(int(options['rpc-port']), rpc,
-                interface=options['rpc-listen']).setServiceParent(db)
+                interface=options['rpc-listen']).setServiceParent(workerm)
 
         internet.TCPServer(int(options['worker-port']), workerm.makeFactory(),
-                interface=options['worker-listen']).setServiceParent(db)
+                interface=options['worker-listen']).setServiceParent(workerm)
 
-        return db
+        return workerm
 
 
 workerMaker = WorkerServiceMaker()

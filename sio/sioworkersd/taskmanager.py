@@ -1,24 +1,33 @@
 from twisted.application.service import Service
 from twisted.internet import defer, reactor
-from twisted.internet.task import deferLater
+from twisted.internet.task import deferLater, LoopingCall
 from twisted.python.failure import Failure
 from twisted.web import client
 from twisted.web.http_headers import Headers
 from collections import namedtuple
+import bsddb
 import json
 from StringIO import StringIO
 from poster import encode
-from sio.sioworkersd.workermanager import WorkerGone
+import time
+from operator import itemgetter
 from sio.protocol.rpc import RemoteError
+from sio.sioworkersd.workermanager import WorkerGone
 from twisted.logger import Logger, LogLevel
 
 log = Logger()
 
 Task = namedtuple('Task', 'env d')
 
-# How many seconds to wait between task return attempts
-RETRY_DELAY = 20
-MAX_RETRIES = 60 * 60 / RETRY_DELAY
+MAX_RETRIES_OF_RESULT_RETURNING = 6
+# How many seconds wait between following retry attempts.
+RETRY_DELAY_OF_RESULT_RETURNING = \
+    [10 ** i for i in range(1, MAX_RETRIES_OF_RESULT_RETURNING + 1)]
+DB_SYNC_INTERVAL_IN_SEC = 10
+# Should not be too small. We want to avoid lots of errors in case of server
+# failure.
+DB_SYNC_RESTART_INTERVAL_IN_SEC = 60 * 60
+
 
 class MultiException(Exception):
     def __init__(self, desc, excs):
@@ -30,10 +39,47 @@ class MultiException(Exception):
         super(MultiException, self).__init__(s)
 
 
+class DBWrapper(object):
+    def __init__(self, db_filename):
+        # hashopen, cause we operate on single keys and do full scan at start.
+        self.db = bsddb.hashopen(db_filename)
+        # For better performance we are allowing some tasks to be executed
+        # multiple times in case of server failure. Hence, we are skipping
+        # specific database sync and doing it later with LoopingCall.
+        self.db_sync_task = LoopingCall(self.db.sync)
+
+    def start_periodic_sync(self):
+        def restart_db_sync_task(failure, task):
+            log.error("Failed to sync database. Error:", failure)
+            d = deferLater(reactor, DB_SYNC_RESTART_INTERVAL_IN_SEC,
+                           lambda: task.start(DB_SYNC_INTERVAL_IN_SEC))
+            d.addErrback(restart_db_sync_task, task=task)
+            return d
+        self.db_sync_task.start(DB_SYNC_INTERVAL_IN_SEC) \
+                         .addErrback(restart_db_sync_task,
+                                     task=self.db_sync_task)
+
+    def get_items(self):
+        return [json.loads(self.db[k]) for k in self.db.keys()]
+
+    def update(self, job_id, dict_update, sync=True):
+        job = json.loads(self.db.get(job_id, '{}'))
+        job.update(dict_update)
+        self.db[job_id] = json.dumps(job)
+        if sync:
+            self.db.sync()
+
+    def delete(self, job_id, sync=False):
+        # Check self.db_sync_task to know why sync is False by default
+        del self.db[job_id]
+        if sync:
+            self.db.sync()
+
+
 class TaskManager(Service):
-    def __init__(self, db, workerm, sched):
+    def __init__(self, db_filename, workerm, sched):
         self.workerm = workerm
-        self.database = db
+        self.database = DBWrapper(db_filename)
         self.scheduler = sched
         self.inProgress = {}
         # If a connection pool and/or keepalive is necessary
@@ -44,23 +90,25 @@ class TaskManager(Service):
     def startService(self):
         log.info('Starting task manager...')
         yield Service.startService(self)
-        jobs = yield self.database.runQuery(
-            'select id,env,is_group from task order by datetime(time) asc')
-        if len(jobs) > 0:
-            log.info("Unfinished jobs found in database, resuming them...")
-        for (task_id, env, _) in jobs:
-            env = json.loads(env)
-            d = self._addGroup(env)
-            log.debug("added again unfinished task {tid}", tid=task_id)
-            d.addBoth(self.return_to_sio, url=env['return_url'],
-                      orig_env=env, tid=task_id)
+        self.database.start_periodic_sync()
+        all_jobs = self.database.get_items()
+        all_jobs.sort(key=itemgetter('timestamp'))
 
-        returns = yield self.database.runQuery('select * from return_task')
-        for task_id, env, count in returns:
-            env = json.loads(env)
-            log.warn("Trying again to return old task {tid}", tid=task_id)
-            self.return_to_sio(env, url=env['return_url'],
-                               orig_env=env, tid=task_id, count=count)
+        if len(all_jobs) > 0:
+            log.info("Unfinished jobs found in database, resuming them...")
+
+        for job in all_jobs:
+            if job['status'] == 'to_judge':
+                d = self._addGroup(job['env'])
+                log.debug("added again unfinished task {tid}", tid=job['id'])
+                d.addBoth(self.return_to_sio, url=job['env']['return_url'],
+                          orig_env=job['env'], tid=job['id'])
+            elif job['status'] == 'to_return':
+                log.warn("Trying again to return old task {tid}",
+                         tid=job['id'])
+                self.return_to_sio(job['env'], url=job['env']['return_url'],
+                                   orig_env=job['env'], tid=job['id'],
+                                   count=job['retry_cnt'])
         self.workerm.notifyOnNewWorker(lambda name: self._tryExecute())
         self._tryExecute()
 
@@ -92,24 +140,30 @@ class TaskManager(Service):
         # as a (transparent) callback
         return x
 
-    @defer.inlineCallbacks
     def _taskDone(self, x, tid):
+        if isinstance(x, Failure):
+            self.inProgress[tid].env['error'] = {
+                'message': x.getErrorMessage(),
+                'traceback': x.getTraceback()
+            }
         # There is no need to save synchronous task. In case of server
         # failure client is disconnected, so it can't receive the result
         # anyway.
         save = 'return_url' in self.inProgress[tid].env
         if save:
-            yield self.database.runOperation(
-                    "insert into return_task (id, env) values (?, ?);",
-                    (tid, json.dumps(self.inProgress[tid].env)))
+            self.database.update(tid, {
+                'env': self.inProgress[tid].env,
+                'status': 'to_return',
+            }, sync=False)
+            # No db sync here, because we are allowing some jobs to be done
+            # multiple times in case of server failure for better performance.
+            # It should be synced soon with other task
+            # or `self.database` itself.
         del self.inProgress[tid]
         self.scheduler.delTask(tid)
-        if save:
-            yield self.database.runOperation(
-                    "delete from task where id = ?", (tid,))
         log.info("Task {tid} finished.", tid=tid)
         self._tryExecute()
-        defer.returnValue(x)
+        return x
 
     def _deferTask(self, env):
         tid = env['task_id']
@@ -166,31 +220,26 @@ class TaskManager(Service):
         # anyway.
         save = 'return_url' in group_env
         if save:
-            yield self.database.runOperation(
-                    "insert into task (id, env, is_group) values (?, ?, 1)",
-                    (group_env['group_id'], json.dumps(group_env)))
+            self.database.update(group_env['group_id'], {
+                'id': group_env['group_id'],
+                'env': group_env,
+                'status': 'to_judge',
+                'timestamp': time.time(),
+                'retry_cnt': 0,
+            })
         ret = yield self._addGroup(group_env)
         defer.returnValue(ret)
 
     def return_to_sio(self, x, url, orig_env=None, tid=None, count=0):
-        error = None
         if isinstance(x, Failure):
             assert orig_env
             env = orig_env
-            error = {'message': x.getErrorMessage(),
-                    'traceback': x.getTraceback()}
             log.failure('Returning with error', x, LogLevel.warn)
         else:
             env = x
 
         if not tid:
             tid = env['group_id']
-
-        if error:
-            env['error'] = error
-            self.database.runOperation(
-                    'update return_task set env = ? where id = ?;',
-                    (json.dumps(env), tid))
 
         bodygen, hdr = encode.multipart_encode({
                         'data': json.dumps(env)})
@@ -226,27 +275,34 @@ class TaskManager(Service):
         ret = do_return()
 
         def _updateCount(x, n):
-            d = self.database.runOperation(
-                    'update return_task set count = ? where id = ?;', (n, tid))
-            d.addBoth(lambda _: x)
-            return d
+            self.database.update(tid, {'retry_cnt': n}, sync=False)
+            # No db sync here, because we are allowing more attempts
+            # of retrying returning job result for better performance.
+            # It should be synced soon with other task
+            # or `self.database` itself.
+            return x  # Transparent callback
 
-        def retry(err, r_count):
-            if r_count >= MAX_RETRIES:
+        def retry(err, retry_cnt):
+            if retry_cnt >= MAX_RETRIES_OF_RESULT_RETURNING:
                 log.error('Failed to return {tid} {count} times, giving up.',
-                        tid=tid, count=r_count)
+                          tid=tid, count=retry_cnt)
                 return
             log.warn('Returning {tid} to url {url} failed, retrying[{n}]...',
-                    tid=tid, url=url, n=r_count)
+                     tid=tid, url=url, n=retry_cnt)
             log.failure('error was:', err, LogLevel.info)
-            d = deferLater(reactor, RETRY_DELAY, do_return)
-            d.addBoth(_updateCount, n=r_count)
-            d.addErrback(retry, r_count + 1)
+            d = deferLater(reactor,
+                           RETRY_DELAY_OF_RESULT_RETURNING[retry_cnt],
+                           do_return)
+            d.addBoth(_updateCount, n=retry_cnt)
+            d.addErrback(retry, retry_cnt + 1)
             return d
-        ret.addErrback(retry, r_count=count)
+        ret.addErrback(retry, retry_cnt=count)
         ret.addBoth(self._returnDone, tid=tid)
         return ret
 
     def _returnDone(self, _, tid):
-        return self.database.runOperation(
-                "delete from return_task where id = ?;", ((tid,)))
+        self.database.delete(tid, sync=False)
+        # No db sync here, because we are allowing some jobs to be done
+        # multiple times in case of server failure for better performance.
+        # It should be synced soon with other task
+        # or `self.database` itself.

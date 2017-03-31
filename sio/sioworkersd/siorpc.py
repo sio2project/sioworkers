@@ -44,13 +44,6 @@ class SIORPC(XMLRPC):
     def xmlrpc_get_queue(self):
         return self.taskm.getQueue()
 
-    def _sync_wrap(self, err, orig_env):
-        orig_env['error'] = {'message': err.getErrorMessage(),
-                             'traceback': err.getTraceback()}
-        log.failure('Synchronous task failed', err)
-        err.printTraceback()
-        return orig_env
-
     def _prepare_group(self, env):
         tasks = env['workers_jobs']
         group_id = 'GROUP_' + uuid4().urn
@@ -70,9 +63,7 @@ class SIORPC(XMLRPC):
     @escape_arguments
     def xmlrpc_sync_run_group(self, env):
         self._prepare_group(env)
-        d = self.taskm.addTaskGroup(env)
-        d.addErrback(self._sync_wrap, orig_env=env)
-        return d
+        return self.taskm.addTaskGroup(env)
 
 
 def makeSite(workerm, taskm):
