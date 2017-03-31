@@ -22,6 +22,15 @@ def _fill_env(env):
         env['job_type'] = 'cpu-exec'
     return env
 
+def _wrap_into_group_env(env):
+    env['group_id'] = 'asdf_group'
+    return {
+        'group_id': 'asdf_group',
+        'workers_jobs': {
+            env['task_id']: env
+        }
+    }
+
 
 class TestWithDB(unittest.TestCase):
     """Abstract class for testing sioworkersd parts that need a database."""
@@ -70,7 +79,17 @@ class TestWithDB(unittest.TestCase):
 
 class TaskManagerTest(TestWithDB):
     SAVED_TASKS = [
-            ('asdf', '{"task_id": "asdf", "job_type": "cpu-exec"}')
+            ('asdf_group', '''{
+                "group_id": "asdf_group",
+                "return_url": "localhost",
+                "workers_jobs": {
+                    "asdf": {
+                        "task_id": "asdf",
+                        "group_id": "asdf_group",
+                        "job_type": "cpu-exec"
+                    }
+                }
+            }''')
             ]
 
     def test_restore(self):
@@ -79,7 +98,8 @@ class TaskManagerTest(TestWithDB):
                 self.assertIn('asdf', self.taskm.inProgress))
         d.addCallback(lambda _:
                 self.assertDictEqual(self.taskm.inProgress['asdf'].env,
-                        {'task_id': 'asdf', 'job_type': 'cpu-exec'}))
+                        {'task_id': 'asdf', 'job_type': 'cpu-exec',
+                         'group_id': 'asdf_group'}))
         return d
 
 
@@ -276,19 +296,26 @@ class IntegrationTest(TestWithDB):
     def test_remote_run(self):
         def cb(client):
             self.assertIn('test', self.wm.workers)
-            d = self.taskm.addTask(_fill_env({'task_id': 'asdf'}))
-            d.addCallback(lambda x: self.assertIn('task_id', x))
+            d = self.taskm.addTaskGroup(
+                    _wrap_into_group_env(_fill_env({'task_id': 'asdf'})))
+            d.addCallback(lambda x: self.assertIn('workers_jobs', x) and
+                        self.assertIn('asdf', x['workers_jobs']) and
+                        self.assertIn('task_id', x['workers_jobs']['asdf']))
             return d
         return self._wrap_test(cb, {}, set())
 
     def test_timeout(self):
-        def cb2(_):
+        def cb3(_):
             self.assertEqual(self.wm.workers, {})
 
+        def cb2(_, client):
+            return task.deferLater(reactor, 2, cb3, client)
+
         def cb(client):
-            d = self.taskm.addTask(_fill_env({'task_id': 'hang'}))
+            d = self.taskm.addTaskGroup(
+                    _wrap_into_group_env(_fill_env({'task_id': 'hang'})))
             d = self.assertFailure(d, rpc.TimeoutError)
-            d.addBoth(cb2)
+            d.addBoth(cb2, client)
             return d
         return self._wrap_test(cb, {}, set())
 
@@ -305,7 +332,8 @@ class IntegrationTest(TestWithDB):
             return task.deferLater(reactor, 1, cb3, client, d)
 
         def cb(client):
-            d = self.taskm.addTask(_fill_env({'task_id': 'hang'}))
+            d = self.taskm.addTaskGroup(
+                    _wrap_into_group_env(_fill_env({'task_id': 'hang'})))
             # Allow the task to schedule
             return task.deferLater(reactor, 0, cb2, client, d)
         return self._wrap_test(cb, {}, set())
@@ -325,8 +353,12 @@ class IntegrationTest(TestWithDB):
             return self._wrap_test(cb3, {'d': d}, set(), True, 'test2')
 
         def cb(client):
-            d = self.taskm.addTask(
-                    _fill_env({'task_id': 'asdf', 'job_type': 'cpu-exec'}))
-            d.addCallback(lambda x: self.assertIn('task_id', x))
+            d = self.taskm.addTaskGroup(
+                    _wrap_into_group_env(
+                        _fill_env({'task_id': 'asdf',
+                                   'job_type': 'cpu-exec'})))
+            d.addCallback(lambda x: self.assertIn('workers_jobs', x) and
+                        self.assertIn('asdf', x['workers_jobs']) and
+                        self.assertIn('task_id', x['workers_jobs']['asdf']))
             return task.deferLater(reactor, 1, cb2, d)
         return self._wrap_test(cb, {}, set(), False, 'test1')

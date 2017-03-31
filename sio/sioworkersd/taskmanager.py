@@ -48,35 +48,19 @@ class TaskManager(Service):
             'select id,env,is_group from task order by datetime(time) asc')
         if len(jobs) > 0:
             log.info("Unfinished jobs found in database, resuming them...")
-        for (task_id, env, is_group) in jobs:
+        for (task_id, env, _) in jobs:
             env = json.loads(env)
-            if is_group:
-                d = self._addGroup(env)
-            else:
-                self.scheduler.addTask(env)
-                d = self._deferTask(env)
-            if env.get('return_url'):
-                log.debug('added {tid} with return_url', tid=task_id)
-                d.addBoth(self.return_to_sio, url=env['return_url'],
-                        orig_env=env, tid=task_id)
-            else:
-                def _error(x):
-                    log.failure("Saved synchronous task failed", x)
-                d.addErrback(_error)
+            d = self._addGroup(env)
+            log.debug("added again unfinished task {tid}", tid=task_id)
+            d.addBoth(self.return_to_sio, url=env['return_url'],
+                      orig_env=env, tid=task_id)
 
         returns = yield self.database.runQuery('select * from return_task')
         for task_id, env, count in returns:
             env = json.loads(env)
-            if env.get('return_url'):
-                log.warn("Trying again to return old task {tid}", tid=task_id)
-                self.return_to_sio(env, url=env['return_url'],
-                        orig_env=env, tid=task_id, count=count)
-            else:
-                # Can't do anything meaningful, so just log
-                log.error("return_task table contains task without return_url."
-                        "This should not happen.")
-                # forget about this return
-                yield self._returnDone(None, task_id)
+            log.warn("Trying again to return old task {tid}", tid=task_id)
+            self.return_to_sio(env, url=env['return_url'],
+                               orig_env=env, tid=task_id, count=count)
         self.workerm.notifyOnNewWorker(lambda name: self._tryExecute())
         self._tryExecute()
 
@@ -109,8 +93,12 @@ class TaskManager(Service):
         return x
 
     @defer.inlineCallbacks
-    def _taskDone(self, x, tid, save=True):
-        if save and 'return_url' in self.inProgress[tid].env:
+    def _taskDone(self, x, tid):
+        # There is no need to save synchronous task. In case of server
+        # failure client is disconnected, so it can't receive the result
+        # anyway.
+        save = 'return_url' in self.inProgress[tid].env
+        if save:
             yield self.database.runOperation(
                     "insert into return_task (id, env) values (?, ?);",
                     (tid, json.dumps(self.inProgress[tid].env)))
@@ -123,29 +111,18 @@ class TaskManager(Service):
         self._tryExecute()
         defer.returnValue(x)
 
-    def _deferTask(self, env, group=False):
+    def _deferTask(self, env):
         tid = env['task_id']
         if tid in self.inProgress:
             raise RuntimeError('Tried to add same task twice')
         d = defer.Deferred()
         self.inProgress[tid] = Task(env=env, d=d)
 
-        d.addBoth(self._taskDone, tid=tid, save=not group)
+        d.addBoth(self._taskDone, tid=tid)
         return d
 
     def getQueue(self):
         return unicode(self.scheduler)
-
-    @defer.inlineCallbacks
-    def addTask(self, task):
-        yield self.database.runOperation(
-                "insert into task (id, env) values (?, ?)",
-                (task['task_id'], json.dumps(task)))
-        self.scheduler.addTask(task)
-        d = self._deferTask(task)
-        self._tryExecute()
-        ret = yield d
-        defer.returnValue(ret)
 
     def _addGroup(self, group_env):
         singleTasks = []
@@ -153,7 +130,7 @@ class TaskManager(Service):
         for k, v in group_env['workers_jobs'].iteritems():
             idMap[v['task_id']] = k
             self.scheduler.addTask(v)
-            singleTasks.append(self._deferTask(v, group=True))
+            singleTasks.append(self._deferTask(v))
         self.inProgress[group_env['group_id']] = Task(group_env, None)
         d = defer.DeferredList(singleTasks, consumeErrors=True)
         self._tryExecute()
@@ -184,9 +161,14 @@ class TaskManager(Service):
 
     @defer.inlineCallbacks
     def addTaskGroup(self, group_env):
-        yield self.database.runOperation(
-                "insert into task (id, env, is_group) values (?, ?, 1)",
-                (group_env['group_id'], json.dumps(group_env)))
+        # There is no need to save synchronous task. In case of server
+        # failure client is disconnected, so it can't receive the result
+        # anyway.
+        save = 'return_url' in group_env
+        if save:
+            yield self.database.runOperation(
+                    "insert into task (id, env, is_group) values (?, ?, 1)",
+                    (group_env['group_id'], json.dumps(group_env)))
         ret = yield self._addGroup(group_env)
         defer.returnValue(ret)
 
@@ -202,7 +184,7 @@ class TaskManager(Service):
             env = x
 
         if not tid:
-            tid = env.get('task_id', env['group_id'])
+            tid = env['group_id']
 
         if error:
             env['error'] = error

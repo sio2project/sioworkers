@@ -44,29 +44,12 @@ class SIORPC(XMLRPC):
     def xmlrpc_get_queue(self):
         return self.taskm.getQueue()
 
-    @escape_arguments
-    def xmlrpc_run(self, task):
-        task_id = uuid4().urn
-        task['task_id'] = task_id
-        d = self.taskm.addTask(task)
-        d.addBoth(self.taskm.return_to_sio, url=task['return_url'],
-                orig_env=task)
-        return task_id
-
     def _sync_wrap(self, err, orig_env):
         orig_env['error'] = {'message': err.getErrorMessage(),
                              'traceback': err.getTraceback()}
         log.failure('Synchronous task failed', err)
         err.printTraceback()
         return orig_env
-
-    @escape_arguments
-    def xmlrpc_sync_run(self, task):
-        task_id = uuid4().urn
-        task['task_id'] = task_id
-        d = self.taskm.addTask(task)
-        d.addErrback(self._sync_wrap, orig_env=task)
-        return d
 
     def _prepare_group(self, env):
         tasks = env['workers_jobs']
