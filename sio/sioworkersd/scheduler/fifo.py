@@ -18,7 +18,7 @@ class WorkerInfo(object):
         self.can_run_cpu_exec = wdata.can_run_cpu_exec
         self.is_running_cpu_exec = wdata.is_running_cpu_exec
 
-    def can_run(self, task):
+    def canRun(self, task):
         if self.is_running_cpu_exec or (self.tasks_count >= self.concurrency):
             return False
         else:
@@ -28,7 +28,7 @@ class WorkerInfo(object):
                 return True
 
     def assign(self, task):
-        assert self.can_run(task)
+        assert self.canRun(task)
         if task.type == 'cpu':
             self.is_running_cpu_exec = True
         self.tasks_count += 1
@@ -71,7 +71,7 @@ class FIFOScheduler(Scheduler):
     def __unicode__(self):
         return unicode(self.queue)
 
-    def _schedule_queue_with(self, queue, workers):
+    def _scheduleQueueWith(self, queue, workers):
         """Schedule tasks from a queue using given workers.
         """
         result = []
@@ -85,7 +85,7 @@ class FIFOScheduler(Scheduler):
             else:
                 workers_queue = workers['vcpu']
             # Some workers may have changed, skip as many as needed.
-            while workers_queue and not workers_queue[-1].can_run(queue[-1]):
+            while workers_queue and not workers_queue[-1].canRun(queue[-1]):
                 workers_queue.pop()
             if not workers_queue:
                 break
@@ -120,8 +120,8 @@ class FIFOScheduler(Scheduler):
         workers['cpu+vcpu'] = deque(sorted(workers['cpu+vcpu'],
             key=lambda w: w.concurrency, reverse=True))
 
-        result = self._schedule_queue_with(self.queues['cpu+vcpu'], workers)
+        result = self._scheduleQueueWith(self.queues['cpu+vcpu'], workers)
         while workers['vcpu'] and workers['vcpu'][0].can_run_cpu_exec:
             workers['vcpu'].popleft()
-        result += self._schedule_queue_with(self.queues['vcpu'], workers)
+        result += self._scheduleQueueWith(self.queues['vcpu'], workers)
         return result

@@ -10,7 +10,7 @@ from twisted.application import internet
 
 from sio.protocol.worker import WorkerFactory
 from sio.sioworkersd.workermanager import WorkerManager
-from sio.sioworkersd.scheduler import get_default_scheduler_class_name
+from sio.sioworkersd.scheduler import getDefaultSchedulerClassName
 from sio.sioworkersd.taskmanager import TaskManager
 from sio.sioworkersd import siorpc
 
@@ -59,7 +59,7 @@ class ServerOptions(usage.Options):
         ['rpc-listen', 'r', '', "RPC listen address"],
         ['rpc-port', '', 7889, "RPC listen port"],
         ['database', 'db', 'sioworkersd.db', "database file path"],
-        ['scheduler', 's', get_default_scheduler_class_name(),
+        ['scheduler', 's', getDefaultSchedulerClassName(),
              "scheduler class"],
     ]
 

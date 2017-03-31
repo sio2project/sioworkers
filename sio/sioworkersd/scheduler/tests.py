@@ -1,11 +1,15 @@
 # pylint: disable=no-name-in-module
+from random import Random
 import importlib
-from sio.sioworkersd.scheduler import get_default_scheduler_class_name
-from sio.sioworkersd.scheduler.fifo import FIFOScheduler
+
 from nose.tools import assert_equals
 
+from sio.sioworkersd.scheduler import getDefaultSchedulerClassName
+from sio.sioworkersd.scheduler.fifo import FIFOScheduler
+from sio.sioworkersd.scheduler.prioritizing import PrioritizingScheduler
+
 # Constructors of all schedulers, used in generic tests.
-schedulers = [FIFOScheduler]
+schedulers = [FIFOScheduler, PrioritizingScheduler]
 
 # Worker class copied from manager.py to keep this test twisted-free :-)
 class Worker(object):
@@ -27,57 +31,23 @@ class Worker(object):
         print '%s, %s' % (str(self.info), str(self.tasks))
 # --------------------------------------------------------------------------#
 
-def create_task(tid, ex, prio=0):
-    return {'task_id': tid,
-            'job_type': 'cpu-exec' if ex else 'vcpu-exec',
-            'priority': prio}
-
 class Manager(object):
     def __init__(self):
+        self.contests = dict()
         self.workers = dict()
         self.tasks = dict()
+        self.scheduler = None
+        self.random = Random(0)
 
-    def assignTaskToWorker(self, wid, task):
+    def _assignTaskToWorker(self, wid, task):
+        assert task['assigned_worker_id'] is None
+        task['assigned_worker_id'] = wid
         if task['job_type'] == 'cpu-exec':
             self.workers[wid].count_cpu_exec += 1
             self.workers[wid].is_running_cpu_exec = True
         self.workers[wid].tasks.append(task['task_id'])
 
-    def completeOneTask(self, wid):
-        if self.workers[wid].tasks:
-            tid = self.workers[wid].tasks[0]
-            self.workers[wid].count_cpu_exec -= 1
-            self.workers[wid].is_running_cpu_exec = \
-                    self.workers[wid].count_cpu_exec > 0
-            del self.tasks[tid]
-            del self.workers[wid].tasks[0]
-
-    def createWorker(self, wid, conc, can_run_cpu_exec=True):
-        self.workers[wid] = Worker({'concurrency': conc}, [],
-                can_run_cpu_exec=can_run_cpu_exec)
-
-    def deleteWorker(self, wid):
-        del self.workers[wid]
-
-    def getWorkers(self):
-        return self.workers
-
-    def addTask(self, sch, task):
-        self.tasks[task['task_id']] = task
-        sch.addTask(task)
-
-    def deleteTask(self, sch, tid):
-        del self.tasks[tid]
-        sch.delTask(tid)
-
-    def schedule(self, sch):
-        res = sch.schedule()
-        for tid, wid in res:
-            assert tid in self.tasks
-            self.assignTaskToWorker(wid, self.tasks[tid])
-        assert_equals(self.checkInnerState(), 'OK')
-
-    def checkInnerState(self):
+    def _checkInnerState(self):
         for wid, w in self.workers.iteritems():
             if len(w.tasks) > w.info['concurrency']:
                 return 'Worker %s has too many jobs - can have %s and has %d' \
@@ -88,71 +58,131 @@ class Manager(object):
                         % str(wid)
         return 'OK'
 
-    def showInnerState(self):
+    def _showInnerState(self):
         for wid, w in self.workers.iteritems():
             print 'Worker (id: %d, concurr: %d) does %s' % \
                 (wid, w.info['concurrency'], w.tasks)
 
-def test_default_scheduler_existence():
-    module_name, class_name = get_default_scheduler_class_name() \
+    def getWorkers(self):
+        return self.workers
+
+    def setScheduler(self, scheduler):
+        self.scheduler = scheduler
+
+    def updateContest(self, contest_uid, priority, weight):
+        self.contests[contest_uid] = (priority, priority)
+        self.scheduler.updateContest(contest_uid, priority, weight)
+
+    def addWorker(self, wid, conc, can_run_cpu_exec=True):
+        self.workers[wid] = Worker({'concurrency': conc}, [],
+            can_run_cpu_exec=can_run_cpu_exec)
+        self.scheduler.addWorker(wid)
+
+    def delWorker(self, wid):
+        del self.workers[wid]
+        self.scheduler.delWorker(wid)
+
+    def addTask(
+            self, tid, cpu_concerned, contest_uid=None,
+            task_priority=0):
+        task = {
+            'task_id': tid,
+            'job_type': 'cpu-exec' if cpu_concerned else 'vcpu-exec',
+            'contest_uid': contest_uid,
+            'task_priority': task_priority,
+            'assigned_worker_id': None,
+            }
+        self.tasks[task['task_id']] = task
+        self.scheduler.addTask(task)
+
+    def completeOneTask(self, wid):
+        if self.workers[wid].tasks:
+            w_tasks = self.workers[wid].tasks
+            tid_position = self.random.randint(0, len(w_tasks) - 1)
+            # Swap with last element
+            w_tasks[tid_position], w_tasks[len(w_tasks) - 1] = \
+                w_tasks[len(w_tasks) - 1], w_tasks[tid_position]
+            tid = w_tasks.pop()
+            self.workers[wid].count_cpu_exec -= 1
+            self.workers[wid].is_running_cpu_exec = \
+                self.workers[wid].count_cpu_exec > 0
+            del self.tasks[tid]
+            self.scheduler.delTask(tid)
+
+    def schedule(self):
+        res = self.scheduler.schedule()
+        for tid, wid in res:
+            assert tid in self.tasks
+            self._assignTaskToWorker(wid, self.tasks[tid])
+        assert_equals(self._checkInnerState(), 'OK')
+
+
+def testDefaultSchedulerExistence():
+    module_name, class_name = getDefaultSchedulerClassName() \
                                   .rsplit('.', 1)
     # can throw ImportError and fail test
     module = importlib.import_module(module_name)
     assert hasattr(module, class_name)
 
-def test_fifo():
+def testFifo():
     man = Manager()
     sch = FIFOScheduler(man)
-    man.createWorker(1, 2)
-    man.addTask(sch, create_task(100, True))
-    man.addTask(sch, create_task(200, False))
-    man.addTask(sch, create_task(300, True))
-    man.addTask(sch, create_task(400, False))
-    man.addTask(sch, create_task(500, False))
-    man.schedule(sch)
+    man.setScheduler(sch)
+    man.updateContest(None, 0, 1)
+    man.addWorker(1, 2)
+    man.addTask(100, True)
+    man.addTask(200, False)
+    man.addTask(300, True)
+    man.addTask(400, False)
+    man.addTask(500, False)
+    man.schedule()
     assert_equals(sch.queues['cpu+vcpu'][-1][0], 200)
     man.completeOneTask(1)
-    man.schedule(sch)
+    man.schedule()
     assert_equals(sch.queues['cpu+vcpu'][-1][0], 300)
     man.completeOneTask(1)
-    man.schedule(sch)
+    man.schedule()
     man.completeOneTask(1)
-    man.schedule(sch)
+    man.schedule()
     assert_equals(len(sch.queues['cpu+vcpu']), 0)
     man.completeOneTask(1)
     man.completeOneTask(1)
     assert not man.tasks
 
-def test_fifo_many():
+def testFifoMany():
     man = Manager()
     sch = FIFOScheduler(man)
-    man.createWorker(1, 2)
-    man.createWorker(2, 2)
-    man.createWorker(3, 2)
-    man.addTask(sch, create_task(100, True))
-    man.addTask(sch, create_task(200, True))
-    man.schedule(sch)
+    man.setScheduler(sch)
+    man.updateContest(None, 0, 1)
+    man.addWorker(1, 2)
+    man.addWorker(2, 2)
+    man.addWorker(3, 2)
+    man.addTask(100, True)
+    man.addTask(200, True)
+    man.schedule()
     assert_equals(len(sch.queues['cpu+vcpu']), 0)
-    man.addTask(sch, create_task(300, False))
-    man.addTask(sch, create_task(400, False))
-    man.addTask(sch, create_task(500, True))
-    man.schedule(sch)
-    man.schedule(sch)
+    man.addTask(300, False)
+    man.addTask(400, False)
+    man.addTask(500, True)
+    man.schedule()
+    man.schedule()
     assert_equals(sch.queues['cpu+vcpu'][-1][0], 500)
     assert_equals(len(sch.queues['cpu+vcpu']), 1)
 
-def test_fifo_greed():
+def testFifoGreed():
     man = Manager()
     sch = FIFOScheduler(man)
-    man.createWorker(1, 1)
-    man.createWorker(2, 2)
-    man.createWorker(3, 1)
-    man.addTask(sch, create_task(100, True))
-    man.addTask(sch, create_task(200, False))
-    man.schedule(sch)
-    man.addTask(sch, create_task(300, True))
-    man.addTask(sch, create_task(400, False))
-    man.schedule(sch)
+    man.setScheduler(sch)
+    man.updateContest(None, 0, 1)
+    man.addWorker(1, 1)
+    man.addWorker(2, 2)
+    man.addWorker(3, 1)
+    man.addTask(100, True)
+    man.addTask(200, False)
+    man.schedule()
+    man.addTask(300, True)
+    man.addTask(400, False)
+    man.schedule()
     assert_equals(len(sch.queues['cpu+vcpu']), 0)
     man.completeOneTask(1)
     man.completeOneTask(2)
@@ -160,31 +190,148 @@ def test_fifo_greed():
     man.completeOneTask(3)
     assert not man.tasks
 
-def test_cpu_exec():
+def testCpuExec():
     for mk_sch in schedulers:
         man = Manager()
         sch = mk_sch(man)
-        man.createWorker(1, 2)
-        man.addTask(sch, create_task(200, True, 100))
-        man.addTask(sch, create_task(100, False, 100))
-        man.schedule(sch)
+        man.setScheduler(sch)
+        man.addWorker(1, 2)
+        man.updateContest(None, 0, 1)
+        man.addTask(200, True)
+        man.addTask(100, False)
+        man.schedule()
         man.completeOneTask(1)
         assert man.tasks
-        man.schedule(sch)
+        man.schedule()
         man.completeOneTask(1)
         assert not man.tasks
 
-def test_cpu_exec_worker_gone():
+def testCpuExecWorkerGone():
     for mk_sch in schedulers:
         man = Manager()
         sch = mk_sch(man)
-        man.createWorker(1, 2)
-        man.addTask(sch, create_task(200, True, 100))
-        man.addTask(sch, create_task(100, False, 100))
-        man.schedule(sch)
+        man.setScheduler(sch)
+        man.addWorker(1, 2)
+        man.updateContest(1234, 4321, 4332)
+        man.updateContest(1235, 5321, 1234)
+        man.addTask(200, True, 1234, 11)
+        man.addTask(100, False, 1235, 15)
+        man.schedule()
         man.completeOneTask(1)
-        man.deleteWorker(1)
-        man.createWorker(2, 2)
-        man.schedule(sch)
+        man.delWorker(1)
+        man.addWorker(2, 2)
+        man.schedule()
         man.completeOneTask(2)
         assert not man.tasks
+
+def testExclusiveTaskGone():
+    man = Manager()
+    sch = PrioritizingScheduler(man)
+    man.setScheduler(sch)
+    man.addWorker(1, 2, True)
+    man.updateContest('Konkurs A', 1, 1)
+    man.updateContest(('Konkurs', 'B'), 1, 10**6)
+    man.addTask(200, True, 'Konkurs A', 200)
+    man.addTask(100, False, ('Konkurs', 'B'), 100)
+    man.schedule()
+    man.completeOneTask(1)
+    man.schedule()
+    man.completeOneTask(1)
+    assert not man.tasks
+    man.schedule()
+
+def _randomTesting1(Scheduler, contests_count, workers_count, tasks_count):
+    man = Manager()
+    random = man.random
+    sch = Scheduler(man)
+    man.setScheduler(sch)
+
+    created_tasks_count = 0
+    created_workers_count = 0
+    worker_ids = []
+
+    while True:
+        operations = []
+        if created_tasks_count < tasks_count:
+            operations.append(('addTask', 10))
+        if created_workers_count < workers_count:
+            operations.append(('addWorker', 10))
+        if len(man.workers) >= 2:
+            operations.append(('delWorker', 1))
+        if len(man.tasks) >= 1:
+            operations.append(('delTask', 5))
+        if not operations:
+            break
+        operations.append(('schedule', 1))
+
+        operation = None
+        # Random weighted selection
+        weight_sum = sum(op[1] for op in operations)
+        r = random.randint(1, weight_sum)
+        prefix_sum = 0
+        for op in operations:
+            prefix_sum += op[1]
+            if prefix_sum >= r:
+                operation = op[0]
+                break
+
+        if operation == 'addTask':
+            created_tasks_count += 1
+            tid = created_tasks_count
+            cpu_concerned = bool(random.randint(0, 1))
+            contest_uid = random.randint(1, contests_count)
+            task_priority = random.randint(1, 10**9)
+            if not contest_uid in man.contests:
+                man.updateContest(
+                    contest_uid,
+                    random.randint(-3, 3),
+                    random.randint(1, 10**6))
+            man.addTask(tid, cpu_concerned, contest_uid, task_priority)
+        elif operation == 'addWorker':
+            created_workers_count += 1
+            wid = created_workers_count
+            conc = random.randint(1, 50)
+            if created_workers_count == 1:
+                can_run_cpu_exec = True
+            else:
+                can_run_cpu_exec = (random.randint(0, 10) >= 7)
+            worker_ids.append(wid)
+            man.addWorker(wid, conc, can_run_cpu_exec)
+        elif operation == 'delWorker':
+            # First worker isn't removed, becouse we want to leave
+            # at least one cpu-enabled worker.
+            wid_position = random.randint(0 + 1, len(worker_ids) - 1)
+            # Swap with last element
+            worker_ids[wid_position], worker_ids[len(worker_ids) - 1] = \
+                worker_ids[len(worker_ids) - 1], worker_ids[wid_position]
+            wid = worker_ids.pop()
+            while man.workers[wid].tasks:
+                man.completeOneTask(wid)
+            man.delWorker(wid)
+        elif operation == 'delTask':
+            if worker_ids:
+                wid = random.choice(worker_ids)
+                if man.workers[wid].tasks:
+                    man.completeOneTask(wid)
+        elif operation == 'schedule':
+            man.schedule()
+        else:
+            assert False
+    man.schedule()
+    while man.workers:
+        wid = man.workers.iterkeys().next()
+        while man.workers[wid].tasks:
+            man.completeOneTask(wid)
+        man.delWorker(wid)
+    man.schedule()
+    assert len(man.tasks) == 0
+    assert len(man.workers) == 0
+    # All tasks judged.
+
+def testSmallRandom():
+    for mk_sch in schedulers:
+        _randomTesting1(mk_sch, 100, 100, 100)
+
+def testBigRandom():
+    _randomTesting1(PrioritizingScheduler, 10, 10**3, 10**3)
+    _randomTesting1(PrioritizingScheduler, 10**3, 10**2, 10**2)

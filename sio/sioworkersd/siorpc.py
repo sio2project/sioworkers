@@ -56,7 +56,7 @@ class SIORPC(XMLRPC):
     def xmlrpc_run_group(self, env):
         self._prepare_group(env)
         d = self.taskm.addTaskGroup(env)
-        d.addBoth(self.taskm.return_to_sio, url=env['return_url'],
+        d.addBoth(self.taskm.returnToSio, url=env['return_url'],
                 orig_env=env)
         return env['group_id']
 

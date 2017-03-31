@@ -96,7 +96,8 @@ class TaskManagerTest(TestWithDB):
         d.addCallback(lambda _:
                 self.assertDictEqual(self.taskm.inProgress['asdf'].env,
                         {'task_id': 'asdf', 'job_type': 'cpu-exec',
-                         'group_id': 'asdf_group'}))
+                         'group_id': 'asdf_group',
+                         'contest_uid': (None, None)}))
         return d
 
 

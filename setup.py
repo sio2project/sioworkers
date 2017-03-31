@@ -19,6 +19,7 @@ setup(
         'Twisted>=15.2.1',
         'enum34',  # backport from py3
         'supervisor>=3.3.1',
+        'sortedcontainers',
     ],
 
     setup_requires = [

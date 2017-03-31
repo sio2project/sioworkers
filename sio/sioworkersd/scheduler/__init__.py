@@ -4,6 +4,23 @@ class Scheduler(object):
     def __init__(self, manager):
         self.manager = manager
 
+    def __unicode__(self):
+        """Admin-friendly text representation of the queue.
+        Used for debugging and displaying in admin panel."""
+        raise NotImplementedError()
+
+    def updateContest(self, contest_uid, priority, weight):
+        """Update contest prioriy and weight in scheduler memory."""
+        pass
+
+    def addWorker(self, worker_id):
+        """Will be called when a new worker appears."""
+        pass
+
+    def delWorker(self, worker_id):
+        """Will be called when a worker disappears."""
+        pass
+
     def addTask(self, env):
         """Add a new task to queue."""
         raise NotImplementedError()
@@ -12,16 +29,11 @@ class Scheduler(object):
         """Will be called when a task is completed or cancelled."""
         raise NotImplementedError()
 
-    def __unicode__(self):
-        """Admin-friendly text representation of the queue.
-        Used for debugging and displaying in admin panel."""
-        raise NotImplementedError()
-
     def schedule(self):
         """Return a list of tasks to be executed now, as a list of pairs
         (task_id, worker_id)."""
         raise NotImplementedError()
 
 
-def get_default_scheduler_class_name():
-    return 'sio.sioworkersd.scheduler.fifo.FIFOScheduler'
+def getDefaultSchedulerClassName():
+    return 'sio.sioworkersd.scheduler.prioritizing.PrioritizingScheduler'

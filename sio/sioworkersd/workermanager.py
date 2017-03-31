@@ -42,6 +42,7 @@ class WorkerManager(service.MultiService):
         self.deferreds = {}
         self.serverFactory = None
         self.newWorkerCallback = None
+        self.lostWorkerCallback = None
 
     def makeFactory(self):
         f = server.WorkerServerFactory(self)
@@ -52,6 +53,11 @@ class WorkerManager(service.MultiService):
         if not callable(callback):
             raise ValueError()
         self.newWorkerCallback = callback
+
+    def notifyOnLostWorker(self, callback):
+        if not callable(callback):
+            raise ValueError()
+        self.lostWorkerCallback = callback
 
     @defer.inlineCallbacks
     def newWorker(self, uid, proto):
@@ -86,10 +92,10 @@ class WorkerManager(service.MultiService):
         # _free in runOnWorker will delete from wd.tasks, so copy here
         del self.workers[proto.name]
         del self.workerData[proto.name]
-        # Those errbacks will try to reschedule, so they *must* be run *after*
-        # this worker is removed from those dicts
         for i in wd.tasks.copy():
             self.deferreds[i].errback(WorkerGone())
+        if self.lostWorkerCallback:
+            self.lostWorkerCallback(proto.name)
 
     def getWorkers(self):
         return self.workerData

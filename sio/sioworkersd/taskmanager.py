@@ -101,15 +101,24 @@ class TaskManager(Service):
             if job['status'] == 'to_judge':
                 d = self._addGroup(job['env'])
                 log.debug("added again unfinished task {tid}", tid=job['id'])
-                d.addBoth(self.return_to_sio, url=job['env']['return_url'],
+                d.addBoth(self.returnToSio, url=job['env']['return_url'],
                           orig_env=job['env'], tid=job['id'])
             elif job['status'] == 'to_return':
                 log.warn("Trying again to return old task {tid}",
                          tid=job['id'])
-                self.return_to_sio(job['env'], url=job['env']['return_url'],
+                self.returnToSio(job['env'], url=job['env']['return_url'],
                                    orig_env=job['env'], tid=job['id'],
                                    count=job['retry_cnt'])
-        self.workerm.notifyOnNewWorker(lambda name: self._tryExecute())
+        self.workerm.notifyOnNewWorker(self._newWorker)
+        self.workerm.notifyOnLostWorker(self._lostWorker)
+        self._tryExecute()
+
+    def _newWorker(self, name):
+        self.scheduler.addWorker(name)
+        self._tryExecute()
+
+    def _lostWorker(self, name):
+        self.scheduler.delWorker(name)
         self._tryExecute()
 
     def _tryExecute(self, x=None):
@@ -132,7 +141,6 @@ class TaskManager(Service):
                 # someone could write a scheduler that requires this
                 self.scheduler.delTask(task_id)
                 self.scheduler.addTask(task.env)
-                self._tryExecute()
 
             # chain manually - we don't want to errback d when retrying
             d.addCallbacks(task.d.callback, _retry_on_disconnect)
@@ -159,8 +167,9 @@ class TaskManager(Service):
             # multiple times in case of server failure for better performance.
             # It should be synced soon with other task
             # or `self.database` itself.
+        if self.inProgress[tid].env.get('group_id') != tid:
+            self.scheduler.delTask(tid)
         del self.inProgress[tid]
-        self.scheduler.delTask(tid)
         log.info("Task {tid} finished.", tid=tid)
         self._tryExecute()
         return x
@@ -181,7 +190,13 @@ class TaskManager(Service):
     def _addGroup(self, group_env):
         singleTasks = []
         idMap = {}
+        contest_uid = (group_env.get('oioioi_instance'),
+            group_env.get('contest_id'))
+        self.scheduler.updateContest(contest_uid,
+            group_env.get('contest_priority', 0),
+            group_env.get('contest_weight', 1))
         for k, v in group_env['workers_jobs'].iteritems():
+            v['contest_uid'] = contest_uid
             idMap[v['task_id']] = k
             self.scheduler.addTask(v)
             singleTasks.append(self._deferTask(v))
@@ -230,7 +245,7 @@ class TaskManager(Service):
         ret = yield self._addGroup(group_env)
         defer.returnValue(ret)
 
-    def return_to_sio(self, x, url, orig_env=None, tid=None, count=0):
+    def returnToSio(self, x, url, orig_env=None, tid=None, count=0):
         if isinstance(x, Failure):
             assert orig_env
             env = orig_env
