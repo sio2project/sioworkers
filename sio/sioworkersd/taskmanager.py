@@ -8,7 +8,7 @@ from collections import namedtuple
 import json
 from StringIO import StringIO
 from poster import encode
-from sio.sioworkersd.manager import WorkerGone
+from sio.sioworkersd.workermanager import WorkerGone
 from sio.protocol.rpc import RemoteError
 from twisted.logger import Logger, LogLevel
 

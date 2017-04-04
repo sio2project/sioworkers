@@ -11,7 +11,7 @@ from twisted.application import internet
 from sio.protocol.worker import WorkerFactory
 from filetracker.servers.run import DEFAULT_PORT as DEFAULT_FILETRACKER_PORT
 import os
-from sio.sioworkersd.manager import WorkerManager
+from sio.sioworkersd.workermanager import WorkerManager
 from sio.sioworkersd.scheduler import get_default_scheduler_class_name
 from sio.sioworkersd.taskmanager import TaskManager
 from sio.sioworkersd.db import DBWrapper

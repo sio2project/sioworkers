@@ -1,4 +1,3 @@
-from twisted.application.service import Service
 from sio.sioworkersd import server
 from sio.protocol.rpc import TimeoutError
 from twisted.internet import reactor, defer

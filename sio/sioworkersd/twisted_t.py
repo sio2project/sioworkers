@@ -5,7 +5,7 @@ from twisted.internet import defer, interfaces, reactor, protocol, task
 from twisted.application.service import Application
 from zope.interface import implementer
 
-from sio.sioworkersd import manager, db, taskmanager, server
+from sio.sioworkersd import workermanager, db, taskmanager, server
 from sio.sioworkersd.scheduler.fifo import FIFOScheduler
 from sio.protocol import rpc
 import shutil
@@ -68,7 +68,7 @@ class TestWithDB(unittest.TestCase):
                 yield self.db.runOperation(
                     "insert into task (id, env) values (?, ?)",
                         (tid, env))
-            self.workerm = manager.WorkerManager()
+            self.workerm = workermanager.WorkerManager()
             self.sched = FIFOScheduler(self.workerm)
             self.taskm = taskmanager.TaskManager(self.db, self.workerm,
                     self.sched)
@@ -151,7 +151,7 @@ class WorkerManagerTest(TestWithDB):
         self.notifyCalled = True
 
     def setUp2(self, _=None):
-        self.wm = manager.WorkerManager()
+        self.wm = workermanager.WorkerManager()
         self.wm.notifyOnNewWorker(self._notify_cb)
         self.worker_proto = TestWorker()
         return self.wm.newWorker('unique1', self.worker_proto)
@@ -195,7 +195,7 @@ class WorkerManagerTest(TestWithDB):
         d = self.wm.runOnWorker('test_worker',
                 _fill_env({'task_id': 'hang', 'job_type': 'cpu-exec'}))
         self.wm.workerLost(self.worker_proto)
-        return self.assertFailure(d, manager.WorkerGone)
+        return self.assertFailure(d, workermanager.WorkerGone)
 
     def test_duplicate(self):
         w2 = TestWorker()
@@ -263,8 +263,8 @@ class IntegrationTest(TestWithDB):
         self.port = None
 
     def setUp2(self, _=None):
-        manager.TASK_TIMEOUT = 3
-        self.wm = manager.WorkerManager()
+        workermanager.TASK_TIMEOUT = 3
+        self.wm = workermanager.WorkerManager()
         self.sched = FIFOScheduler(self.wm)
         self.taskm = taskmanager.TaskManager(self.db, self.wm, self.sched)
 
