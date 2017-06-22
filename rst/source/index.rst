@@ -115,6 +115,65 @@ Sandboxes
 .. autoclass:: sio.workers.sandbox.Sandbox
     :members:
 
+    .. py:attribute:: path
+
+        Contains real, absolute path to sandbox root directory.
+
+.. autofunction:: sio.workers.sandbox.get_sandbox
+
+We currently use the following sandboxes:
+
+- ``compiler-gcc.4_8_2.tar.gz``
+
+    This sandbox contains C and C++ compiler `gcc 4.8.2` with all
+    libraries, programs and scripts which are needed for compilation.
+
+- ``compiler-fpc.2_6_2.tar.gz``
+
+    This sandbox contains Pascal compiler `fpc 2.6.2` with all
+    libraries, programs and scripts which are needed for compilation.
+
+- ``exec-sandbox.tar.gz``
+
+    This sandbox is needed to execute `cpu-exec` job in safe environment.
+    This sandbox contains only 2 files in one directory called ``bin``.
+    These files are:
+        - ``compare``
+
+            Default output comparator program. It is used to compare user's
+            solution output on certain test with the correct output on that
+            test.
+
+        - ``supervisor``
+
+            This is the program which supervises execution of user's solution.
+            It provides security. It returns information whether the execution
+            was successful or if there was a runtime error.
+
+- ``vcpu_exec-sandbox.tar.gz``
+
+    This sandbox is needed to execute `vcpu-exec` job in safe environment.
+    It contains `Pin` library and additionally 2 files in ``supervisor-bin``
+    directory:
+        - ``supervisor``
+        - ``supervisor.so``
+    This sandbox is used for deterministic cpu instruction counting.
+
+- ``proot-sandbox.tar.gz``
+
+    This is a sandbox used by :class:`PRootExecutor`.
+    It contains `Proot <http://proot.me/>`_ software.
+    We use ``proot`` to isolate execution to one directory in filesystem.
+    ``Proot`` uses ``chroot`` technology from Linux.
+
+    See ``README`` file in this sandbox for more info.
+
+- ``null-sandbox.tar.gz``
+
+    This sandbox contains only one empty directory. This is example sandbox.
+    This is `tar` archive (not `tar.gz`). I don't know why it has ``.tar.gz``
+    extension. Probably nobody uses this sandbox and no one has noticed
+    this mistake.
 
 .. _executors_env:
 

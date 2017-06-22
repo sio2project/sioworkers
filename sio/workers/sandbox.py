@@ -50,6 +50,13 @@ def _sha1_file(filename, block_size=65536):
     return sha1.hexdigest()
 
 class _FileLock(object):
+    """File-based lock (exclusive or shared).
+
+    We use this class for synchronizing processes which use the same
+    sandbox. In each installed sandbox directory we create empty file
+    named '.lock', and we use `fcntl` locking mechanism on it.
+    """
+
     def __init__(self, filename):
         self.fd = os.open(filename, os.O_WRONLY | os.O_CREAT, 0600)
 
@@ -68,7 +75,11 @@ class _FileLock(object):
 
 class Sandbox(object):
     """Represents a sandbox... that is some place in the filesystem when
-       the previously prepared package with some software is extracted.
+       the previously prepared package with some software is extracted
+       (for example compiler, libraries, default output comparator).
+
+       Sandbox in our terminology does not mean isolation or security. It is
+       just one directory containing files.
 
        This class deals only with *using* sandboxes, not creating, changing
        or uploading them. Each sandbox is uniquely identified by ``name``.
@@ -118,6 +129,7 @@ class Sandbox(object):
 
     @classmethod
     def _instance(cls, name):
+        """This function is used by get_sandbox to get Sandbox instance."""
         i = cls._instances.get(name)
         if i is None:
             i = cls._instances[name] = cls(name)
@@ -147,6 +159,7 @@ class Sandbox(object):
         return "<Sandbox: %s at %s>" % (self.name, self.path,)
 
     def _mark_checked(self):
+        """Sets the time of last check for update of the sandbox to now."""
         # We're assuming this is safe enough to be done under
         # a shared lock, as the check will eventually be re-done
         # under an exclusive lock.
@@ -154,6 +167,11 @@ class Sandbox(object):
         open(last_check_file, 'wb').write(str(int(time.time())))
 
     def _should_install_sandbox(self):
+        """Checks if the sandbox is correctly installed.
+
+        If the last check for update is older than `CHECK_INTERVAL`,
+        checks if the sandbox should be updated.
+        """
         if not os.path.isdir(self.path):
             return True
 
@@ -210,6 +228,11 @@ class Sandbox(object):
         return last_modified
 
     def _apply_fixups(self):
+        """Applies fixups for the sandbox.
+
+        We currently have only one fixup: `elf_loader_patch`. For more
+        information about it see elf_loader_patch.py file.
+        """
         operative = {}
         if 'elf_loader_patch' in self.required_fixups:
             operative['elf_loader_patch'] = _patch_elf_loader(self.path)
@@ -222,6 +245,8 @@ class Sandbox(object):
             [fixup for fixup in operative if operative[fixup]]))
 
     def has_fixup(self, name):
+        """This function check whether the sandbox has applied the
+        fixup with given name."""
         if not hasattr(self, 'operative_fixups'):
             operatives_file = os.path.join(self.path, '.fixups_operative')
             self.operative_fixups = open(operatives_file).read().split('\n')
@@ -229,6 +254,15 @@ class Sandbox(object):
         return name in self.operative_fixups
 
     def _get(self):
+        """Downloads and installs the sandbox if it is not installed correctly
+        or should be updated.
+
+        This function has a bug which causes that simultaneous download
+        of the same sandbox is possible and this causes an error.
+        The bug is that we are deleting whole sandbox directory before
+        we start downloading the sandbox thus we are deleting
+        the `.lock` file inside that directory.
+        """
         name = self.name
         path = self.path
 
@@ -305,7 +339,14 @@ class Sandbox(object):
         self.lock.lock_shared()
 
 def get_sandbox(name):
-    """Constructs a :class:`Sandbox` with the given ``name``."""
+    """Constructs a :class:`Sandbox` with the given ``name``.
+
+    If a :class:`Sandbox` instance for the given ``name`` is already
+    created, returns that instance.
+
+    Only this function should be used to creating or getting
+    :class:`Sandbox` instances.
+    """
     return Sandbox._instance(name)
 
 class NullSandbox(object):
