@@ -100,6 +100,9 @@ class _WaitingTasksQueue(object):
     def getTasksRequiredRam(self):
         return self._tasks_required_ram
 
+    def __repr__(self):
+        return '<OrderedSet %r>' % self.dict.keys()
+
 
 class WorkerInfo(object):
     """A class responsible for tracking state of a single worker.
@@ -202,6 +205,11 @@ class TaskInfo(object):
         # Mutable data
         self.assigned_worker = None
 
+    def __repr__(self):
+        return '<TaskInfo %s %s prio=%s c=%r w=%r>' % (self.id,
+                'realCPU' if self.real_cpu else 'vCPU', self.priority,
+                self.contest, self.assigned_worker)
+
 
 class ContestInfo(object):
     """Tracks priority and weight of a contest.
@@ -221,6 +229,10 @@ class ContestInfo(object):
         # Mutable data
         self.priority = priority
         self.weight = weight
+
+    def __repr__(self):
+        return '<ContestInfo %s p=%d w=%d>' % (self.uid,
+                self.priority, self.weight)
 
 
 class TasksQueues(object):
@@ -297,6 +309,9 @@ class TasksQueues(object):
                 break
 
         return self.queues[best_contest][-1]
+
+    def __repr__(self):
+        return '<TaskQueues %r>' % self.queues
 
 
 class PrioritizingScheduler(Scheduler):
