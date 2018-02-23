@@ -34,6 +34,11 @@ class Scheduler(object):
         (task_id, worker_id)."""
         raise NotImplementedError()
 
+    def dump(self):
+        """Return a dict representation of the scheduler state"""
+        # use string representation as a fallback
+        return unicode(self)
+
 
 def getDefaultSchedulerClassName():
     return 'sio.sioworkersd.scheduler.prioritizing.PrioritizingScheduler'

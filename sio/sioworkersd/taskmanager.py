@@ -188,7 +188,7 @@ class TaskManager(Service):
         return d
 
     def getQueue(self):
-        return unicode(self.scheduler)
+        return self.scheduler.dump()
 
     def _addGroup(self, group_env):
         singleTasks = []

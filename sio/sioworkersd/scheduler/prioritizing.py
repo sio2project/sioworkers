@@ -103,6 +103,9 @@ class _WaitingTasksQueue(object):
     def __repr__(self):
         return '<OrderedSet %r>' % self.dict.keys()
 
+    def __iter__(self):
+        return iter(self.dict.keys())
+
 
 class WorkerInfo(object):
     """A class responsible for tracking state of a single worker.
@@ -210,6 +213,11 @@ class TaskInfo(object):
                 'realCPU' if self.real_cpu else 'vCPU', self.priority,
                 self.contest, self.assigned_worker)
 
+    def dump(self):
+        return {'id': self.id, 'real_cpu': self.real_cpu,
+                'priority': self.priority, 'contest': self.contest.dump(),
+                'assigned_worker': self.assigned_worker.id if self.assigned_worker else None}
+
 
 class ContestInfo(object):
     """Tracks priority and weight of a contest.
@@ -233,6 +241,10 @@ class ContestInfo(object):
     def __repr__(self):
         return '<ContestInfo %s p=%d w=%d>' % (self.uid,
                 self.priority, self.weight)
+
+    def dump(self):
+        return {'uid': self.uid, 'priority': self.priority,
+                'weight': self.weight}
 
 
 class TasksQueues(object):
@@ -313,6 +325,9 @@ class TasksQueues(object):
     def __repr__(self):
         return '<TaskQueues %r>' % self.queues
 
+    def dump(self):
+        return {('%s:%s' % k.uid): [x.dump() for x in v] for k, v in self.queues.items()}
+
 
 class PrioritizingScheduler(Scheduler):
     """The prioritizing scheduler main class, implementing scheduler interface.
@@ -370,6 +385,10 @@ class PrioritizingScheduler(Scheduler):
            Used for debugging and displaying in the admin panel.
         """
         return unicode((self.tasks_queues, self.waiting_real_cpu_tasks))
+
+    def dump(self):
+        return {'tasks_queues': {k: v.dump() for k,v in self.tasks_queues.items()},
+                'waiting_real_cpu_tasks': [x.dump() for x in self.waiting_real_cpu_tasks]}
 
     # Worker scheduling
 
