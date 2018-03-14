@@ -157,7 +157,15 @@ We currently use the following sandboxes:
     directory:
         - ``supervisor``
         - ``supervisor.so``
-    This sandbox is used for deterministic cpu instruction counting.
+    This sandbox is used for deterministic cpu instruction counting using
+    OiTimeTool.
+
+- ``sio2jail_exec-sandbox.tar.gz``
+
+    This sandbox is needed to execute `sio2jail-exec` job in safe environment.
+    It contains sio2jail binary and minimal box needed for sio2jail.
+    This sandbox is used for deterministic cpu instruction counting using
+    Sio2Jail.
 
 - ``proot-sandbox.tar.gz``
 
@@ -201,6 +209,8 @@ This module provides some ready to user executors which are:
 .. autoclass:: sio.workers.executors.SupervisedExecutor
 
 .. autoclass:: sio.workers.executors.VCPUExecutor
+
+.. autoclass:: sio.workers.executors.Sio2JailExecutor
 
 Executing external programs
 ---------------------------
