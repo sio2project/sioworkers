@@ -24,6 +24,8 @@ class Worker(object):
         self.is_running_cpu_exec = False
         self.count_cpu_exec = 0
         self.concurrency = int(info.get('concurrency', 1))
+        # These old tests don't account for RAM, so we just put a large value.
+        self.available_ram_mb = 8192
         self.can_run_cpu_exec = can_run_cpu_exec
 
     def printInfo(self):
@@ -37,6 +39,13 @@ class Manager(object):
         self.tasks = dict()
         self.scheduler = None
         self.random = Random(0)
+
+        # The tests here don't account for memory limits, so we just put
+        # some bogus values.
+        self.minAnyCpuWorkerRam = 4096
+        self.maxAnyCpuWorkerRam = 4096
+        self.minVcpuOnlyWorkerRam = 4096
+        self.maxVcpuOnlyWorkerRam = 4096
 
     def _assignTaskToWorker(self, wid, task):
         assert task['assigned_worker_id'] is None

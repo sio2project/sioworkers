@@ -63,6 +63,8 @@ class ServerOptions(usage.Options):
         ['database', 'db', 'sioworkersd.db', "database file path"],
         ['scheduler', 's', getDefaultSchedulerClassName(),
              "scheduler class"],
+        ['max-task-ram', '', 2048,
+            "maximum task required RAM (in MiB) allowed by the scheduler"]
     ]
 
 
@@ -87,8 +89,10 @@ class ServerServiceMaker(object):
             print "[ERROR] Invalid scheduler class: " + sched_class + "\n"
             raise
 
-        taskm = TaskManager(options['database'], workerm,
-                            SchedulerClass(workerm))
+        taskm = TaskManager(options['database'],
+                            workerm,
+                            SchedulerClass(workerm),
+                            options['max-task-ram'])
         taskm.setServiceParent(workerm)
 
         rpc = siorpc.makeSite(workerm, taskm)

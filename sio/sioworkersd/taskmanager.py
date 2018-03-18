@@ -1,3 +1,4 @@
+import traceback
 from twisted.application.service import Service
 from twisted.internet import defer, reactor
 from twisted.internet.task import deferLater, LoopingCall
@@ -12,6 +13,7 @@ from poster import encode
 import time
 from operator import itemgetter
 from sio.protocol.rpc import RemoteError
+from sio.sioworkersd.utils import get_required_ram_for_job
 from sio.sioworkersd.workermanager import WorkerGone
 from twisted.logger import Logger, LogLevel
 
@@ -77,10 +79,11 @@ class DBWrapper(object):
 
 
 class TaskManager(Service):
-    def __init__(self, db_filename, workerm, sched):
+    def __init__(self, db_filename, workerm, sched, max_task_ram_mb):
         self.workerm = workerm
         self.database = DBWrapper(db_filename)
         self.scheduler = sched
+        self.max_task_ram_mb = max_task_ram_mb
         self.inProgress = {}
         # If a connection pool and/or keepalive is necessary
         # in the future, add it here.
@@ -230,6 +233,17 @@ class TaskManager(Service):
 
     @defer.inlineCallbacks
     def addTaskGroup(self, group_env):
+        # Start with validating the tasks.
+        for _, task_env in group_env['workers_jobs'].iteritems():
+            valid, error = self._isTaskValid(task_env)
+            if not valid:
+                group_env['error'] = {
+                    'message': error,
+                    'traceback': traceback.format_exc(),
+                }
+                defer.returnValue(group_env)
+                return
+
         # There is no need to save synchronous task. In case of server
         # failure client is disconnected, so it can't receive the result
         # anyway.
@@ -321,3 +335,21 @@ class TaskManager(Service):
         # multiple times in case of server failure for better performance.
         # It should be synced soon with other task
         # or `self.database` itself.
+
+    def _isTaskValid(self, task_env):
+        """Checks if task should be accepted by sioworkersd.
+
+        Right now the only reason for the task to be rejected is requiring
+        more RAM than the global limit (2 GiB by default, configurable via
+        command-line options).
+
+        Returns a pair (bool, error: string?).
+        """
+        required_ram_mb = get_required_ram_for_job(task_env)
+        if required_ram_mb > self.max_task_ram_mb:
+            error = ('One of the tasks requires %d MiB of RAM, '
+                    'exceeding the limit of %d MiB'
+                    % (required_ram_mb, self.max_task_ram_mb))
+            return False, error
+
+        return True, None

@@ -47,43 +47,58 @@ Virtual-cpu tasks can be judged simultaneously on one worker.
 
 from collections import OrderedDict
 from random import Random
-from sortedcontainers import SortedSet
+from sortedcontainers import SortedList, SortedSet
 
 from sio.sioworkersd.scheduler import Scheduler
 from sio.sioworkersd.utils import get_required_ram_for_job
 
 
-class _OrderedSet(object):
-    """An ordered set implementation.
+class _WaitingTasksQueue(object):
+    """A FIFO queue of tasks that keeps track of RAM limits.
 
-       We don't have any in the standard library, so we reuse OrderedDict,
-       but do not use values for anything.
+    This class serves two purposes:
+    1) It is a FIFO queue for tasks that also supports fast deletion.
+    2) It keeps RAM requirements of all tasks in the queue in sorted order.
 
-       collections.deque is not enough, because we need a fast remove().
-
-       Only used methods are implemented.
+    This is necessary for the implementation of worker blocking,
+    see ``PrioritingScheduler._getNumberOfBlockedAnyCpuWorkers()``
+    for more details.
     """
 
     def __init__(self):
-        self.dict = OrderedDict()
+        self._dict = OrderedDict()
+        self._tasks_required_ram = SortedList()
 
-    def __in__(self, value):
-        return value in self.dict
+    def __contains__(self, task):
+        return task in self._dict
 
     def __len__(self):
-        return len(self.dict)
+        return len(self._dict)
 
     def __nonzero__(self):
-        return bool(self.dict)
+        return bool(self._dict)
 
-    def add(self, value):
-        self.dict[value] = True
+    def add(self, task):
+        self._dict[task] = True
+        self._tasks_required_ram.add(task.required_ram_mb)
 
-    def remove(self, value):
-        del self.dict[value]
+    def remove(self, task):
+        del self._dict[task]
+        self._tasks_required_ram.discard(task.required_ram_mb)
+
+    def left(self):
+        if self._dict:
+            return self._dict.iteritems().next()[0]
+        else:
+            return None
 
     def popleft(self):
-        return self.dict.popitem(False)[0]
+        task = self._dict.popitem(False)[0]
+        self._tasks_required_ram.discard(task.required_ram_mb)
+        return task
+
+    def getTasksRequiredRam(self):
+        return self._tasks_required_ram
 
 
 class WorkerInfo(object):
@@ -93,18 +108,23 @@ class WorkerInfo(object):
     """
 
     def __init__(self, wid, wdata):
-        assert wdata.concurrency >= 0
+        assert wdata.concurrency > 0
+        assert wdata.available_ram_mb > 0
         assert wdata.is_running_cpu_exec is False
         assert len(wdata.tasks) == 0
         # Immutable data
         self.id = wid
         self.concurrency = wdata.concurrency
+        self.total_ram_mb = wdata.available_ram_mb
         self.cpu_enabled = wdata.can_run_cpu_exec
+
         # Mutable data
         # Whether this worker is currently running real-cpu task.
         self.is_running_real_cpu = False
         # Count of tasks that the worker currently has assigned.
         self.running_tasks = 0
+        # Amount of RAM that can be potentially used by current tasks.
+        self.used_ram_mb = 0
 
     def getQueueName(self):
         if (self.is_running_real_cpu
@@ -115,19 +135,46 @@ class WorkerInfo(object):
         else:
             return 'vcpu-only'
 
-    def incTaskCounter(self, is_real_cpu):
+    def getAvailableRam(self):
+        """Returns the amount of RAM in MB this worker still has available.
+
+        Note that this is only an estimation, since it's possible for tasks
+        to exceed their declared RAM limit. Still, this is what the scheduler
+        uses.
+        """
+        return self.total_ram_mb - self.used_ram_mb
+
+    def getAvailableVcpuSlots(self):
+        """Returns the number of vcpu tasks that can be assigned to worker.
+
+        This value only depends on concurrency and the number of currently
+        running tasks.
+        """
+        if self.is_running_real_cpu:
+            return 0
+        else:
+            return self.concurrency - self.running_tasks
+
+    def attachTask(self, task):
         assert self.running_tasks < self.concurrency
+        assert self.used_ram_mb + task.required_ram_mb <= self.total_ram_mb
         assert self.is_running_real_cpu is False
-        if is_real_cpu:
+
+        if task.real_cpu:
             assert self.cpu_enabled is True
             assert self.running_tasks == 0
             self.is_running_real_cpu = True
+
+        self.used_ram_mb += task.required_ram_mb
         self.running_tasks += 1
 
-    def decTaskCounter(self):
+    def detachTask(self, task):
         assert self.running_tasks >= 1
         assert (self.running_tasks == 1 or
             self.is_running_real_cpu is False)
+        assert self.used_ram_mb >= task.required_ram_mb
+
+        self.used_ram_mb -= task.required_ram_mb
         self.running_tasks -= 1
         self.is_running_real_cpu = False
 
@@ -280,8 +327,11 @@ class PrioritizingScheduler(Scheduler):
             'any-cpu': SortedSet(key=
                 # For scheduling real-cpu tasks (which must run on
                 # any-cpu workers) we need empty workers and we prefer
-                # lower concurrency; such workers will be sorted first.
-                lambda w: (w.running_tasks > 0, w.concurrency, w.id))
+                # lower available RAM (it should be just enough for the task).
+                # such workers will be sorted first.
+                lambda w: (w.running_tasks > 0,
+                           w.getAvailableRam(),
+                           w.id))
         }
 
         # Task scheduling data
@@ -297,7 +347,7 @@ class PrioritizingScheduler(Scheduler):
         # but couldn't have been assigned to workers, because each
         # worker had already assigned at least one task.
         # See also: a huge comment in _scheduleOnce.
-        self.waiting_real_cpu_tasks = _OrderedSet()
+        self.waiting_real_cpu_tasks = _WaitingTasksQueue()
 
     def __unicode__(self):
         """Admin-friendly text representation of the queue.
@@ -318,16 +368,6 @@ class PrioritizingScheduler(Scheduler):
         if queue_name is not None:
             self.workers_queues[queue_name].remove(worker)
 
-    def _incWorkerTaskCounter(self, worker, is_real_cpu):
-        self._removeWorkerFromQueue(worker)
-        worker.incTaskCounter(is_real_cpu)
-        self._insertWorkerToQueue(worker)
-
-    def _decWorkerTaskCounter(self, worker):
-        self._removeWorkerFromQueue(worker)
-        worker.decTaskCounter()
-        self._insertWorkerToQueue(worker)
-
     def addWorker(self, worker_id):
         """Will be called when a new worker appears."""
         worker = WorkerInfo(worker_id,
@@ -345,53 +385,87 @@ class PrioritizingScheduler(Scheduler):
     def _getAnyCpuQueueSize(self):
         return len(self.workers_queues['any-cpu'])
 
-    def _getBestVcpuOnlyWorkerForVirtualCpuTask(self):
-        """Returns the best available vcpu-only worker
-        for running next virtual-cpu task.
+    def _getBestWorkerForVirtualCpuTask(
+            self, queue, task_ram, prefer_busy=False):
+        """Selects a worker from the queue best suited for a given task.
 
-        If there is no such workers (each worker is fully used),
-        returns None.
-        In this algorithm we don't differentiate vcpu-only workers,
-        so we can return whichever vcpu-only worker. We return last
-        from queue.
+        The algorithm used picks a worker such that
+        getAvailableRam() / getAvailableVcpuSlots() is the closest
+        possible to task RAM limit between all viable workers.
+
+        If prefer_busy flag is set to True, partially busy workers are given
+        higher priority than completely empty ones.
+
+        Returns None if there are no viable workers.
         """
-        return self.workers_queues['vcpu-only'][-1] \
-            if self.workers_queues['vcpu-only'] else None
+        def suitability(worker):
+            worker_optimal_ram = (
+                    worker.getAvailableRam() / worker.getAvailableVcpuSlots())
+            difference = abs(worker_optimal_ram - task_ram)
 
-    def _getBestAnyCpuWorkerForVirtualCpuTask(self):
-        """Returns the best available any-cpu worker
-        for running next virtual-cpu task.
+            if prefer_busy:
+                return worker.running_tasks > 0, -difference
+            else:
+                return -difference
 
-        If there is no such workers (each worker is fully used),
-        returns None.
-        In this algorithm we prefer workers which are partially used
-        and with higher concurrency. We return last worker form any-cpu
-        workers queue which is sorted by (w.running_tasks > 0,
-        w.concurrency, w.id).
+        assigned_worker = None
+        for worker in queue:
+            # getAvailableVcpuSlots() should never be 0 in normal conditions
+            # because fully busy workers shouldn't be added to queues.
+            if (worker.getAvailableRam() >= task_ram
+                    and worker.getAvailableVcpuSlots() > 0):
+                if (assigned_worker is None
+                        or suitability(worker) > suitability(assigned_worker)):
+                    assigned_worker = worker
+
+        # Performance note: the execution time is linear in relation to
+        # the worker queue size. This should not be a problem, but it's
+        # possible in some cases to implement a logarithmic version
+        # by using a suitable comparator as a key for worker queue SortedSet.
+
+        return assigned_worker
+
+    def _getBestVcpuOnlyWorkerForVirtualCpuTask(self, task_ram):
+        """Returns a vcpu-only worker suitable for a task with given RAM limit.
+
+        If there are no suitable workers (each worker is fully used, or
+        doesn't have enough RAM available), returns None.
         """
-        # If there is available vcpu-only worker, we shouldn't be
-        # choosing any-cpu worker for virtual-cpu task, because it
-        # is unreasonable.
-        assert self._getBestVcpuOnlyWorkerForVirtualCpuTask() is None
-        return self.workers_queues['any-cpu'][-1] \
-            if self.workers_queues['any-cpu'] else None
+        return self._getBestWorkerForVirtualCpuTask(
+            self.workers_queues['vcpu-only'], task_ram)
 
-    def _getBestAnyCpuWorkerForRealCpuTask(self):
-        """Return the best available (completely empty) any-cpu worker
-        for running next real-cpu task.
+    def _getBestAnyCpuWorkerForVirtualCpuTask(self, task_ram):
+        """Returns any-cpu worker suitable for running given virtual-cpu task.
 
-        If there is no such workers (each worker is used),
-        returns None.
-        Real-cpu task can only be run on any-cpu worker so this
-        function returns the best worker for real-cpu task.
-        In this algorithm we prefer workers with lower concurrency. We
-        return first worker from any-cpu workers queue which is sorted
-        by (w.running_tasks > 0, w.concurrency, w.id).
+        If there are no suitable workers (each worker is fully used, or
+        doesn't have enough RAM available), returns None.
+
+        In this algorithm we prefer workers which are partially used, see
+        _scheduleOnce for details.
         """
-        if not self.workers_queues['any-cpu']:
-            return None
-        worker = self.workers_queues['any-cpu'][0]
-        return worker if worker.running_tasks == 0 else None
+        return self._getBestWorkerForVirtualCpuTask(
+            self.workers_queues['any-cpu'], task_ram, prefer_busy=True)
+
+    def _getBestAnyCpuWorkerForRealCpuTask(self, task_ram):
+        """Returns any-cpu worker suitable for running a given real-cpu task.
+
+        The worker must be completely empty and have enough RAM (more than
+        task RAM limit).
+
+        If there are no such workers, returns None.
+        """
+        # This algorithm tries to pick with lowest available RAM that is
+        # just enough for the task. To pick this worker, linear search is
+        # performed on all free workers. Binary search could be used instead,
+        # but it isn't necessary faster for small queue sizes.
+        for worker in self.workers_queues['any-cpu']:
+            if worker.running_tasks > 0:
+                # All workers are partially busy.
+                return None
+            if worker.getAvailableRam() >= task_ram:
+                return worker
+
+        return None
 
     # Task scheduling
 
@@ -421,7 +495,10 @@ class PrioritizingScheduler(Scheduler):
     def _attachTaskToWorker(self, task, worker):
         assert task.assigned_worker is None
         task.assigned_worker = worker
-        self._incWorkerTaskCounter(worker, task.real_cpu)
+
+        self._removeWorkerFromQueue(worker)
+        worker.attachTask(task)
+        self._insertWorkerToQueue(worker)
 
     def addTask(self, env):
         """Add a new task to queue."""
@@ -436,11 +513,66 @@ class PrioritizingScheduler(Scheduler):
         assert task_id in self.tasks
         task = self.tasks.pop(task_id)
         if task.assigned_worker:
-            self._decWorkerTaskCounter(task.assigned_worker)
+            self._removeWorkerFromQueue(task.assigned_worker)
+            task.assigned_worker.detachTask(task)
+            self._insertWorkerToQueue(task.assigned_worker)
         elif task in self.waiting_real_cpu_tasks:
             self.waiting_real_cpu_tasks.remove(task)
         else:
             self._removeTaskFromQueues(task)
+
+    def _getNumberOfBlockedAnyCpuWorkers(self):
+        """Returns the number of any cpu workers that are "blocked".
+
+        "Blocked" workers should not be assigned new vcpu tasks, because
+        there are waiting real-cpu tasks that must be scheduled ASAP.
+
+        The number is calculated in a natural way: RAM requirements
+        of waiting real-cpu tasks are compared with RAM amounts of
+        real-cpu workers, and the returned value is the minimum number
+        N such that _any_ N real-cpu workers can process all waiting
+        tasks. Specifically, this means that the number of blocked
+        workers may be higher than the number of waiting tasks, if
+        there are workers that can not fit some tasks.
+
+        If there is no such N (which may happen in a corner case
+        when a huge task that is larger than any worker in the queue
+        is added, and also when the queue is empty), the size of
+        the any-cpu worker queue is returned (which means all of them
+        should be considered blocked).
+        """
+        if (self.manager.minAnyCpuWorkerRam is None
+                or not self.waiting_real_cpu_tasks):
+            return 0
+
+        waiting_real_cpu_tasks_ram = (
+            self.waiting_real_cpu_tasks.getTasksRequiredRam())
+
+        # This is the most common case, and we should handle this in O(1).
+        if self.manager.minAnyCpuWorkerRam >= waiting_real_cpu_tasks_ram[-1]:
+            return len(self.waiting_real_cpu_tasks)
+
+        workers_ram = [
+                w.available_ram_mb
+                for _, w in self.manager.getWorkers().iteritems()
+                if w.can_run_cpu_exec]
+
+        workers_ram.sort()
+
+        next_worker_index = 0
+        # This list is sorted.
+        for task_ram in waiting_real_cpu_tasks_ram:
+            while (next_worker_index < len(workers_ram)
+                    and workers_ram[next_worker_index] < task_ram):
+                next_worker_index += 1
+
+            if next_worker_index < len(workers_ram):
+                next_worker_index += 1
+            else:
+                # All workers are blocked.
+                return len(workers_ram)
+
+        return next_worker_index
 
     def _scheduleOnce(self):
         """Selects one task to be executed.
@@ -449,64 +581,76 @@ class PrioritizingScheduler(Scheduler):
            possible.
         """
 
-        # If there is vcpu-only worker and virtual-cpu task,
+        # If there is a virtual-cpu task, and a suitable vcpu-only worker,
         # associate them.
-        worker = self._getBestVcpuOnlyWorkerForVirtualCpuTask()
-        if worker is not None and self.tasks_queues['virtual-cpu']:
-            task = self.tasks_queues['virtual-cpu'].chooseTask()
-            self._removeTaskFromQueues(task)
-            self._attachTaskToWorker(task, worker)
-            return (task.id, worker.id)
+        if self.tasks_queues['virtual-cpu']:
+            vcpu_task = self.tasks_queues['virtual-cpu'].chooseTask()
+            if vcpu_task:
+                vcpu_worker = self._getBestVcpuOnlyWorkerForVirtualCpuTask(
+                    vcpu_task.required_ram_mb)
+                if vcpu_worker:
+                    self._removeTaskFromQueues(vcpu_task)
+                    self._attachTaskToWorker(vcpu_task, vcpu_worker)
+                    return vcpu_task.id, vcpu_worker.id
 
-        # If there is an empty any-cpu worker and we have
-        # a blocked real cpu task, associate them.
-        # We want to run blocked (waiting) real-cpu task immediately
-        # when this becomes possible.
-        worker = self._getBestAnyCpuWorkerForRealCpuTask()
-        if worker is not None and self.waiting_real_cpu_tasks:
-            task = self.waiting_real_cpu_tasks.popleft()
-            self._attachTaskToWorker(task, worker)
-            return (task.id, worker.id)
+        # If there is an any-cpu worker suitable for the first queued real-cpu
+        # task, associate them.
+        # Usually any empty any-cpu worker will do, since worker RAM amount is
+        # typically higher than all of the tasks RAM limits.
+        waiting_rcpu_task = self.waiting_real_cpu_tasks.left()
+        if waiting_rcpu_task:
+            rcpu_worker = self._getBestAnyCpuWorkerForRealCpuTask(
+                waiting_rcpu_task.required_ram_mb)
+            if rcpu_worker:
+                self.waiting_real_cpu_tasks.popleft()
+                self._attachTaskToWorker(waiting_rcpu_task, rcpu_worker)
+                return waiting_rcpu_task.id, rcpu_worker.id
 
-        # Each waiting real-cpu task blocks one any-cpu worker
-        # (but not fixed one) against running virtual-cpu tasks.
-        # After previous if statement, we know that if there is
-        # waiting real-cpu task, there is no completely empty
-        # real-cpu worker.
-        # If we have more waiting real-cpu tasks then available
-        # (partially free) any-cpu workers we give up and don't choose
-        # new task.
-        # This causes that count of waiting real-cpu tasks is limited
-        # by number of any-cpu workers in queue.
-        # This also causes that we don't starve real-cpu tasks, because
-        # for real-cpu task we always choose first worker from any-cpu
-        # queue and for virtual-cpu task from that queue we always
-        # choose last worker. Partially used any-cpu workers are always
-        # sorted in the same order in that queue.
-        # If there are more partially free any-cpu workers
-        # than waiting real-cpu task, we can use remaining workers for
-        # virtual-cpu tasks.
-        # We choose real-cpu and virtual-cpu tasks from the same
-        # task queue ('both') so we don't discriminate real-cpu or
-        # virtual-cpu tasks. But real-cpu tasks could wait longer
-        # for empty worker (blocking virtual-cpu tasks).
-        if (self._getAnyCpuQueueSize() > len(self.waiting_real_cpu_tasks)
+        # The logic used below is that each queued real-cpu tasks "blocks"
+        # one partially busy any-cpu worker from running virtual-cpu tasks.
+        # If all partially busy workers are "blocked", we do not schedule
+        # more tasks, instead we wait for them to become completely free to
+        # process queued real-cpu tasks.
+        #
+        # The statement above is true if we make a natural assumption
+        # that any-cpu workers' total RAM amount is greater than
+        # all tasks' RAM limit, then we can "map" every blocked worker
+        # to a queued task, because any worker will do.
+        #
+        # If this is not the case (which should be pretty rare), we need
+        # to make sure that we block enough workers for them to handle all
+        # tasks. Refer to _getNumberOfBlockedAnyCpuWorkers() for details on
+        # how this is implemented.
+        #
+        # The logic above allows to assign any-cpu workers to both virtual-cpu
+        # and real-cpu tasks without starving any of them.
+        if (self._getAnyCpuQueueSize() > self._getNumberOfBlockedAnyCpuWorkers()
                 and self.tasks_queues['both']):
             task = self.tasks_queues['both'].chooseTask()
-            self._removeTaskFromQueues(task)
             if not task.real_cpu:
-                worker = self._getBestAnyCpuWorkerForVirtualCpuTask()
-                self._attachTaskToWorker(task, worker)
-                return (task.id, worker.id)
-            else:
-                worker = self._getBestAnyCpuWorkerForRealCpuTask()
-                if worker is not None:
+                worker = self._getBestAnyCpuWorkerForVirtualCpuTask(
+                    task.required_ram_mb)
+                # It's possible that no worker has enough RAM for this task.
+                # In this case, we do nothing and simply wait until some worker
+                # (possibly vcpu-only) is now available.
+                if worker:
+                    self._removeTaskFromQueues(task)
                     self._attachTaskToWorker(task, worker)
-                    return (task.id, worker.id)
+                    return task.id, worker.id
+            else:
+                worker = self._getBestAnyCpuWorkerForRealCpuTask(
+                    task.required_ram_mb)
+                if worker:
+                    self._removeTaskFromQueues(task)
+                    self._attachTaskToWorker(task, worker)
+                    return task.id, worker.id
                 else:
-                    # Reserve one more any-cpu worker for this task.
+                    # Reserve an any-cpu worker for this task.
+                    self._removeTaskFromQueues(task)
                     self.waiting_real_cpu_tasks.add(task)
-                    return None
+
+                    # There may be other tasks we can schedule right now.
+                    return self._scheduleOnce()
 
         # Sorry, no match...
         return None

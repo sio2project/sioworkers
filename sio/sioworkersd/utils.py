@@ -11,6 +11,7 @@ DEFAULT_RAM_REQUIREMENTS = {
    'default': 256 * 1024,
 }
 
+
 # Returns ram required for specific job in MiB
 def get_required_ram_for_job(env):
     job_type = env['job_type']

@@ -22,15 +22,18 @@ class Worker(object):
     ``is_running_cpu_exec``: bool, True if the worker is executing cpu-exec
         job, and (because such jobs are exclusive) can't run any other job
     ``concurrency``: number of tasks that worker can handle at the same time
+    ``available_ram_mb``: total amount of RAM that worker can dedicate to tasks
     """
     def __init__(self, info, tasks, is_running_cpu_exec):
         self.info = info
         self.tasks = tasks
         self.is_running_cpu_exec = is_running_cpu_exec
         self.concurrency = info['concurrency']
+        self.available_ram_mb = info['available_ram_mb']
         self.can_run_cpu_exec = info['can_run_cpu_exec']
-        # These arguemnts should have been already parsed with json.loads
+        # These arguments should have been already parsed with json.loads
         assert isinstance(self.concurrency, int)
+        assert isinstance(self.available_ram_mb, int)
         assert isinstance(self.can_run_cpu_exec, bool)
 
 
@@ -43,6 +46,12 @@ class WorkerManager(service.MultiService):
         self.serverFactory = None
         self.newWorkerCallback = None
         self.lostWorkerCallback = None
+
+        # Various worker statistics, check out _updateWorkerStats().
+        self.minAnyCpuWorkerRam = None
+        self.maxAnyCpuWorkerRam = None
+        self.minVcpuOnlyWorkerRam = None
+        self.maxVcpuOnlyWorkerRam = None
 
     def makeFactory(self):
         f = server.WorkerServerFactory(self)
@@ -84,6 +93,8 @@ class WorkerManager(service.MultiService):
             raise server.WorkerRejected()
         self.workers[name] = proto
         self.workerData[name] = worker
+
+        self._updateWorkerStats()
         if self.newWorkerCallback:
             self.newWorkerCallback(name)
 
@@ -94,6 +105,8 @@ class WorkerManager(service.MultiService):
         del self.workerData[proto.name]
         for i in wd.tasks.copy():
             self.deferreds[i].errback(WorkerGone())
+
+        self._updateWorkerStats()
         if self.lostWorkerCallback:
             self.lostWorkerCallback(proto.name)
 
@@ -147,3 +160,25 @@ class WorkerManager(service.MultiService):
         d.addBoth(_free)
         d.addErrback(_trap_timeout)
         return d
+
+    def _updateWorkerStats(self):
+        """Recalculates all worker statistics.
+
+        This method should be called when some worker joins or leaves.
+        """
+        any_cpus_ram = [
+            worker.available_ram_mb
+            for _, worker in self.workerData.iteritems()
+            if worker.can_run_cpu_exec]
+
+        vcpu_onlys_ram = [
+            worker.available_ram_mb
+            for _, worker in self.workerData.iteritems()
+            if not worker.can_run_cpu_exec]
+
+        self.minAnyCpuWorkerRam = min(any_cpus_ram) if any_cpus_ram else None
+        self.maxAnyCpuWorkerRam = max(any_cpus_ram) if any_cpus_ram else None
+        self.minVcpuOnlyWorkerRam = (
+            min(vcpu_onlys_ram) if vcpu_onlys_ram else None)
+        self.maxVcpuOnlyWorkerRam = (
+            max(vcpu_onlys_ram) if vcpu_onlys_ram else None)

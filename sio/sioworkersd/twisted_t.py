@@ -59,7 +59,7 @@ class TestWithDB(unittest.TestCase):
         self.app = Application('test')
         self.wm = workermanager.WorkerManager()
         self.sched = PrioritizingScheduler(self.wm)
-        self.taskm = taskmanager.TaskManager(self.db_path, self.wm, self.sched)
+        self.taskm = taskmanager.TaskManager(self.db_path, self.wm, self.sched, max_task_ram_mb=2048)
 
         # HACK: tests needs clear twisted's reactor, so we're mocking
         #       method that creates additional deferreds.
@@ -120,8 +120,12 @@ class TestWorker(server.WorkerServer):
         self.running = []
         if not clientInfo:
             self.name = 'test_worker'
-            self.clientInfo = {'name': self.name,
-                    'concurrency': 2, 'can_run_cpu_exec': True}
+            self.clientInfo = {
+                'name': self.name,
+                'concurrency': 2,
+                'available_ram_mb': 4096,
+                'can_run_cpu_exec': True
+            }
         else:
             self.name = clientInfo['name']
             self.clientInfo = clientInfo
@@ -185,6 +189,35 @@ class WorkerManagerTest(TestWithDB):
         d.addBoth(_print)
         return self.assertFailure(d, rpc.RemoteError)
 
+    def test_stats(self):
+        def addWorker(id, ram, is_any_cpu=True):
+            clientInfo = {
+                'name': id,
+                'concurrency': 2,
+                'available_ram_mb': ram,
+                'can_run_cpu_exec': is_any_cpu
+            }
+            self.wm.newWorker(id, TestWorker(clientInfo))
+
+        # Note that setUp() also adds a default worker which has 4 GiB of RAM.
+        addWorker('w1', 128, is_any_cpu=True)
+        addWorker('w2', 64, is_any_cpu=False)
+        addWorker('w3', 8192, is_any_cpu=False)
+        addWorker('w4', 16384, is_any_cpu=True)
+
+        self.assertEqual(self.wm.minAnyCpuWorkerRam, 128)
+        self.assertEqual(self.wm.maxAnyCpuWorkerRam, 16384)
+        self.assertEqual(self.wm.minVcpuOnlyWorkerRam, 64)
+        self.assertEqual(self.wm.maxVcpuOnlyWorkerRam, 8192)
+
+    def test_stats_when_no_workers(self):
+        self.wm.workerLost(self.worker_proto)
+
+        self.assertEqual(self.wm.minAnyCpuWorkerRam, None)
+        self.assertEqual(self.wm.maxAnyCpuWorkerRam, None)
+        self.assertEqual(self.wm.minVcpuOnlyWorkerRam, None)
+        self.assertEqual(self.wm.maxVcpuOnlyWorkerRam, None)
+
     def test_cpu_exec(self):
         self.wm.runOnWorker('test_worker', _fill_env({'task_id': 'hang1'}))
         self.assertRaises(RuntimeError,
@@ -222,12 +255,33 @@ class WorkerManagerTest(TestWithDB):
         d = self.wm.newWorker('no_concurrency', w3)
         self.assertFailure(d, server.WorkerRejected)
 
-        w4 = TestWorker({'name': 'unique4', 'concurrency': 'not a number'})
+        w4 = TestWorker({
+            'name': 'unique4',
+            'concurrency': 'not a number',
+            'can_run_cpu_exec': True,
+            'ram': 256})
         d = self.wm.newWorker('unique4', w4)
         self.assertFailure(d, server.WorkerRejected)
 
-        w5 = TestWorker({'name': 'unique5', 'can_run_cpu_exec': 'not boolean'})
+        w5 = TestWorker({
+            'name': 'unique5',
+            'concurrency': 2,
+            'can_run_cpu_exec': 'not boolean',
+            'ram': 256})
         d = self.wm.newWorker('unique5', w5)
+        self.assertFailure(d, server.WorkerRejected)
+
+        w6 = TestWorker({
+            'name': 'no_ram', 'concurrency': 2, 'can_run_cpu_exec': True})
+        d = self.wm.newWorker('no_ram', w6)
+        self.assertFailure(d, server.WorkerRejected)
+
+        w7 = TestWorker({
+            'name': 'unique7',
+            'concurrency': 2,
+            'can_run_cpu_exec': True,
+            'ram': 'not a number'})
+        d = self.wm.newWorker('unique7', w7)
         self.assertFailure(d, server.WorkerRejected)
 
 
@@ -239,8 +293,12 @@ class TestClient(rpc.WorkerRPC):
         self.name = name
 
     def getHelloData(self):
-        return {'name': self.name, 'concurrency': 1,
-                'can_run_cpu_exec': self.can_run_cpu_exec}
+        return {
+            'name': self.name,
+            'concurrency': 1,
+            'available_ram_mb': 4096,
+            'can_run_cpu_exec': self.can_run_cpu_exec
+        }
 
     def cmd_get_running(self):
         return list(self.running)
@@ -364,6 +422,21 @@ class IntegrationTest(TestWithDB):
                         self.assertIn('task_id', x['workers_jobs']['asdf']))
             return task.deferLater(reactor, 1, cb2, d)
         return self._wrap_test(cb, {}, set(), False, 'test1')
+
+    def test_huge_tasks_should_be_rejected(self):
+        def cb(client):
+            d = self.taskm.addTaskGroup(
+                _wrap_into_group_env({
+                    'task_id': 'asdf',
+                    'job_type': 'cpu-exec',
+                    'exec_mem_limit': 64 * 1024 * 1024,     # 64 GiB in KiB
+                }))
+
+            d.addCallback(lambda d: self.assertIn('error', d))
+            return d
+
+        return self._wrap_test(cb, {}, set())
+
 
 class TestUtils(unittest.TestCase):
     def test_required_ram_exec(self):
