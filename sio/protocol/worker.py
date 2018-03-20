@@ -21,6 +21,7 @@ class WorkerProtocol(rpc.WorkerRPC):
     def getHelloData(self):
         return {'name': self.factory.name,
                 'concurrency': self.factory.concurrency,
+                'available_ram_mb': self.factory.available_ram_mb,
                 'can_run_cpu_exec': self.factory.can_run_cpu_exec}
 
     def cmd_run(self, env):
@@ -62,8 +63,13 @@ class WorkerFactory(ReconnectingClientFactory):
     maxDelay = 60
     protocol = WorkerProtocol
 
-    def __init__(self, concurrency=1, can_run_cpu_exec=False, name=None):
+    def __init__(self,
+                 concurrency=1,
+                 available_ram_mb=1024,
+                 can_run_cpu_exec=False,
+                 name=None):
         self.concurrency = concurrency
+        self.available_ram_mb = available_ram_mb
         self.can_run_cpu_exec = can_run_cpu_exec
         if name is None:
             self.name = platform.node()

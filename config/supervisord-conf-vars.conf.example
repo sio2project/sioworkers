@@ -11,19 +11,19 @@ export CACHE_SIZE="10G"
 export SCAN_INTERVAL="1h"
 export CLEAN_LEVEL="50" # in percents
 
-
 # Workers config
 export WORKER_ENABLED="true"
 export SIOWORKERSD_HOST="oioioi"
 export FILETRACKER_URL="http://oioioi:9999"
-PROBLEM_MEMORY_MAX_LIMIT=600000 # in kB
 
-# Calculate worker concurrency
-# Use min(memory requirements, nproc*1.5) workers
-MEM_TOTAL=$(grep MemTotal /proc/meminfo | awk '{print $2}')
-MEM_CONC=$((MEM_TOTAL / PROBLEM_MEMORY_MAX_LIMIT))
+# Set worker concurrency parameters
+MEM_TOTAL=$(grep MemTotal /proc/meminfo | awk '{print int($2 / 1024)}') # in MB
+# Set how much memory we should reserve for OS
+OS_MEMORY=512 # in MiB
 PROC_CONC=$(($(nproc) * 3/2))
-export WORKER_CONCURRENCY=$((MEM_CONC < PROC_CONC ? MEM_CONC : PROC_CONC))
+
+export WORKER_CONCURRENCY=PROC_CONC
+export WORKER_RAM=$(($MEM_TOTAL - $OS_MEMORY))
 
 # Mark worker as suitable for judging on cpu (without oitimetool) in safe
 # execution mode. This can be used during contests which are judged on real

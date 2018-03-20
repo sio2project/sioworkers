@@ -23,6 +23,7 @@ class WorkerOptions(usage.Options):
     # TODO: default concurrency to number of detected cpus
     optParameters = [['port', 'p', 7888, "sioworkersd port number", int],
                      ['concurrency', 'c', 1, "maximum concurrent jobs", int],
+                     ['ram', 'r', 1024, 'available RAM in MiB', int],
                      ['name', 'n', platform.node(), "worker name"]]
     optFlags = [['can-run-cpu-exec', None,
                     "Mark this worker as suitable for running tasks, which "
@@ -47,6 +48,7 @@ class WorkerServiceMaker(object):
         return internet.TCPClient(options['host'], options['port'],
                 WorkerFactory(
                     concurrency=options['concurrency'],
+                    available_ram_mb=options['ram'],
                     # Twisted argument parser set this to 0 or 1.
                     can_run_cpu_exec=bool(options['can-run-cpu-exec']),
                     name=options['name']))
