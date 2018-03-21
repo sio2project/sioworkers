@@ -45,12 +45,12 @@ cpu. It can be judged on any worker (any-cpu or vcpu-only).
 Virtual-cpu tasks can be judged simultaneously on one worker.
 """
 
-from random import Random
 from collections import OrderedDict
-
+from random import Random
 from sortedcontainers import SortedSet
 
 from sio.sioworkersd.scheduler import Scheduler
+from sio.sioworkersd.utils import get_required_ram_for_job
 
 
 class _OrderedSet(object):
@@ -147,6 +147,7 @@ class TaskInfo(object):
         # Immutable data
         self.id = env['task_id']
         self.real_cpu = (env['job_type'] == 'cpu-exec')
+        self.required_ram_mb = get_required_ram_for_job(env)
         self.priority = env.get('task_priority', 0)
         self.contest = contest
         TaskInfo.sequence_counter += 1

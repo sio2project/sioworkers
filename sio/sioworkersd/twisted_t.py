@@ -7,6 +7,7 @@ from zope.interface import implementer
 
 from sio.sioworkersd import workermanager, taskmanager, server
 from sio.sioworkersd.scheduler.fifo import FIFOScheduler
+from sio.sioworkersd.utils import get_required_ram_for_job
 from sio.protocol import rpc
 import shutil
 import tempfile
@@ -360,3 +361,43 @@ class IntegrationTest(TestWithDB):
                         self.assertIn('task_id', x['workers_jobs']['asdf']))
             return task.deferLater(reactor, 1, cb2, d)
         return self._wrap_test(cb, {}, set(), False, 'test1')
+
+class TestUtils(unittest.TestCase):
+    def test_required_ram_exec(self):
+        env = {'task_id': 'asdf', 'job_type': 'cpu-exec'}
+        self.assertEqual(get_required_ram_for_job(env), 64)
+        env['exec_mem_limit'] = 768 * 1024
+        self.assertEqual(get_required_ram_for_job(env), 768)
+
+    def test_required_ram_exec_with_checker(self):
+        env = {'task_id': 'asdf', 'job_type': 'cpu-exec'}
+        self.assertEqual(get_required_ram_for_job(env), 64)
+        env['check_output'] = 1
+        self.assertEqual(get_required_ram_for_job(env), 256)
+        env['exec_mem_limit'] = 768 * 1024
+        env['checker_mem_limit'] = 896 * 1024
+        self.assertEqual(get_required_ram_for_job(env), 896)
+
+    def test_required_ram_ingen(self):
+        env = {'task_id': 'asdf', 'job_type': 'ingen'}
+        self.assertEqual(get_required_ram_for_job(env), 256)
+        env['ingen_mem_limit'] = 768 * 1024
+        self.assertEqual(get_required_ram_for_job(env), 768)
+
+    def test_required_ram_inwer(self):
+        env = {'task_id': 'asdf', 'job_type': 'inwer'}
+        self.assertEqual(get_required_ram_for_job(env), 256)
+        env['inwer_mem_limit'] = 768 * 1024
+        self.assertEqual(get_required_ram_for_job(env), 768)
+
+    def test_required_ram_compile(self):
+        env = {'task_id': 'asdf', 'job_type': 'compile'}
+        self.assertEqual(get_required_ram_for_job(env), 512)
+        env['compile_mem_limit'] = 768 * 1024
+        self.assertEqual(get_required_ram_for_job(env), 768)
+
+    def test_required_ram_default(self):
+        env = {'task_id': 'asdf', 'job_type': 'abc'}
+        self.assertEqual(get_required_ram_for_job(env), 256)
+        env['abc_mem_limit'] = 768 * 1024
+        self.assertEqual(get_required_ram_for_job(env), 768)
