@@ -5,11 +5,10 @@ import importlib
 from nose.tools import assert_equals
 
 from sio.sioworkersd.scheduler import getDefaultSchedulerClassName
-from sio.sioworkersd.scheduler.fifo import FIFOScheduler
 from sio.sioworkersd.scheduler.prioritizing import PrioritizingScheduler
 
 # Constructors of all schedulers, used in generic tests.
-schedulers = [FIFOScheduler, PrioritizingScheduler]
+schedulers = [PrioritizingScheduler]
 
 # Worker class copied from manager.py to keep this test twisted-free :-)
 class Worker(object):
@@ -123,72 +122,6 @@ def testDefaultSchedulerExistence():
     # can throw ImportError and fail test
     module = importlib.import_module(module_name)
     assert hasattr(module, class_name)
-
-def testFifo():
-    man = Manager()
-    sch = FIFOScheduler(man)
-    man.setScheduler(sch)
-    man.updateContest(None, 0, 1)
-    man.addWorker(1, 2)
-    man.addTask(100, True)
-    man.addTask(200, False)
-    man.addTask(300, True)
-    man.addTask(400, False)
-    man.addTask(500, False)
-    man.schedule()
-    assert_equals(sch.queues['cpu+vcpu'][-1][0], 200)
-    man.completeOneTask(1)
-    man.schedule()
-    assert_equals(sch.queues['cpu+vcpu'][-1][0], 300)
-    man.completeOneTask(1)
-    man.schedule()
-    man.completeOneTask(1)
-    man.schedule()
-    assert_equals(len(sch.queues['cpu+vcpu']), 0)
-    man.completeOneTask(1)
-    man.completeOneTask(1)
-    assert not man.tasks
-
-def testFifoMany():
-    man = Manager()
-    sch = FIFOScheduler(man)
-    man.setScheduler(sch)
-    man.updateContest(None, 0, 1)
-    man.addWorker(1, 2)
-    man.addWorker(2, 2)
-    man.addWorker(3, 2)
-    man.addTask(100, True)
-    man.addTask(200, True)
-    man.schedule()
-    assert_equals(len(sch.queues['cpu+vcpu']), 0)
-    man.addTask(300, False)
-    man.addTask(400, False)
-    man.addTask(500, True)
-    man.schedule()
-    man.schedule()
-    assert_equals(sch.queues['cpu+vcpu'][-1][0], 500)
-    assert_equals(len(sch.queues['cpu+vcpu']), 1)
-
-def testFifoGreed():
-    man = Manager()
-    sch = FIFOScheduler(man)
-    man.setScheduler(sch)
-    man.updateContest(None, 0, 1)
-    man.addWorker(1, 1)
-    man.addWorker(2, 2)
-    man.addWorker(3, 1)
-    man.addTask(100, True)
-    man.addTask(200, False)
-    man.schedule()
-    man.addTask(300, True)
-    man.addTask(400, False)
-    man.schedule()
-    assert_equals(len(sch.queues['cpu+vcpu']), 0)
-    man.completeOneTask(1)
-    man.completeOneTask(2)
-    man.completeOneTask(2)
-    man.completeOneTask(3)
-    assert not man.tasks
 
 def testCpuExec():
     for mk_sch in schedulers:

@@ -1,16 +1,17 @@
 # This file is named twisted_t.py to avoid it being found by nosetests,
 # which hangs on some Twisted test cases. Use trial <module>.
+import shutil
+import tempfile
+
 from twisted.trial import unittest
 from twisted.internet import defer, interfaces, reactor, protocol, task
 from twisted.application.service import Application
 from zope.interface import implementer
 
 from sio.sioworkersd import workermanager, taskmanager, server
-from sio.sioworkersd.scheduler.fifo import FIFOScheduler
+from sio.sioworkersd.scheduler.prioritizing import PrioritizingScheduler
 from sio.sioworkersd.utils import get_required_ram_for_job
 from sio.protocol import rpc
-import shutil
-import tempfile
 
 # debug
 def _print(x):
@@ -41,7 +42,7 @@ class TestWithDB(unittest.TestCase):
         super(TestWithDB, self).__init__(*args)
         self.app = None
         self.db = None
-        self.workerm = None
+        self.wm = None
         self.sched = None
         self.taskm = None
 
@@ -56,10 +57,10 @@ class TestWithDB(unittest.TestCase):
 
     def _prepare_svc(self):
         self.app = Application('test')
-        self.workerm = workermanager.WorkerManager()
-        self.sched = FIFOScheduler(self.workerm)
-        self.taskm = taskmanager.TaskManager(self.db_path, self.workerm,
-                                             self.sched)
+        self.wm = workermanager.WorkerManager()
+        self.sched = PrioritizingScheduler(self.wm)
+        self.taskm = taskmanager.TaskManager(self.db_path, self.wm, self.sched)
+
         # HACK: tests needs clear twisted's reactor, so we're mocking
         #       method that creates additional deferreds.
         self.taskm.database.start_periodic_sync = lambda: None
@@ -142,16 +143,21 @@ class TestWorker(server.WorkerServer):
 class WorkerManagerTest(TestWithDB):
     def __init__(self, *args, **kwargs):
         super(WorkerManagerTest, self).__init__(*args, **kwargs)
-        self.notifyCalled = False
+        self.notifyNewWorkerCalled = False
+        self.notifyLostWorkerCalled = False
         self.wm = None
         self.worker_proto = None
 
-    def _notify_cb(self, _):
-        self.notifyCalled = True
+    def _notify_new_cb(self, _):
+        self.notifyNewWorkerCalled = True
+
+    def _notify_lost_cb(self, _):
+        self.notifyLostWorkerCalled = True
 
     def setUp2(self, _=None):
-        self.wm = workermanager.WorkerManager()
-        self.wm.notifyOnNewWorker(self._notify_cb)
+        # We must mock notifying functions to ensure proper deferred handling.
+        self.wm.notifyOnNewWorker(self._notify_new_cb)
+        self.wm.notifyOnLostWorker(self._notify_lost_cb)
         self.worker_proto = TestWorker()
         return self.wm.newWorker('unique1', self.worker_proto)
 
@@ -162,7 +168,9 @@ class WorkerManagerTest(TestWithDB):
         return d
 
     def test_notify(self):
-        self.assertTrue(self.notifyCalled)
+        self.assertTrue(self.notifyNewWorkerCalled)
+        self.wm.workerLost(self.worker_proto)
+        self.assertTrue(self.notifyLostWorkerCalled)
 
     @defer.inlineCallbacks
     def test_run(self):
@@ -263,12 +271,6 @@ class IntegrationTest(TestWithDB):
 
     def setUp2(self, _=None):
         workermanager.TASK_TIMEOUT = 3
-        self.wm = workermanager.WorkerManager()
-        self.sched = FIFOScheduler(self.wm)
-        self.taskm = taskmanager.TaskManager(self.db, self.wm, self.sched)
-
-        # Normally added by startService()
-        self.wm.notifyOnNewWorker(lambda name: self.taskm._tryExecute())
 
         factory = self.wm.makeFactory()
         self.port = reactor.listenTCP(0, factory, interface='127.0.0.1')
@@ -322,8 +324,9 @@ class IntegrationTest(TestWithDB):
         def cb3(client, d):
             self.assertFalse(d.called)
             self.assertDictEqual(self.wm.workers, {})
-            self.assertEqual(self.sched.queues['cpu+vcpu'][-1][0], 'hang')
-            self.assertEqual(len(self.sched.queues['cpu+vcpu']), 1)
+            self.assertTrue(self.sched.tasks_queues['both'])
+            self.assertEqual(self.sched.tasks_queues['both'].chooseTask().id,
+                    'hang')
 
         def cb2(client, d):
             client.transport.loseConnection()
