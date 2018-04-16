@@ -21,7 +21,7 @@ stdout_logfile=%(ENV_WORKER_HOME)s/logs/filetracker-cache-cleaner.log
 
 
 [program:oioioiworker]
-command=twistd -n -l- --pidfile=%(ENV_WORKER_HOME)s/pidfiles/oioioiworker.pid worker -c %(ENV_WORKER_CONCURRENCY)s -r %(ENV_WORKER_RAM) %(ENV_WORKER_EXTRA_FLAGS)s %(ENV_SIOWORKERSD_HOST)s
+command=twistd -n -l- --pidfile=%(ENV_WORKER_HOME)s/pidfiles/oioioiworker.pid worker -c %(ENV_WORKER_CONCURRENCY)s -r %(ENV_WORKER_RAM)s %(ENV_SIOWORKERSD_HOST)s
 autostart=%(ENV_WORKER_ENABLED)s
 priority=100
 redirect_stderr=true
