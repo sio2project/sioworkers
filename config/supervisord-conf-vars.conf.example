@@ -22,7 +22,7 @@ MEM_TOTAL=$(grep MemTotal /proc/meminfo | awk '{print int($2 / 1024)}') # in MB
 OS_MEMORY=512 # in MiB
 PROC_CONC=$(($(nproc) * 3/2))
 
-export WORKER_CONCURRENCY=PROC_CONC
+export WORKER_CONCURRENCY=$PROC_CONC
 export WORKER_RAM=$(($MEM_TOTAL - $OS_MEMORY))
 
 # Mark worker as suitable for judging on cpu (without oitimetool) in safe
