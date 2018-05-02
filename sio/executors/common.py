@@ -52,7 +52,10 @@ def run(environ, executor, use_sandboxes=True):
 
         with file_executor as fe:
             with open(input_name, 'rb') as inf:
-                with open(tempcwd('out'), 'wb') as outf:
+                # Open output file in append mode to allow appending
+                # only to the end of the output file. Otherwise,
+                # a contestant's program could modify the middle of the file.
+                with open(tempcwd('out'), 'ab') as outf:
                     renv = fe(tempcwd(exe_filename), [],
                               stdin=inf, stdout=outf, ignore_errors=True,
                               environ=environ, environ_prefix='exec_')
