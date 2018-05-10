@@ -1,4 +1,5 @@
 # pylint: disable=attribute-defined-outside-init
+from __future__ import absolute_import
 import os.path
 import logging
 from zipfile import ZipFile
@@ -6,6 +7,7 @@ from zipfile import ZipFile
 from sio.workers import ft
 from sio.workers.executors import UnprotectedExecutor, PRootExecutor
 from sio.workers.util import replace_invalid_UTF, tempcwd
+import six
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +20,7 @@ def _lang_option(environ, key, lang):
     value = environ.get(key, ())
     if isinstance(value, dict):
         value = value.get(lang, ())
-    if isinstance(value, basestring):
+    if isinstance(value, six.string_types):
         value = (value,)
     return value
 
@@ -110,7 +112,7 @@ class Compiler(object):
                         os.path.basename(source))
 
         extra_files = self.environ.get('extra_files', {})
-        for name, ft_path in extra_files.iteritems():
+        for name, ft_path in six.iteritems(extra_files):
             self.tmp_environ['extra_file'] = ft_path
             ft.download(self.tmp_environ, 'extra_file', os.path.basename(name))
 

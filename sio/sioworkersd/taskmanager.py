@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import traceback
 from twisted.application.service import Service
 from twisted.internet import defer, reactor
@@ -6,9 +7,10 @@ from twisted.python.failure import Failure
 from twisted.web import client
 from twisted.web.http_headers import Headers
 from collections import namedtuple
-import bsddb
 import json
-from StringIO import StringIO
+import six
+from six import StringIO
+from six.moves import range
 from poster import encode
 import time
 from operator import itemgetter
@@ -16,6 +18,12 @@ from sio.protocol.rpc import RemoteError
 from sio.sioworkersd.utils import get_required_ram_for_job
 from sio.sioworkersd.workermanager import WorkerGone
 from twisted.logger import Logger, LogLevel
+
+
+if six.PY2:
+    import bsddb
+else:
+    import bsddb3 as bsddb
 
 log = Logger()
 
@@ -62,7 +70,7 @@ class DBWrapper(object):
                                      task=self.db_sync_task)
 
     def get_items(self):
-        return [json.loads(self.db[k]) for k in self.db.keys()]
+        return [json.loads(self.db[k].decode()) for k in self.db.keys()]
 
     def update(self, job_id, dict_update, sync=True):
         job = json.loads(self.db.get(job_id, '{}'))
@@ -188,7 +196,7 @@ class TaskManager(Service):
         return d
 
     def getQueue(self):
-        return unicode(self.scheduler)
+        return six.text_type(self.scheduler)
 
     def _addGroup(self, group_env):
         singleTasks = []
@@ -198,7 +206,7 @@ class TaskManager(Service):
         self.scheduler.updateContest(contest_uid,
             group_env.get('contest_priority', 0),
             group_env.get('contest_weight', 1))
-        for k, v in group_env['workers_jobs'].iteritems():
+        for k, v in six.iteritems(group_env['workers_jobs']):
             v['contest_uid'] = contest_uid
             idMap[v['task_id']] = k
             self.scheduler.addTask(v)
@@ -234,7 +242,7 @@ class TaskManager(Service):
     @defer.inlineCallbacks
     def addTaskGroup(self, group_env):
         # Start with validating the tasks.
-        for _, task_env in group_env['workers_jobs'].iteritems():
+        for _, task_env in six.iteritems(group_env['workers_jobs']):
             valid, error = self._isTaskValid(task_env)
             if not valid:
                 group_env['error'] = {
@@ -275,7 +283,7 @@ class TaskManager(Service):
         body = ''.join(bodygen)
 
         headers = Headers({'User-Agent': ['sioworkersd']})
-        for k, v in hdr.iteritems():
+        for k, v in six.iteritems(hdr):
             headers.addRawHeader(k, v)
 
         def do_return():

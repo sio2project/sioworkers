@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import os.path
 from sio.workers import ft
 
@@ -14,7 +16,7 @@ def run(environ):
     if environ['compiler'] not in ('foo.1_0', 'foo.2_0'):
         raise RuntimeError("Compiler '%s' not found.", environ['compiler'])
     input_file = ft.download(environ, 'source_file', 'a.foo')
-    print input_file
+    print(input_file)
     size = os.path.getsize(input_file)
     out = open('compiled', 'w')
     out.write("#!/bin/sh\n")

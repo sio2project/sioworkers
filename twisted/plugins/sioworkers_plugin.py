@@ -1,4 +1,6 @@
-import urlparse
+from __future__ import absolute_import
+from __future__ import print_function
+import six.moves.urllib.parse
 import importlib
 import platform
 import json
@@ -18,7 +20,7 @@ from sio.sioworkersd import siorpc
 
 
 def _host_from_url(url):
-    return urlparse.urlparse(url).hostname
+    return six.moves.urllib.parse.urlparse(url).hostname
 
 
 class WorkerOptions(usage.Options):
@@ -92,10 +94,10 @@ class ServerServiceMaker(object):
             SchedulerClass = \
                 getattr(importlib.import_module(sched_module), sched_class)
         except ImportError:
-            print "[ERROR] Invalid scheduler module: " + sched_module + "\n"
+            print("[ERROR] Invalid scheduler module: " + sched_module + "\n")
             raise
         except AttributeError:
-            print "[ERROR] Invalid scheduler class: " + sched_class + "\n"
+            print("[ERROR] Invalid scheduler class: " + sched_class + "\n")
             raise
 
         taskm = TaskManager(options['database'],

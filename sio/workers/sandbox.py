@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import fcntl
 import os.path
 from hashlib import sha1
@@ -6,7 +8,9 @@ import tarfile
 import shutil
 import logging
 import weakref
-import urllib2
+import six.moves.urllib.error
+import six.moves.urllib.parse
+import six.moves.urllib.request
 import email
 import errno
 
@@ -22,7 +26,8 @@ CHECK_INTERVAL = int(os.environ.get('SIO_SANDBOXES_CHECK_INTERVAL', 3600))
 
 logger = logging.getLogger(__name__)
 
-class SandboxError(StandardError):
+
+class SandboxError(Exception):
     pass
 
 def _filetracker_path(name):
@@ -33,8 +38,8 @@ def _urllib_path(name):
 
 def _mkdir(name):
     try:
-        os.makedirs(name, 0700)
-    except OSError, e:
+        os.makedirs(name, 0o700)
+    except OSError as e:
         if e.errno != errno.EEXIST:
             raise
 
@@ -58,7 +63,7 @@ class _FileLock(object):
     """
 
     def __init__(self, filename):
-        self.fd = os.open(filename, os.O_WRONLY | os.O_CREAT, 0600)
+        self.fd = os.open(filename, os.O_WRONLY | os.O_CREAT, 0o600)
 
     def lock_shared(self):
         fcntl.flock(self.fd, fcntl.LOCK_SH)
@@ -164,7 +169,7 @@ class Sandbox(object):
         # a shared lock, as the check will eventually be re-done
         # under an exclusive lock.
         last_check_file = os.path.join(self.path, '.last_check')
-        open(last_check_file, 'wb').write(str(int(time.time())))
+        open(last_check_file, 'wb').write(str(int(time.time())).encode('utf-8'))
 
     def _should_install_sandbox(self):
         """Checks if the sandbox is correctly installed.
@@ -184,7 +189,7 @@ class Sandbox(object):
                 return True
 
             last_check_file = os.path.join(self.path, '.last_check')
-            last_check = int(open(last_check_file).read())
+            last_check = int(open(last_check_file, 'rb').read().decode())
             now_int = int(time.time())
             if last_check + CHECK_INTERVAL > now_int:
                 return False
@@ -303,7 +308,7 @@ class Sandbox(object):
                     logger.info("  trying url: %s", url)
                     local_f = open(archive_path, 'wb')
                     try:
-                        http_f = urllib2.urlopen(url)
+                        http_f = six.moves.urllib.request.urlopen(url)
                         shutil.copyfileobj(http_f, local_f)
                         local_f.close()
                     except:
@@ -369,4 +374,4 @@ class NullSandbox(object):
 if __name__ == '__main__':
     import sys
     with get_sandbox(sys.argv[1]) as sandbox:
-        print sandbox.path
+        print(sandbox.path)

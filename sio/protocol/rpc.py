@@ -1,11 +1,14 @@
+from __future__ import absolute_import
 from twisted.protocols.basic import NetstringReceiver
 from twisted.internet import defer, reactor
 from twisted.logger import Logger
+import six
 
 log = Logger()
 
 import json
 from enum import Enum
+
 
 State = Enum('State', 'connected sent_hello established')
 
@@ -68,7 +71,7 @@ class WorkerRPC(NetstringReceiver):
 
     def connectionLost(self, reason):
         NetstringReceiver.connectionLost(self, reason)
-        for (_, timer) in self.pendingCalls.itervalues():
+        for (_, timer) in six.itervalues(self.pendingCalls):
             if not timer.called:
                 timer.cancel()
 
@@ -131,7 +134,7 @@ class WorkerRPC(NetstringReceiver):
     def stringReceived(self, string):
         try:
             try:
-                msg = json.loads(string)
+                msg = json.loads(string.decode())
             except ValueError:
                 log.failure("Received message with invalid JSON. Terminating.")
                 raise
@@ -159,7 +162,7 @@ class WorkerRPC(NetstringReceiver):
 
     def sendMsg(self, msg_type, **kwargs):
         kwargs['type'] = msg_type
-        self.sendString(json.dumps(kwargs))
+        self.sendString(json.dumps(kwargs).encode('utf-8'))
 
     def call(self, cmd, *args, **kwargs):
         """Call a remote function. Raises RemoteError if something goes wrong
@@ -180,7 +183,7 @@ class WorkerRPC(NetstringReceiver):
             self.pendingCalls[current_id] = (d, timer)
             s = json.dumps({'type': 'call', 'id': current_id,
                 'method': cmd, 'args': args})
-            self.sendString(s)
+            self.sendString(s.encode('utf-8'))
         if self.state != State.established:
             # wait for connection
             self.ready.addCallback(cb)

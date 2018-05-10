@@ -1,9 +1,11 @@
+from __future__ import absolute_import
 from twisted.internet.protocol import ReconnectingClientFactory
 from twisted.internet import threads
 from sio.workers import runner
 from sio.protocol import rpc
 import platform
 from twisted.logger import Logger, LogLevel
+import six
 
 log = Logger()
 
@@ -33,7 +35,7 @@ class WorkerProtocol(rpc.WorkerRPC):
                 raise RuntimeError(
                         'Send cpu-exec job to worker which can\'t run it')
         if any([(task['job_type'] == 'cpu-exec')
-                for task in self.running.itervalues()]):
+                for task in six.itervalues(self.running)]):
             raise RuntimeError(
                     'Send job to worker already running cpu-exec job')
         task_id = env['task_id']

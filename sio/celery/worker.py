@@ -1,15 +1,16 @@
 """Command-line script: auto-configured celeryd for sioworkers"""
 
+from __future__ import absolute_import
 import os
 from optparse import OptionParser
-import urlparse
+import six.moves.urllib.parse
 from celery import Celery
 from celery.bin.worker import worker
 import celery.loaders.default
 from filetracker.servers.run import DEFAULT_PORT as DEFAULT_FILETRACKER_PORT
 
 def _host_from_url(url):
-    return urlparse.urlparse(url).hostname
+    return six.moves.urllib.parse.urlparse(url).hostname
 
 def main():
     usage = "usage: %prog [options] [broker-url]"

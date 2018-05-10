@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import os.path
 import logging
 
@@ -58,7 +59,7 @@ def _run_compare(env):
 
 def _limit_length(s):
     if len(s) > RESULT_STRING_LENGTH_LIMIT:
-        suffix = '[...]'
+        suffix = b'[...]'
         return s[:max(0, RESULT_STRING_LENGTH_LIMIT - len(suffix))] + suffix
     return s
 
@@ -71,7 +72,7 @@ def run(environ, use_sandboxes=True):
             ft.download(environ, 'in_file', 'in', skip_if_exists=True,
                     add_to_cache=True)
             ft.download(environ, 'chk_file', 'chk', add_to_cache=True)
-            os.chmod(tempcwd('chk'), 0700)
+            os.chmod(tempcwd('chk'), 0o700)
 
             output = _run_checker(environ, use_sandboxes)
         elif use_sandboxes:

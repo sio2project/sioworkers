@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from twisted.internet.protocol import ServerFactory
 from twisted.internet import defer
 from sio.protocol import rpc

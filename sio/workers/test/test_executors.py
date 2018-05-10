@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import glob
 import os.path
 import re
@@ -19,6 +20,7 @@ from sio.workers.executors import UnprotectedExecutor, \
         ExecError, _SIOSupervisedExecutor
 from sio.workers.file_runners import get_file_runner
 from sio.workers.util import tempcwd, TemporaryCwd
+import six
 
 # sio2-executors tests
 #
@@ -87,7 +89,7 @@ def compile_and_execute(source, executor, **exec_args):
 
     ft.download({'exe_file': cenv['out_file']}, 'exe_file',
                 frunner.preferred_filename())
-    os.chmod(tempcwd('exe'), 0700)
+    os.chmod(tempcwd('exe'), 0o700)
     ft.download({'in_file': '/input'}, 'in_file', 'in')
 
     with frunner:
@@ -273,7 +275,7 @@ def test_outputting_non_utf8():
                     }, SupervisedExecutor(), use_sandboxes=True)
             print_env(renv)
             in_('42', renv['result_string'])
-            ok_(renv['result_string'].decode('utf8'))
+            ok_(renv['result_string'])
 
 def test_truncating_output():
     with TemporaryCwd():
@@ -346,15 +348,15 @@ def test_inwer():
 
     def check_inwer_ok(env):
         eq_(env['result_code'], "OK")
-        ok_(env['stdout'][0].startswith("OK"))
+        ok_(env['stdout'][0].startswith(b"OK"))
 
     def check_inwer_wrong(env):
         assert_not_equal(env['result_code'], "OK")
-        in_("WRONG", env['stdout'][0])
+        in_(b"WRONG", env['stdout'][0])
 
     def check_inwer_faulty(env):
         eq_(env['result_code'], "OK")
-        ok_(not env['stdout'][0].startswith("OK"))
+        ok_(not env['stdout'][0].startswith(b"OK"))
 
     def check_inwer_big_output(use_sandboxes):
         def inner(env):
@@ -362,7 +364,7 @@ def test_inwer():
                 eq_(env['result_code'], "OLE")
             else:
                 eq_(env['result_code'], "OK")
-                eq_(env['stdout'], ['A' * SMALL_OUTPUT_LIMIT])
+                eq_(env['stdout'], [b'A' * SMALL_OUTPUT_LIMIT])
         return inner
 
     sandbox_options = [False]
@@ -402,7 +404,7 @@ def test_ingen():
             eq_(env['stdout'], expected_output)
             collected = env['collected_files']
             eq_(len(expected_files), len(collected))
-            for filename, path in collected.iteritems():
+            for filename, path in six.iteritems(collected):
                 in_(filename, expected_files)
                 unversioned_path = '/%s/%s' % (upload_dir, filename)
                 upload_re_str = '%s@\d+' % (unversioned_path)
@@ -429,7 +431,7 @@ def test_ingen():
                     'two.upload': '2\n',
                     'five.five.upload': '5\n',
                     },
-                'output': ["Everything OK", "Really"],
+                'output': [b"Everything OK", b"Really"],
                 },
             {
                 'program': '/ingen_big_output.c',
@@ -438,7 +440,7 @@ def test_ingen():
                 'files': {
                     'three_upload': '3\n',
                     },
-                'output': ['A' * SMALL_OUTPUT_LIMIT],
+                'output': [b'A' * SMALL_OUTPUT_LIMIT],
                 },
             ]
 
@@ -489,12 +491,12 @@ def _test_raw(cmd, executor, callback, kwargs):
 
 def test_capturing_stdout():
     def only_stdout(env):
-        in_('stdout', env['stdout'])
-        not_in_('stderr', env['stdout'])
+        in_(b'stdout', env['stdout'])
+        not_in_(b'stderr', env['stdout'])
 
     def with_stderr(env):
-        in_('stdout', env['stdout'])
-        in_('stderr', env['stdout'])
+        in_(b'stdout', env['stdout'])
+        in_(b'stderr', env['stdout'])
 
     def lines_split(env):
         ok_(isinstance(env['stdout'], list))
@@ -652,7 +654,7 @@ def test_execute():
     with TemporaryCwd():
         rc, out = execute(['echo', '2'])
         eq_(rc, 0)
-        eq_(out, '2\n')
+        eq_(out, b'2\n')
         rc, out = execute(['exit', '1'], ignore_errors=True)
         eq_(rc, 1)
 
@@ -661,5 +663,5 @@ def test_execute():
         rc, out = execute(['mkdir', tempcwd('spam')])
         eq_(rc, 0)
         rc, out = execute(['ls', tempcwd()])
-        in_('spam', out)
+        in_(b'spam', out)
 

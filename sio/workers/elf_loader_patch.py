@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import os, os.path
 import logging
 
@@ -39,8 +40,8 @@ def _patch_elf_loader(path):
     blacklist_file = os.path.join(path, '.elf_patcher_blacklist')
     blacklist = set()
     if os.path.exists(blacklist_file):
-        blacklist = set(map(lambda f: os.path.join(path, f.strip(os.path.sep)),
-                        open(blacklist_file, 'rb').read().strip().split('\n')))
+        blacklist = set([os.path.join(path, f.strip(os.path.sep))
+          for f in open(blacklist_file, 'rb').read().strip().split('\n')])
 
     logger.info("Patching sandbox: %s", path)
     logger.info("Patcher blacklist: %s", blacklist)

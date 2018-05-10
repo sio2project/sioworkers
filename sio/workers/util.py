@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from contextlib import contextmanager
 import pkg_resources
 import time
@@ -7,6 +8,7 @@ import os
 import tempfile
 import shutil
 import threading
+import six
 
 logger = logging.getLogger(__name__)
 
@@ -132,8 +134,35 @@ def path_join_abs(base, subpath):
     """
     return os.path.join(base, subpath.strip(os.sep))
 
-def replace_invalid_UTF(str):
-    return str.decode('utf-8', 'replace').encode('utf-8')
+
+def replace_invalid_UTF(a_string):
+    """ Replaces invalid characters in a string.
+
+        In python 2 strings are also bytestrings.
+        In python 3 given a string it returns a string and given a bytestring
+        it returns a bytestring.
+    """
+    if six.PY2:
+        return a_string.decode('utf-8', 'replace').encode('utf-8')
+    else:
+        if not isinstance(a_string, six.string_types):
+            return a_string.decode('utf-8', 'replace').encode()
+        else:
+            return a_string.encode('utf-8', 'replace').decode()
+
+
+def decode_fields(fields):
+    def _decode_decorator(func):
+        def _wrapper(*args, **kwargs):
+            result_dict = func(*args, **kwargs)
+            for field in fields:
+                if not isinstance(result_dict[field], six.string_types):
+                    result_dict[field] = result_dict[field].decode()
+            return result_dict
+
+        return _wrapper
+
+    return _decode_decorator
 
 
 def null_ctx_manager():
@@ -150,10 +179,8 @@ class ClassInitMeta(type):
         cls.__classinit__()
 
 
-class ClassInitBase(object):
+class ClassInitBase(six.with_metaclass(ClassInitMeta, object)):
     """Abstract base class injecting ClassInitMeta meta class."""
-
-    __metaclass__ = ClassInitMeta
 
     @classmethod
     def __classinit__(cls):

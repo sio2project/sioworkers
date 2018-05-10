@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import logging
 import os
 
@@ -70,13 +71,13 @@ def run(environ):
             add_to_cache=True)
     ft.download(environ, 'in_file', 'in', skip_if_exists=True,
             add_to_cache=True)
-    os.chmod(tempcwd('inwer'), 0500)
+    os.chmod(tempcwd('inwer'), 0o500)
 
     renv = _run_inwer(environ, use_sandboxes)
     if renv['result_code'] != "OK":
         logger.error("Inwer failed!\nEnviron dump: %s\nExecution environ: %s",
                 environ, renv)
-    elif not renv['stdout'][0].startswith("OK"):
+    elif not renv['stdout'][0].startswith(b"OK"):
         logger.error("Bad inwer output!\nEnviron dump: %s\n"
                 "Execution environ: %s", environ, renv)
 

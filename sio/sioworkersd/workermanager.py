@@ -1,8 +1,10 @@
+from __future__ import absolute_import
 from sio.sioworkersd import server
 from sio.protocol.rpc import TimeoutError
 from twisted.application import service
 from twisted.internet import reactor, defer
 from twisted.logger import Logger
+import six
 
 log = Logger()
 
@@ -87,7 +89,7 @@ class WorkerManager(service.MultiService):
         # reject it
         try:
             worker = Worker(proto.clientInfo, set(), False)
-        except Exception, e:
+        except Exception as e:
             log.warn('Rejecting worker {w} because it sent invalid ({e})'
                     ' client info: {d}', w=name, e=e, d=proto.clientInfo)
             raise server.WorkerRejected()
@@ -168,12 +170,12 @@ class WorkerManager(service.MultiService):
         """
         any_cpus_ram = [
             worker.available_ram_mb
-            for _, worker in self.workerData.iteritems()
+            for _, worker in six.iteritems(self.workerData)
             if worker.can_run_cpu_exec]
 
         vcpu_onlys_ram = [
             worker.available_ram_mb
-            for _, worker in self.workerData.iteritems()
+            for _, worker in six.iteritems(self.workerData)
             if not worker.can_run_cpu_exec]
 
         self.minAnyCpuWorkerRam = min(any_cpus_ram) if any_cpus_ram else None

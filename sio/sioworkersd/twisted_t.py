@@ -1,5 +1,7 @@
 # This file is named twisted_t.py to avoid it being found by nosetests,
 # which hangs on some Twisted test cases. Use trial <module>.
+from __future__ import absolute_import
+from __future__ import print_function
 import shutil
 import tempfile
 
@@ -15,7 +17,7 @@ from sio.protocol import rpc
 
 # debug
 def _print(x):
-    print x
+    print(x)
     return x
 
 
@@ -72,7 +74,7 @@ class TestWithDB(unittest.TestCase):
 
 class TaskManagerTest(TestWithDB):
     SAVED_TASKS = [
-        ('asdf_group', {
+        (b'asdf_group', {
             "id": "asdf_group",
             "status": "to_judge",
             "timestamp": "1491407526.72",

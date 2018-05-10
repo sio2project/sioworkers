@@ -1,4 +1,6 @@
 # pylint: disable=no-name-in-module
+from __future__ import absolute_import
+from __future__ import print_function
 from random import Random
 import importlib
 
@@ -6,6 +8,7 @@ from nose.tools import assert_equals
 
 from sio.sioworkersd.scheduler import getDefaultSchedulerClassName
 from sio.sioworkersd.scheduler.prioritizing import PrioritizingScheduler
+import six
 
 # Constructors of all schedulers, used in generic tests.
 schedulers = [PrioritizingScheduler]
@@ -29,7 +32,7 @@ class Worker(object):
         self.can_run_cpu_exec = can_run_cpu_exec
 
     def printInfo(self):
-        print '%s, %s' % (str(self.info), str(self.tasks))
+        print('%s, %s' % (str(self.info), str(self.tasks)))
 # --------------------------------------------------------------------------#
 
 class Manager(object):
@@ -56,7 +59,7 @@ class Manager(object):
         self.workers[wid].tasks.append(task['task_id'])
 
     def _checkInnerState(self):
-        for wid, w in self.workers.iteritems():
+        for wid, w in six.iteritems(self.workers):
             if len(w.tasks) > w.info['concurrency']:
                 return 'Worker %s has too many jobs - can have %s and has %d' \
                     % (str(wid), str(w.info['concurrency']), len(w.tasks))
@@ -67,9 +70,9 @@ class Manager(object):
         return 'OK'
 
     def _showInnerState(self):
-        for wid, w in self.workers.iteritems():
-            print 'Worker (id: %d, concurr: %d) does %s' % \
-                (wid, w.info['concurrency'], w.tasks)
+        for wid, w in six.iteritems(self.workers):
+            print('Worker (id: %d, concurr: %d) does %s' %
+                (wid, w.info['concurrency'], w.tasks))
 
     def getWorkers(self):
         return self.workers
@@ -261,7 +264,7 @@ def _randomTesting1(Scheduler, contests_count, workers_count, tasks_count):
             assert False
     man.schedule()
     while man.workers:
-        wid = man.workers.iterkeys().next()
+        wid = six.next(six.iterkeys(man.workers))
         while man.workers[wid].tasks:
             man.completeOneTask(wid)
         man.delWorker(wid)

@@ -1,11 +1,13 @@
+from __future__ import absolute_import
 import os
 from shutil import rmtree
 from zipfile import ZipFile, is_zipfile
 from sio.workers import ft
-from sio.workers.util import replace_invalid_UTF, tempcwd
+from sio.workers.util import decode_fields, replace_invalid_UTF, tempcwd
 from sio.workers.file_runners import get_file_runner
 
 from sio.executors import checker
+import six
 
 def _populate_environ(renv, environ):
     """Takes interesting fields from renv into environ"""
@@ -14,6 +16,8 @@ def _populate_environ(renv, environ):
     for key in ('result_code', 'result_string'):
         environ[key] = renv.get(key, '')
 
+
+@decode_fields(['result_string'])
 def run(environ, executor, use_sandboxes=True):
     """
     Common code for executors.
@@ -31,7 +35,7 @@ def run(environ, executor, use_sandboxes=True):
     exe_filename = file_executor.preferred_filename()
 
     ft.download(environ, 'exe_file', exe_filename, add_to_cache=True)
-    os.chmod(tempcwd(exe_filename), 0700)
+    os.chmod(tempcwd(exe_filename), 0o700)
     ft.download(environ, 'in_file', input_name, add_to_cache=True)
 
     zipdir = tempcwd('in_dir')
@@ -48,7 +52,7 @@ def run(environ, executor, use_sandboxes=True):
                     input_name = os.path.join(zipdir, f.namelist()[0])
             # zipfile throws some undocumented exceptions
             except Exception as e:
-                raise StandardError("Failed to open archive: " + unicode(e))
+                raise Exception("Failed to open archive: " + six.text_type(e))
 
         with file_executor as fe:
             with open(input_name, 'rb') as inf:

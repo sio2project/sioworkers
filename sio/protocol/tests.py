@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from twisted.trial import unittest
 from twisted.test import proto_helpers
 from twisted.internet import protocol, reactor
@@ -31,14 +32,14 @@ class TestServerFactory(protocol.Factory):
 
 
 def encode(x):
-    x = json.dumps(x)
-    return str(len(x)) + ':' + x + ','
+    x = json.dumps(x).encode('utf-8')
+    return b''.join([str(len(x)).encode('utf-8'), b':', x, b','])
 
 
 def decode(x):
     # This is a bit hacky, but we only care about the data part -
     # encoding netstrings is handled by Twisted and should work
-    data = x.partition(':')[2][:-1]
+    data = x.partition(b':')[2][:-1].decode('utf-8')
     return json.loads(data)
 
 hello_msg = {'type': 'hello', 'data': {}}

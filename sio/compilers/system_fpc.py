@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from sio.compilers.common import Compiler
 from sio.workers.util import tempcwd
 

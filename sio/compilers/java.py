@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from sio.compilers.system_java import JavaCompiler as UnsafeJavaCompiler
 
 

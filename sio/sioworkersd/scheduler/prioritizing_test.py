@@ -1,7 +1,10 @@
+from __future__ import absolute_import
 import random
 import unittest
 
 from sio.sioworkersd.scheduler import prioritizing
+import six
+from six.moves import range
 
 
 class WaitingTasksQueueTest(unittest.TestCase):
@@ -211,7 +214,7 @@ class PrioritizingSchedulerTest(unittest.TestCase):
 
         scheduled_tasks = scheduler.schedule()
 
-        self.assertItemsEqual([(1, 1), (2, 1)], scheduled_tasks)
+        six.assertCountEqual(self, [(1, 1), (2, 1)], scheduled_tasks)
 
     def test_should_respect_ram_limits_when_assigning_vcpu_tasks(self):
         vcpu_only_worker = {
@@ -231,7 +234,7 @@ class PrioritizingSchedulerTest(unittest.TestCase):
         scheduled_tasks = scheduler.schedule()
 
         # Third task should be blocked.
-        self.assertItemsEqual([(1, 1), (2, 1)], scheduled_tasks)
+        six.assertCountEqual(self, [(1, 1), (2, 1)], scheduled_tasks)
 
     def test_should_respect_concurrency_limits_when_assigning_vcpu_tasks(self):
         vcpu_only_worker = {
@@ -251,7 +254,7 @@ class PrioritizingSchedulerTest(unittest.TestCase):
         scheduled_tasks = scheduler.schedule()
 
         # Third task should be blocked.
-        self.assertItemsEqual([(1, 1), (2, 1)], scheduled_tasks)
+        six.assertCountEqual(self, [(1, 1), (2, 1)], scheduled_tasks)
 
     def test_should_assign_vcpu_tasks_to_any_cpu_workers_if_no_others(self):
         any_cpu_worker = {'id': 1, 'is_real_cpu': True}
@@ -266,7 +269,7 @@ class PrioritizingSchedulerTest(unittest.TestCase):
 
         scheduled_tasks = scheduler.schedule()
 
-        self.assertItemsEqual([(1, 1)], scheduled_tasks)
+        six.assertCountEqual(self, [(1, 1)], scheduled_tasks)
 
     def test_should_block_partially_busy_workers_for_real_cpu_tasks(self):
         any_cpu_worker_1 = {
@@ -292,19 +295,19 @@ class PrioritizingSchedulerTest(unittest.TestCase):
         scheduled_tasks = scheduler.schedule()
 
         # Tasks 3 and 4 should block 5 and 6.
-        self.assertItemsEqual([(1, 1), (2, 2)], scheduled_tasks)
+        six.assertCountEqual(self, [(1, 1), (2, 2)], scheduled_tasks)
 
         scheduler.delTask(1)
         scheduler.delTask(2)
         scheduled_tasks = scheduler.schedule()
 
-        self.assertItemsEqual([(3, 1), (4, 2)], scheduled_tasks)
+        six.assertCountEqual(self, [(3, 1), (4, 2)], scheduled_tasks)
 
         scheduler.delTask(3)
         scheduler.delTask(4)
         scheduled_tasks = scheduler.schedule()
 
-        self.assertItemsEqual([(5, 1), (6, 2)], scheduled_tasks)
+        six.assertCountEqual(self, [(5, 1), (6, 2)], scheduled_tasks)
 
     def test_should_respect_ram_limits_when_assigning_real_cpu_tasks(self):
         any_cpu_worker_1 = {'id': 1, 'ram': 512, 'is_real_cpu': True}
@@ -324,7 +327,7 @@ class PrioritizingSchedulerTest(unittest.TestCase):
         scheduled_tasks = scheduler.schedule()
 
         # Second task should be blocked.
-        self.assertItemsEqual([(1, 2)], scheduled_tasks)
+        six.assertCountEqual(self, [(1, 2)], scheduled_tasks)
 
     def test_should_try_to_match_tasks_ram_to_workers_average_ram(self):
         """For more info, check out _getSuitableWorkerForVcpuTask()."""
@@ -349,7 +352,7 @@ class PrioritizingSchedulerTest(unittest.TestCase):
 
         scheduled_tasks = scheduler.schedule()
 
-        self.assertItemsEqual([(1, 2), (2, 1)], scheduled_tasks)
+        six.assertCountEqual(self, [(1, 2), (2, 1)], scheduled_tasks)
 
     def test_should_block_more_workers_if_waiting_tasks_are_huge(self):
         any_cpu_worker_1 = {
@@ -424,12 +427,12 @@ class WorkerManagerStub(object):
 
         any_cpus_ram = [
                 worker.available_ram_mb
-                for _, worker in self.workerData.iteritems()
+                for _, worker in six.iteritems(self.workerData)
                 if worker.can_run_cpu_exec]
 
         vcpu_onlys_ram = [
                 worker.available_ram_mb
-                for _, worker in self.workerData.iteritems()
+                for _, worker in six.iteritems(self.workerData)
                 if not worker.can_run_cpu_exec]
 
         self.minAnyCpuWorkerRam = min(any_cpus_ram) if any_cpus_ram else None

@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import os
 import subprocess
 import tempfile
@@ -11,8 +12,10 @@ from os import path
 
 from sio.workers import util, elf_loader_patch
 from sio.workers.sandbox import get_sandbox
-from sio.workers.util import ceil_ms2s, ms2s, s2ms, path_join_abs, \
+from sio.workers.util import ceil_ms2s, decode_fields, ms2s, s2ms, path_join_abs, \
     null_ctx_manager, tempcwd
+import six
+from six.moves import map
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +104,7 @@ def execute_command(command, env=None, split_lines=False, stdin=None,
 
     ret_env = {}
     if env is not None:
-        for key, value in env.iteritems():
+        for key, value in six.iteritems(env):
             env[key] = str(value)
 
     perf_timer = util.PerfTimer()
@@ -142,7 +145,7 @@ def execute_command(command, env=None, split_lines=False, stdin=None,
         ret_env['stdout'] = stdout.read(output_limit or -1)
         stdout.close()
         if split_lines:
-            ret_env['stdout'] = ret_env['stdout'].split('\n')
+            ret_env['stdout'] = ret_env['stdout'].split(b'\n')
 
     if rc and not ignore_errors and rc not in extra_ignore_errors:
         raise ExecError('Failed to execute command: %s. Returned with code %s\n'
@@ -330,7 +333,7 @@ class DetailedUnprotectedExecutor(UnprotectedExecutor):
         stderr.seek(0)
         output = stderr.read()
         stderr.close()
-        time_output_matches = TIME_OUTPUT_RE.findall(output)
+        time_output_matches = TIME_OUTPUT_RE.findall(output.decode())
         if time_output_matches:
             mins, secs = time_output_matches[-1]
             renv['time_used'] = int((int(mins) * 60 + float(secs)) * 1000)
@@ -431,6 +434,7 @@ class _SIOSupervisedExecutor(SandboxExecutor):
     def _supervisor_result_to_code(self, result):
         return self._supervisor_codes.get(int(result), 'RE')
 
+    @decode_fields(['result_string'])
     def _execute(self, command, **kwargs):
         env = kwargs.get('env')
         env.update({

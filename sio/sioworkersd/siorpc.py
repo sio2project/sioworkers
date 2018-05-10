@@ -1,9 +1,11 @@
+from __future__ import absolute_import
 import json
 from functools import wraps
 from twisted.web.xmlrpc import XMLRPC
 from twisted.web import server
 from uuid import uuid4
 from twisted.logger import Logger
+import six
 
 log = Logger()
 
@@ -18,7 +20,7 @@ def escape_arguments(func):
     def wrapper(self, *args, **kwargs):
         return func(self,
                     *[unpack(a) for a in args],
-                    **{k: unpack(v) for (k, v) in kwargs.iteritems()})
+                    **{k: unpack(v) for (k, v) in six.iteritems(kwargs)})
     return wrapper
 
 
@@ -34,7 +36,7 @@ class SIORPC(XMLRPC):
 
     def xmlrpc_get_workers(self):
         ret = []
-        for k, v in self.workerm.getWorkers().iteritems():
+        for k, v in six.iteritems(self.workerm.getWorkers()):
             ret.append({'name': k,
                 'info': v.info,
                 'tasks': list(v.tasks),
@@ -48,7 +50,7 @@ class SIORPC(XMLRPC):
         tasks = env['workers_jobs']
         group_id = 'GROUP_' + uuid4().urn
         env['group_id'] = group_id
-        for task in tasks.itervalues():
+        for task in six.itervalues(tasks):
             task['group_id'] = group_id
             task['task_id'] = uuid4().urn
 

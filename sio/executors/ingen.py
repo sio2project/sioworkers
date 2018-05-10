@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import logging
 import os
 import re
@@ -78,7 +79,7 @@ def run(environ):
     use_sandboxes = environ.get('use_sandboxes', False)
     ft.download(environ, 'exe_file', 'ingen', skip_if_exists=True,
             add_to_cache=True)
-    os.chmod(tempcwd('ingen'), 0500)
+    os.chmod(tempcwd('ingen'), 0o500)
     renv = _run_ingen(environ, use_sandboxes)
     if renv['return_code'] != 0:
         logger.error("Ingen failed!\nEnviron dump: %s\nExecution environ: %s",

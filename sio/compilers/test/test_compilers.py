@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import glob
 import os.path
 import stat
@@ -90,7 +91,7 @@ def compile_and_run(compiler_env, expected_output, program_args=None):
         renv = frunner(binary, program_args,
                        stderr=sys.__stderr__, capture_output=True, **frkwargs)
     eq_(renv['return_code'], 0)
-    eq_(renv['stdout'].strip(), expected_output)
+    eq_(renv['stdout'].decode().strip(), expected_output)
 
     os.remove(binary)
 

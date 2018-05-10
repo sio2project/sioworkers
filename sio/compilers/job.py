@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import sys
 import os.path
 
@@ -27,11 +29,11 @@ def run(environ):
 
 def main():
     if len(sys.argv) < 3:
-        print """Usage: %s source output [compiler [extra_compilation_args ...]]
+        print("""Usage: %s source output [compiler [extra_compilation_args ...]]
 
    If source or output path starts with '/', then it's considered to
    be filetracker path, if not, relative to the current directory.""" \
-              % sys.argv[0].split('/')[-1]
+              % sys.argv[0].split('/')[-1])
         raise SystemExit(1)
 
     # Simulate compile.sh from sio1
@@ -48,4 +50,4 @@ def main():
         environ['compiler'] = compiler
 
     run(environ)
-    print json.dumps(environ)
+    print(json.dumps(environ))

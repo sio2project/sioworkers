@@ -1,8 +1,11 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import os
 import sys
 import traceback
 import logging
 import platform
+import six
 
 try:
     import json
@@ -33,9 +36,9 @@ def _save_failure(exc, environ):
     return environ
 
 def _print_environ(environ):
-    print '--- BEGIN ENVIRON ---'
-    print json.dumps(environ)
-    print '--- END ENVIRON ---'
+    print('--- BEGIN ENVIRON ---')
+    print(json.dumps(environ))
+    print('--- END ENVIRON ---')
 
 def run(environ):
     """Performs the work passed in ``environ``.
@@ -73,18 +76,18 @@ def run(environ):
                                         environ['job_type'])(environ)
             environ['result'] = 'SUCCESS'
             environ = _run_filters('postfilters', environ)
-        except Failure, e:
+        except Failure as e:
             environ = _save_failure(e, environ)
             try:
                 environ = _run_filters('postfilters', environ)
-            except Failure, e:
+            except Failure as e:
                 pass
 
     return environ
 
 def main():
     environ = json.loads(os.environ['environ'])
-    if isinstance(environ, basestring):
+    if isinstance(environ, six.string_types):
         # Hudson quotes one more time if using the web interface.
         environ = json.loads(environ)
     if not isinstance(environ, dict):

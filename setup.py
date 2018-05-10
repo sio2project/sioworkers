@@ -1,4 +1,35 @@
+from __future__ import absolute_import
+from sys import version_info
 from setuptools import setup, find_packages
+
+PYTHON_VERSION = version_info[0]
+
+python2_specific_requirements = [
+    'supervisor>=3.3.1',
+    'enum34',
+    'poster',
+]
+
+python3_specific_requirements = [
+    'bsddb3',
+]
+
+python23_universal_requirements = [
+    'filetracker>=2.0,<3.0',
+    'simplejson',
+    'Celery>=3.1.15',
+    'Twisted>=15.2.1',
+    'sortedcontainers',
+    'six',
+    'nose',
+]
+
+if PYTHON_VERSION == 2:
+    final_requirements = python23_universal_requirements + python2_specific_requirements
+else:
+    final_requirements = python23_universal_requirements + python3_specific_requirements
+
+
 setup(
     name = "sioworkers",
     version = '1.3',
@@ -12,15 +43,7 @@ setup(
     packages = find_packages() + ['twisted.plugins'],
     namespace_packages = ['sio', 'sio.compilers', 'sio.executors'],
 
-    install_requires = [
-        'filetracker>=2.0,<3.0',
-        'simplejson',
-        'Celery>=3.1.15',
-        'Twisted>=15.2.1',
-        'enum34',  # backport from py3
-        'supervisor>=3.3.1',
-        'sortedcontainers',
-    ],
+    install_requires=final_requirements,
 
     setup_requires = [
         'nose',

@@ -45,12 +45,14 @@ cpu. It can be judged on any worker (any-cpu or vcpu-only).
 Virtual-cpu tasks can be judged simultaneously on one worker.
 """
 
+from __future__ import absolute_import
 from collections import OrderedDict
 from random import Random
 from sortedcontainers import SortedList, SortedSet
 
 from sio.sioworkersd.scheduler import Scheduler
 from sio.sioworkersd.utils import get_required_ram_for_job
+import six
 
 
 class _WaitingTasksQueue(object):
@@ -78,6 +80,8 @@ class _WaitingTasksQueue(object):
     def __nonzero__(self):
         return bool(self._dict)
 
+    __bool__ = __nonzero__  # for Python 2/3 compatibility
+
     def add(self, task):
         self._dict[task] = True
         self._tasks_required_ram.add(task.required_ram_mb)
@@ -88,7 +92,7 @@ class _WaitingTasksQueue(object):
 
     def left(self):
         if self._dict:
-            return self._dict.iteritems().next()[0]
+            return six.next(six.iteritems(self._dict))[0]
         else:
             return None
 
@@ -125,6 +129,10 @@ class WorkerInfo(object):
         self.running_tasks = 0
         # Amount of RAM that can be potentially used by current tasks.
         self.used_ram_mb = 0
+
+    # for Python 3 compatibility
+    def __lt__(self, other):
+        return self.id < other.id
 
     def getQueueName(self):
         if (self.is_running_real_cpu
@@ -190,7 +198,7 @@ class TaskInfo(object):
 
     def __init__(self, env, contest):
         assert ('task_priority' not in env or
-            isinstance(env['task_priority'], (int, long)))
+            isinstance(env['task_priority'], six.integer_types))
         # Immutable data
         self.id = env['task_id']
         self.real_cpu = (env['job_type'] == 'cpu-exec')
@@ -213,8 +221,8 @@ class ContestInfo(object):
     """
 
     def __init__(self, contest_uid, priority, weight):
-        assert isinstance(priority, (int, long))
-        assert isinstance(weight, (int, long))
+        assert isinstance(priority, six.integer_types)
+        assert isinstance(weight, six.integer_types)
         assert weight >= 1
         # Immutable data
         self.uid = contest_uid
@@ -237,6 +245,8 @@ class TasksQueues(object):
 
     def __nonzero__(self):
         return bool(self.queues)
+
+    __bool__ = __nonzero__  # for Python 2/3 compatibility
 
     def addTask(self, task):
         contest_queue = self.queues.setdefault(task.contest,
@@ -276,7 +286,7 @@ class TasksQueues(object):
 
         max_contest_priority = None
         contests_weights_sum = None
-        for contest in self.queues.iterkeys():
+        for contest in six.iterkeys(self.queues):
             current_contest_priority = contest.priority
             if (max_contest_priority is None
                     or current_contest_priority > max_contest_priority):
@@ -288,7 +298,7 @@ class TasksQueues(object):
         random_value = self.random.randint(1, contests_weights_sum)
         contests_weights_prefix_sum = 0
         best_contest = None
-        for contest in self.queues.iterkeys():
+        for contest in six.iterkeys(self.queues):
             if contest.priority != max_contest_priority:
                 continue
             contests_weights_prefix_sum += contest.weight
@@ -354,7 +364,7 @@ class PrioritizingScheduler(Scheduler):
 
            Used for debugging and displaying in the admin panel.
         """
-        return unicode((self.tasks_queues, self.waiting_real_cpu_tasks))
+        return six.text_type((self.tasks_queues, self.waiting_real_cpu_tasks))
 
     # Worker scheduling
 
@@ -471,8 +481,8 @@ class PrioritizingScheduler(Scheduler):
 
     def updateContest(self, contest_uid, priority, weight):
         """Update contest priority and weight in scheduler memory."""
-        assert isinstance(priority, (int, long))
-        assert isinstance(weight, (int, long))
+        assert isinstance(priority, six.integer_types)
+        assert isinstance(weight, six.integer_types)
         assert weight >= 1
         contest = self.contests.get(contest_uid)
         if contest is None:
@@ -554,7 +564,7 @@ class PrioritizingScheduler(Scheduler):
 
         workers_ram = [
                 w.available_ram_mb
-                for _, w in self.manager.getWorkers().iteritems()
+                for _, w in six.iteritems(self.manager.getWorkers())
                 if w.can_run_cpu_exec]
 
         workers_ram.sort()
