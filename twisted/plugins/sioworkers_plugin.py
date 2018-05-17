@@ -1,6 +1,8 @@
 import urlparse
 import importlib
 import platform
+import json
+import logging.config
 from zope.interface import implements
 
 from twisted.python import usage
@@ -24,6 +26,7 @@ class WorkerOptions(usage.Options):
     optParameters = [['port', 'p', 7888, "sioworkersd port number", int],
                      ['concurrency', 'c', 1, "maximum concurrent jobs", int],
                      ['ram', 'r', 1024, 'available RAM in MiB', int],
+                     ['log-config', 'l', '', 'log config for python logging'],
                      ['name', 'n', platform.node(), "worker name"]]
     optFlags = [['can-run-cpu-exec', None,
                     "Mark this worker as suitable for running tasks, which "
@@ -45,6 +48,12 @@ class WorkerServiceMaker(object):
     options = WorkerOptions
 
     def makeService(self, options):
+        logConfig = options['log-config']
+        if logConfig:
+            with open(logConfig) as f:
+                logDict = json.load(f)
+                logging.config.dictConfig(logDict)
+
         return internet.TCPClient(options['host'], options['port'],
                 WorkerFactory(
                     concurrency=options['concurrency'],
