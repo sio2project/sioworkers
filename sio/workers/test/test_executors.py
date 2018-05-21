@@ -5,7 +5,7 @@ import filecmp
 
 from nose.tools import ok_, eq_, assert_not_equal, nottest, raises, \
         assert_raises
-from filetracker.dummy import DummyClient
+from filetracker.client.dummy import DummyClient
 
 from sio.compilers.job import run as run_compiler
 from sio.executors.common import run as run_executor

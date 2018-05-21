@@ -7,7 +7,7 @@ from nose.tools import ok_, eq_, timed
 
 from sio.compilers.job import run
 from sio.workers import ft
-from filetracker.dummy import DummyClient
+from filetracker.client.dummy import DummyClient
 from sio.compilers.common import DEFAULT_COMPILER_OUTPUT_LIMIT, \
         DEFAULT_COMPILER_TIME_LIMIT, DEFAULT_COMPILER_MEM_LIMIT
 from sio.workers.executors import UnprotectedExecutor, PRootExecutor

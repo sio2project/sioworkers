@@ -13,7 +13,7 @@ setup(
     namespace_packages = ['sio', 'sio.compilers', 'sio.executors'],
 
     install_requires = [
-        'filetracker>=1.1.0',
+        'filetracker>=2.0,<3.0',
         'simplejson',
         'Celery>=3.1.15',
         'Twisted>=15.2.1',

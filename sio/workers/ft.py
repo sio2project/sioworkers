@@ -6,11 +6,10 @@ import logging
 import threading
 import hashlib
 
-logger = logging.getLogger(__name__)
-
-import filetracker
+from filetracker.client import Client as FiletrackerClient
 from sio.workers import _original_cwd, util
 
+logger = logging.getLogger(__name__)
 lock = threading.Lock()
 
 # We don't want to create new client everytime a run(environ) is called so
@@ -36,7 +35,7 @@ def init_instance(filetracker_url):
     lock.acquire()
     if not url_hash in ft_clients:
         ft_clients[url_hash] = \
-            filetracker.Client(remote_url=filetracker_url,
+            FiletrackerClient(remote_url=filetracker_url,
                                cache_dir=get_cache_dir(filetracker_url))
 
     util.threadlocal_dir.ft_client_instance = ft_clients[url_hash]
@@ -44,15 +43,15 @@ def init_instance(filetracker_url):
 
 
 def instance():
-    """Returns a singleton instance of :class:`filetracker.Client`."""
+    """Returns a singleton instance of :class:`filetracker.client.Client`."""
     if getattr(util.threadlocal_dir, 'ft_client_instance', None) is None:
         launch_filetracker_server()
-        util.threadlocal_dir.ft_client_instance = filetracker.Client()
+        util.threadlocal_dir.ft_client_instance = FiletrackerClient()
     return util.threadlocal_dir.ft_client_instance
 
 
 def set_instance(client):
-    """Sets the singleton :class:`filetracker.Client` to the given
+    """Sets the singleton :class:`filetracker.client.Client` to the given
        object."""
     util.threadlocal_dir.ft_client_instance = client
 
@@ -75,7 +74,7 @@ def download(environ, key, dest=None, skip_if_exists=False, **kwargs):
          or ``None``), then the file is not downloaded.
 
        ``**kwargs``
-         Passed directly to :meth:`filetracker.Client.get_file`.
+         Passed directly to :meth:`filetracker.client.Client.get_file`.
 
        The value under ``environ['use_filetracker']`` affects downloading
        in the followins way:
@@ -124,7 +123,7 @@ def upload(environ, key, source, dest=None, **kwargs):
          the file is named the same as in ``environ[key]``.
 
        ``**kwargs``
-         Passed directly to :meth:`filetracker.Client.put_file`.
+         Passed directly to :meth:`filetracker.client.Client.put_file`.
 
        See the note about ``environ['use_filetracker']`` in
        :func:`sio.workers.ft.download`.
