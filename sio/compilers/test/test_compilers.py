@@ -4,7 +4,8 @@ import os.path
 import stat
 import sys
 
-from nose.tools import ok_, eq_, timed
+import pytest
+from sio.assertion_utils import ok_, eq_, timed
 
 from sio.compilers.job import run
 from sio.workers import ft
@@ -95,39 +96,63 @@ def compile_and_run(compiler_env, expected_output, program_args=None):
 
     os.remove(binary)
 
-def test_compilation():
-    def _test(message, compiler, source, program_args=None):
-        with TemporaryCwd():
-            upload_files()
-            compile_and_run({
-                'source_file': source,
-                'compiler': compiler,
-                'out_file': '/out',
-                }, message, program_args)
 
+def _make_compilation_cases():
     compilers = ['system-']
     if ENABLE_SANDBOXED_COMPILERS:
         compilers += ['default-']
 
     for compiler in compilers:
-        yield _test, 'Hello World from c', compiler + 'c', '/simple.c'
-        yield _test, '6.907167, 31.613478, 1.569796', compiler + 'c', \
+        yield 'Hello World from c', compiler + 'c', '/simple.c', None
+        yield '6.907167, 31.613478, 1.569796', compiler + 'c', \
                 '/libm.c', ['999.412']
-        yield _test, 'Hello World from cpp', compiler + 'cpp', '/simple.cpp'
-        yield _test, 'Hello World from cc', compiler + 'cc', '/simple.cc'
-        yield _test, '3\n5\n5\n7\n9\n10', compiler + 'cpp', '/libstdc++.cpp'
-        yield _test, 'Hello World from pas', compiler + 'pas', '/simple.pas'
+        yield 'Hello World from cpp', compiler + 'cpp', '/simple.cpp', None
+        yield 'Hello World from cc', compiler + 'cc', '/simple.cc', None
+        yield '3\n5\n5\n7\n9\n10', compiler + 'cpp', '/libstdc++.cpp', None
+        yield 'Hello World from pas', compiler + 'pas', '/simple.pas', None
         if not NO_JAVA_TESTS:
-            yield _test, 'Hello World from java', compiler + 'java', \
-                    '/simple.java'
+            yield 'Hello World from java', compiler + 'java', \
+                    '/simple.java', None
 
     if ENABLE_SANDBOXED_COMPILERS:
-        yield _test, '12903', 'default-cpp', '/cpp11.cpp'
-        yield _test, 'Hello World from GNU99', 'default-c', '/gnu99.c'
+        yield '12903', 'default-cpp', '/cpp11.cpp', None
+        yield 'Hello World from GNU99', 'default-c', '/gnu99.c', None
 
-def test_compilation_with_additional_library():
-    def _test(message, compiler, source, sources, includes=()):
-        with TemporaryCwd():
+
+@pytest.mark.parametrize("message,compiler,source,program_args",
+    [test_case for test_case in _make_compilation_cases()])
+def test_compilation(message, compiler, source, program_args):
+    with TemporaryCwd():
+        upload_files()
+        compile_and_run({
+            'source_file': source,
+            'compiler': compiler,
+            'out_file': '/out',
+            }, message, program_args)
+
+
+def _make_compilation_with_additional_library_cases():
+    compilers = ['system-']
+    if ENABLE_SANDBOXED_COMPILERS:
+        compilers += ['default-']
+
+    for compiler in compilers:
+        yield 'Hello World from c-lib', compiler + 'c', \
+              '/simple-lib.c', '/library.c', '/library.h'
+        yield 'Hello World from cpp-lib', compiler + 'cpp', \
+              '/simple-lib.cpp', '/library.cpp', '/library.h'
+        yield 'Hello World from pas-lib', compiler + 'pas', \
+              '/simple-lib.pas', '/pas_library.pas', {}
+        if not NO_JAVA_TESTS:
+            yield 'Hello World from java-lib', compiler + 'java', \
+                    '/simple_lib.java', '/library.java', {}
+
+
+@pytest.mark.parametrize("message,compiler,source,sources,includes",
+    [test_case for test_case in _make_compilation_with_additional_library_cases()])
+def test_compilation_with_additional_library(message, compiler,
+            source, sources, includes):
+    with TemporaryCwd():
             upload_files()
 
             compile_and_run({
@@ -138,81 +163,72 @@ def test_compilation_with_additional_library():
                     'out_file': '/out',
                     }, message)
 
+
+def _make_compilation_with_additional_library_and_directory_params_cases():
     compilers = ['system-']
     if ENABLE_SANDBOXED_COMPILERS:
         compilers += ['default-']
 
     for compiler in compilers:
-        yield _test, 'Hello World from c-lib', compiler + 'c', \
-              '/simple-lib.c', '/library.c', '/library.h'
-        yield _test, 'Hello World from cpp-lib', compiler + 'cpp', \
-              '/simple-lib.cpp', '/library.cpp', '/library.h'
-        yield _test, 'Hello World from pas-lib', compiler + 'pas', \
-              '/simple-lib.pas', '/pas_library.pas'
-        if not NO_JAVA_TESTS:
-            yield _test, 'Hello World from java-lib', compiler + 'java', \
-                    '/simple_lib.java', '/library.java'
-
-def test_compilation_with_additional_library_and_dictionary_params():
-    def _test(message, compiler, source):
-        with TemporaryCwd():
-            upload_files()
-
-            compile_and_run({
-                    'source_file': source,
-                    'additional_includes': {
-                        'c': '/library.h',
-                        'cpp': '/library.h',
-                        },
-                    'additional_sources': {
-                        'c': '/library.c',
-                        'cpp': '/library.cpp',
-                        'pas': '/pas_library.pas',
-                        'java': '/library.java',
-                        },
-                    'compiler': compiler,
-                    'out_file': '/out',
-                    }, message)
-
-    compilers = ['system-']
-    if ENABLE_SANDBOXED_COMPILERS:
-        compilers += ['default-']
-
-    for compiler in compilers:
-        yield _test, 'Hello World from c-lib', compiler + 'c', '/simple-lib.c'
-        yield _test, 'Hello World from cpp-lib', compiler + 'cpp', \
+        yield 'Hello World from c-lib', compiler + 'c', '/simple-lib.c'
+        yield 'Hello World from cpp-lib', compiler + 'cpp', \
             '/simple-lib.cpp'
-        yield _test, 'Hello World from pas-lib', compiler + 'pas', \
+        yield 'Hello World from pas-lib', compiler + 'pas', \
             '/simple-lib.pas'
         if not NO_JAVA_TESTS:
-            yield _test, 'Hello World from java-lib', compiler + 'java', \
+            yield 'Hello World from java-lib', compiler + 'java', \
                 '/simple_lib.java'
 
 
-def test_compilation_with_additional_archive():
-    def _test(message, compiler, source, sources, archive, unexpected_files):
-        with TemporaryCwd(inner_directory='one_more_level'):
-            upload_files()
+@pytest.mark.parametrize("message,compiler,source",
+    [test_case for test_case in _make_compilation_with_additional_library_and_directory_params_cases()])
+def test_compilation_with_additional_library_and_dictionary_params(message, compiler, source):
+    with TemporaryCwd():
+        upload_files()
 
-            compile_and_run({
-                    'source_file': source,
-                    'additional_sources': sources,
-                    'additional_archive': archive,
-                    'compiler': compiler,
-                    'out_file': '/out',
-                    }, message)
+        compile_and_run({
+                'source_file': source,
+                'additional_includes': {
+                    'c': '/library.h',
+                    'cpp': '/library.h',
+                    },
+                'additional_sources': {
+                    'c': '/library.c',
+                    'cpp': '/library.cpp',
+                    'pas': '/pas_library.pas',
+                    'java': '/library.java',
+                    },
+                'compiler': compiler,
+                'out_file': '/out',
+                }, message)
 
-            for f in unexpected_files:
-                ok_(not os.path.exists(f))
 
-
-    yield _test, 'Hello World from c-lib', 'system-c', '/simple-lib.c', \
+def _make_compilation_with_additional_archive_cases():
+    yield 'Hello World from c-lib', 'system-c', '/simple-lib.c', \
           '/library.c', '/library-archive.zip', ['../b.txt']
 
     if ENABLE_SANDBOXED_COMPILERS:
-        yield _test, 'Hello World from c-lib', 'default-c', \
+        yield 'Hello World from c-lib', 'default-c', \
               '/simple-lib.c', '/library.c', '/library-archive.zip', \
               ['../b.txt']
+
+
+@pytest.mark.parametrize("message,compiler,source,sources,archive,unexpected_files",
+    [test_case for test_case in _make_compilation_with_additional_archive_cases()])
+def test_compilation_with_additional_archive(message, compiler, source, sources, archive, unexpected_files):
+    with TemporaryCwd(inner_directory='one_more_level'):
+        upload_files()
+
+        compile_and_run({
+                'source_file': source,
+                'additional_sources': sources,
+                'additional_archive': archive,
+                'compiler': compiler,
+                'out_file': '/out',
+                }, message)
+
+        for f in unexpected_files:
+            ok_(not os.path.exists(f))
 
 
 COMPILATION_OUTPUT_LIMIT = 100  # in bytes
@@ -238,40 +254,21 @@ def compile_fail(compiler_env, expected_in_compiler_output=None):
 
     return result_env
 
+
 # Test with overly-limited resources
-def test_compilation_error_gcc(mem_limit=128, time_limit=2000):
+def _get_limits():
+    mem_limit = 128
+    time_limit = 2000
     time_hard_limit = 3 * time_limit
-    @timed(time_hard_limit * 1.1)
-    def _test_size_and_out_limit(message, compiler, source):
-        with TemporaryCwd():
-            upload_files()
-            compile_fail({
-                'source_file': source,
-                'compiler': compiler,
-                'out_file': '/out',
-                'compilation_time_limit': time_limit,
-                'compilation_real_time_limit': time_hard_limit,
-                'compilation_result_size_limit': COMPILATION_RESULT_SIZE_LIMIT,
-                'compilation_mem_limit': mem_limit * 2**10,
-                'compilation_output_limit': COMPILATION_OUTPUT_LIMIT,
-                }, message)
+    return {
+        'mem_limit': mem_limit,
+        'time_limit': time_limit,
+        'time_hard_limit': time_hard_limit
+    }
 
-    @timed(time_hard_limit * 1.1)
-    def _test_large_limit(message, compiler, source):
-        with TemporaryCwd():
-            upload_files()
-            result_env = compile_fail({
-                'source_file': source,
-                'compiler': compiler,
-                'out_file': '/out',
-                'compilation_time_limit': time_limit,
-                'compilation_real_time_limit': time_hard_limit,
-                'compilation_output_limit': 100 * DEFAULT_COMPILER_OUTPUT_LIMIT
-                }, message)
 
-            ok_(len(result_env['compiler_output']) >
-                    DEFAULT_COMPILER_OUTPUT_LIMIT)
-
+def _make_compilation_error_gcc_size_and_out_limit_cases():
+    mem_limit = _get_limits()['mem_limit']
     compilers = ['system-cpp']
     if ENABLE_SANDBOXED_COMPILERS:
         compilers += ['default-cpp']
@@ -289,14 +286,64 @@ def test_compilation_error_gcc(mem_limit=128, time_limit=2000):
 
     for compiler in compilers:
         for size, fname in exec_size_exceeders:
-            yield _test_size_and_out_limit, \
+            yield   \
                 'Compiled file size limit' if size < mem_limit else '', \
                 compiler, fname
 
         for fname in nasty_loopers:
-            yield _test_size_and_out_limit, None, compiler, fname
+            yield None, compiler, fname
 
-        yield _test_large_limit, None, compiler, '/nasty-infinite-warnings.cpp'
+
+@pytest.mark.parametrize("message,compiler,source",
+    [test_case for test_case in _make_compilation_error_gcc_size_and_out_limit_cases()])
+@timed(_get_limits()['time_hard_limit'] * 1.1)
+def test_compilation_error_gcc_size_and_out_limit(message, compiler, source):
+    mem_limit = _get_limits()['mem_limit']
+    time_limit = _get_limits()['time_limit']
+    time_hard_limit = _get_limits()['time_hard_limit']
+    with TemporaryCwd():
+        upload_files()
+        compile_fail({
+            'source_file': source,
+            'compiler': compiler,
+            'out_file': '/out',
+            'compilation_time_limit': time_limit,
+            'compilation_real_time_limit': time_hard_limit,
+            'compilation_result_size_limit': COMPILATION_RESULT_SIZE_LIMIT,
+            'compilation_mem_limit': mem_limit * 2**10,
+            'compilation_output_limit': COMPILATION_OUTPUT_LIMIT,
+            }, message)
+
+
+def _make_compilation_error_gcc_large_limit_cases():
+    compilers = ['system-cpp']
+    if ENABLE_SANDBOXED_COMPILERS:
+        compilers += ['default-cpp']
+
+    for compiler in compilers:
+        yield None, compiler, '/nasty-infinite-warnings.cpp'
+
+
+@pytest.mark.parametrize("message,compiler,source",
+    [test_case for test_case in _make_compilation_error_gcc_large_limit_cases()])
+@timed(_get_limits()['time_hard_limit'] * 1.1)
+def test_compilation_error_gcc_large_limit(message, compiler, source):
+    time_limit = _get_limits()['time_limit']
+    time_hard_limit = _get_limits()['time_hard_limit']
+    with TemporaryCwd():
+        upload_files()
+        result_env = compile_fail({
+            'source_file': source,
+            'compiler': compiler,
+            'out_file': '/out',
+            'compilation_time_limit': time_limit,
+            'compilation_real_time_limit': time_hard_limit,
+            'compilation_output_limit': 100 * DEFAULT_COMPILER_OUTPUT_LIMIT
+        }, message)
+
+        ok_(len(result_env['compiler_output']) >
+            DEFAULT_COMPILER_OUTPUT_LIMIT)
+
 
 # TODO: Do not run slow tests by default
 ## Slow tests with real time/memory limit may behave differently (for example
@@ -306,20 +353,24 @@ def test_compilation_error_gcc(mem_limit=128, time_limit=2000):
 #    test_compilation_error_gcc(DEFAULT_COMPILER_TIME_LIMIT,
 #            DEFAULT_COMPILER_MEM_LIMIT)
 
-def test_compilation_extremes():
-    def _test(message, compiler, source):
-        with TemporaryCwd():
-            upload_files()
-            compile_and_run({
-                'source_file': source,
-                'compiler': compiler,
-                'out_file': '/out',
-                'compilation_result_size_limit': COMPILATION_RESULT_SIZE_LIMIT,
-                }, message)
 
+def _make_compilation_extremes_cases():
     compilers = ['system-cpp']
     if ENABLE_SANDBOXED_COMPILERS:
         compilers += ['default-cpp']
 
     for compiler in compilers:
-            yield _test, "0", compiler, '/extreme-4.9MB-static-exec.cpp'
+        yield "0", compiler, '/extreme-4.9MB-static-exec.cpp'
+
+
+@pytest.mark.parametrize("message,compiler,source",
+    [test_case for test_case in _make_compilation_extremes_cases()])
+def test_compilation_extremes(message, compiler, source):
+    with TemporaryCwd():
+        upload_files()
+        compile_and_run({
+            'source_file': source,
+            'compiler': compiler,
+            'out_file': '/out',
+            'compilation_result_size_limit': COMPILATION_RESULT_SIZE_LIMIT,
+        }, message)

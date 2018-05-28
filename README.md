@@ -10,8 +10,9 @@ python setup.py install
 
 # TESTS
 
-### to run nosetests ###
-TEST_SANDBOXES=1 NO_JAVA_TESTS=1 python setup.py nosetests --verbosity=2 --process-timeout=200 --with-doctest
+### to run all tests ###
+`tox`
+in main directory
 
 ### to run twisted tests (python2) ###
 run:

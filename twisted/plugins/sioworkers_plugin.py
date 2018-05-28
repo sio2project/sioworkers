@@ -5,7 +5,7 @@ import importlib
 import platform
 import json
 import logging.config
-from zope.interface import implements
+from zope.interface.declarations import implementer
 
 from twisted.python import usage
 from twisted.plugin import IPlugin
@@ -41,10 +41,10 @@ class WorkerOptions(usage.Options):
         self['host'] = host
 
 
+@implementer(service.IServiceMaker, IPlugin)
 class WorkerServiceMaker(object):
     """Run worker process.
     """
-    implements(service.IServiceMaker, IPlugin)
     tapname = 'worker'
     description = 'sio worker process'
     options = WorkerOptions
@@ -79,8 +79,8 @@ class ServerOptions(usage.Options):
     ]
 
 
+@implementer(service.IServiceMaker, IPlugin)
 class ServerServiceMaker(object):
-    implements(service.IServiceMaker, IPlugin)
     tapname = 'sioworkersd'
     description = 'workers and jobs execution manager'
     options = ServerOptions

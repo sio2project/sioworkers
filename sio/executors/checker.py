@@ -86,7 +86,7 @@ def run(environ, use_sandboxes=True):
 
     while len(output) < 3:
         output.append('')
-    if output[0] == 'OK':
+    if output[0] == b'OK':
         environ['result_code'] = 'OK'
         if output[1]:
             environ['result_string'] = _limit_length(output[1])

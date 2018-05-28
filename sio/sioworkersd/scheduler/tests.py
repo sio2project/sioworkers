@@ -4,7 +4,7 @@ from __future__ import print_function
 from random import Random
 import importlib
 
-from nose.tools import assert_equals
+from sio.assertion_utils import eq_
 
 from sio.sioworkersd.scheduler import getDefaultSchedulerClassName
 from sio.sioworkersd.scheduler.prioritizing import PrioritizingScheduler
@@ -125,7 +125,7 @@ class Manager(object):
         for tid, wid in res:
             assert tid in self.tasks
             self._assignTaskToWorker(wid, self.tasks[tid])
-        assert_equals(self._checkInnerState(), 'OK')
+        eq_(self._checkInnerState(), 'OK')
 
 
 def testDefaultSchedulerExistence():

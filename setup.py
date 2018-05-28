@@ -21,7 +21,9 @@ python23_universal_requirements = [
     'Twisted>=15.2.1',
     'sortedcontainers',
     'six',
-    'nose',
+    'pytest',
+    'pytest-runner',
+    'pytest-timeout',
 ]
 
 if PYTHON_VERSION == 2:
@@ -46,8 +48,12 @@ setup(
     install_requires=final_requirements,
 
     setup_requires = [
-        'nose',
-        'enum34',
+        'pytest-runner',
+    ],
+
+    tests_require = [
+        'pytest',
+        'pytest-timeout'
     ],
 
     entry_points = {
