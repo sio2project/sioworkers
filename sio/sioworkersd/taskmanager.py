@@ -70,7 +70,15 @@ class DBWrapper(object):
                                      task=self.db_sync_task)
 
     def get_items(self):
-        return [json.loads(self.db[k].decode()) for k in self.db.keys()]
+        loaded = []
+        for k in self.db.keys():
+            try:
+                loaded.append(json.loads(self.db[k].decode()))
+            except ValueError:
+                log.error('Failed to load json from DB: {}'.format(self.db[k].decode()))
+                del self.db[k]
+        return loaded
+
 
     def update(self, job_id, dict_update, sync=True):
         job = json.loads(self.db.get(job_id, '{}'))
