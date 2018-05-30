@@ -33,3 +33,5 @@ export WORKER_RAM=$(($MEM_TOTAL - $OS_MEMORY))
 # with that option turned on will be used to judge tasks of type 'cpu-exec').
 # Disabled by default.
 export WORKER_ALLOW_RUN_CPU_EXEC="false"
+
+export WORKER_LOGCONFIG="logging.json"

@@ -1,12 +1,12 @@
 from __future__ import absolute_import
 from __future__ import print_function
-import six.moves.urllib.parse
 import importlib
-import platform
 import json
-import logging.config
+import logging
+import platform
 from zope.interface.declarations import implementer
 
+import six.moves.urllib.parse
 from twisted.python import usage
 from twisted.plugin import IPlugin
 from twisted.application import service
@@ -22,13 +22,12 @@ from sio.sioworkersd import siorpc
 def _host_from_url(url):
     return six.moves.urllib.parse.urlparse(url).hostname
 
-
 class WorkerOptions(usage.Options):
     # TODO: default concurrency to number of detected cpus
     optParameters = [['port', 'p', 7888, "sioworkersd port number", int],
                      ['concurrency', 'c', 1, "maximum concurrent jobs", int],
-                     ['ram', 'r', 1024, 'available RAM in MiB', int],
-                     ['log-config', 'l', '', 'log config for python logging'],
+                     ['ram', 'r', 1024, "available RAM in MiB", int],
+                     ['log-config', 'l', '', "log config for python logging"],
                      ['name', 'n', platform.node(), "worker name"]]
     optFlags = [['can-run-cpu-exec', None,
                     "Mark this worker as suitable for running tasks, which "
@@ -55,6 +54,10 @@ class WorkerServiceMaker(object):
             with open(logConfig) as f:
                 logDict = json.load(f)
                 logging.config.dictConfig(logDict)
+        else:
+            logging.basicConfig(
+                format="%(asctime)-15s %(name)s %(levelname)s: %(message)s",
+                level=logging.INFO)
 
         return internet.TCPClient(options['host'], options['port'],
                 WorkerFactory(
