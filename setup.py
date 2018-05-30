@@ -15,7 +15,7 @@ python3_specific_requirements = [
 ]
 
 python23_universal_requirements = [
-    'filetracker>=2.0,<3.0',
+    'filetracker>=2.1,<3.0',
     'simplejson',
     'Celery>=3.1.15',
     'Twisted>=15.2.1',
