@@ -2,7 +2,7 @@ from __future__ import absolute_import
 from __future__ import print_function
 import importlib
 import json
-import logging
+import logging.config
 import platform
 from zope.interface.declarations import implementer
 
