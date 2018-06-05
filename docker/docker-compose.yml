@@ -23,7 +23,7 @@ services:
       - ./vpn:/vpn
 
   worker:
-    image: sio2project/sioworkers
+    image: sio2project/siodockers
     depends_on:
       - vpn
     environment:
