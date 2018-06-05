@@ -1,0 +1,44 @@
+version: '2'
+
+services:
+  vpn:
+    image: dperson/openvpn-client
+    # cap_add, security_opt, and volume required for the image to function
+    cap_add:
+      - net_admin
+    environment:
+      TZ: 'EST5EDT'
+    networks:
+      - default
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+    security_opt:
+      - label:disable
+    stdin_open: true
+    tty: true
+    volumes:
+      - /dev/net:/dev/net:z
+      - ./vpn:/vpn
+
+  worker:
+    image: sio2project/sioworkers
+    depends_on:
+      - vpn
+    environment:
+      TZ: 'EST5EDT'
+      FILETRACKER_URL: [FILETRACKER_URL]
+      SIOWORKERSD_HOST: [SIOWORKERSD_HOST]
+    network_mode: "service:vpn"
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    cap_add:
+      - SYS_PTRACE
+    volumes:
+      - /srv/service1:/var/lib/service1:Z
+      - ./vpn:/vpn
+
+networks:
+  default:
