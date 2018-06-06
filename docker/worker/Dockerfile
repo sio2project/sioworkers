@@ -1,4 +1,4 @@
-FROM python:2.7
+FROM python:2.7-stretch
 
 RUN groupadd -g 999 appuser && \
     useradd -r -u 999 -g appuser appuser
@@ -39,7 +39,9 @@ WORKDIR /spr4g/sioworkers
 RUN mkdir -p logs
 RUN mkdir -p pidfiles
 
-# We need root privileges to move resolf.conf to /etc/resolv.conf. 
+# We need root privileges to move resolf.conf to /etc/resolv.conf.
 # We switch back to appuser in start.sh
 USER root
+RUN chmod +x /spr4g/sioworkers/start.sh
+RUN chmod +x /spr4g/sioworkers/supervisor.sh
 ENTRYPOINT ./start.sh
