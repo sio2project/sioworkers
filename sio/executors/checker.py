@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 import os.path
 import logging
+import tempfile
 
 from sio.workers import ft
 from sio.workers.executors import UnprotectedExecutor, SandboxExecutor, \
@@ -32,22 +33,25 @@ def _run_diff(env):
 def _run_checker(env, use_sandboxes=False):
     command = ['./chk', 'in', 'out', 'hint']
 
-    def execute_checker(with_stderr=False):
+    def execute_checker(with_stderr=False, stderr=None):
         if env.get('untrusted_checker', False) and use_sandboxes:
             return _run_in_executor(env, command,
                     PRootExecutor('null-sandbox'), ignore_return=True,
-                    forward_stderr=with_stderr)
+                    forward_stderr=with_stderr, stderr=stderr)
         else:
             return _run_in_executor(env, command, UnprotectedExecutor(),
-                    ignore_errors=True, forward_stderr=with_stderr)
+                    ignore_errors=True, forward_stderr=with_stderr,
+                    stderr=stderr)
 
-    renv = execute_checker()
-    if renv['return_code'] >= 2:
-        renv = execute_checker(with_stderr=True)
-        raise CheckerError(
-                'Checker returned code(%d) >= 2. Checker stdout and stderr: ' \
-                '"%s". Checker environ dump: %s' \
-                        % (renv['return_code'], renv['stdout'], env))
+    with tempfile.TemporaryFile() as stderr_file:
+        renv = execute_checker(stderr=stderr_file)
+        if renv['return_code'] >= 2:
+            stderr_file.seek(0)
+            stderr = stderr_file.read()
+            raise CheckerError(
+                    'Checker returned code(%d) >= 2. Checker stdout: ' \
+                    '"%s", stderr: "%s". Checker environ dump: %s' \
+                    % (renv['return_code'], renv['stdout'], stderr, env))
 
     return renv['stdout']
 
