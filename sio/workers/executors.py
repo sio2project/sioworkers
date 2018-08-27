@@ -505,7 +505,14 @@ class _SIOSupervisedExecutor(SandboxExecutor):
         super(_SIOSupervisedExecutor, self).__init__(sandbox_name)
 
     def _supervisor_result_to_code(self, result):
-        return self._supervisor_codes.get(int(result), 'RE')
+        combined_code = int(result)
+        result_code = self._supervisor_codes.get(combined_code, 'RE')
+        exit_code = 0
+        if combined_code > 200:
+            exit_code = combined_code - 200
+        elif result_code != 'OK':
+            exit_code = -1
+        return result_code, exit_code
 
     @decode_fields(['result_string'])
     def _execute(self, command, **kwargs):
@@ -537,10 +544,12 @@ class _SIOSupervisedExecutor(SandboxExecutor):
                 command + [noquote('3>'), result_file.name], **kwargs
             )
 
+            supervisor_return_code = renv.pop('return_code')
+            renv['supervisor_return_code'] = supervisor_return_code
             if 'real_time_killed' in renv:
                 raise ExecError('Supervisor exceeded realtime limit')
-            elif renv['return_code'] and renv['return_code'] not in extra_ignore_errors:
-                raise ExecError('Supervisor returned code %s' % renv['return_code'])
+            elif supervisor_return_code and supervisor_return_code not in extra_ignore_errors:
+                raise ExecError('Supervisor returned code %s' % supervisor_return_code)
 
             result_file.seek(0)
             status_line = result_file.readline().strip().split()[1:]
@@ -552,7 +561,7 @@ class _SIOSupervisedExecutor(SandboxExecutor):
                 if key:
                     renv[key] = int(status_line[num])
 
-            result_code = self._supervisor_result_to_code(renv['result_code'])
+            result_code, exit_code = self._supervisor_result_to_code(renv['result_code'])
 
         except Exception as e:
             logger.error('SupervisedExecutor error: %s', traceback.format_exc())
@@ -563,16 +572,18 @@ class _SIOSupervisedExecutor(SandboxExecutor):
             )
 
             result_code = 'SE'
+            exit_code = -1
             for i in ('time_used', 'mem_used', 'num_syscalls'):
                 renv.setdefault(i, 0)
             renv['result_string'] = str(e)
 
         renv['result_code'] = result_code
+        renv['return_code'] = exit_code
 
         if (
             result_code != 'OK'
             and not ignore_errors
-            and not (result_code != 'RV' and renv['return_code'] in extra_ignore_errors)
+            and not (result_code == 'RE' and renv['return_code'] in extra_ignore_errors)
         ):
             raise ExecError(
                 'Failed to execute command: %s. Reason: %s'
@@ -740,10 +751,6 @@ class SupervisedExecutor(_SIOSupervisedExecutor):
          ``allow_local_open`` Allow opening files within current directory in \
                               read-only mode
 
-         ``use_program_return_code`` Makes supervisor pass the program return \
-                                     code to renv['return_code'] rather than \
-                                     the sandbox return code.
-
        Following new arguments are recognized in ``__call__``:
 
           ``ignore_return`` Do not treat non-zero return code as runtime error.
@@ -765,12 +772,10 @@ class SupervisedExecutor(_SIOSupervisedExecutor):
        ``result_string``: string describing ``result_code``
     """
 
-    def __init__(self, allow_local_open=False, use_program_return_code=False, **kwargs):
+    def __init__(self, allow_local_open=False, **kwargs):
         self.options = ['-q', '-f', '3']
         if allow_local_open:
             self.options += ['-l']
-        if use_program_return_code:
-            self.options += ['-r']
         super(SupervisedExecutor, self).__init__('exec-sandbox', **kwargs)
 
     def _execute(self, command, **kwargs):
