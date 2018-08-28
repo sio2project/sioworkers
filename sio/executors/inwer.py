@@ -32,13 +32,13 @@ def _run_in_executor(environ, command, executor, **kwargs):
 
 
 def _run_inwer(environ, use_sandboxes=False):
-    command = [tempcwd('inwer')]
-    if 'in_file_name' in environ:
-        command.append(environ['in_file_name'])
     if use_sandboxes:
         executor = SupervisedExecutor()
     else:
         executor = DetailedUnprotectedExecutor()
+    command = [executor.rcwd('inwer')]
+    if 'in_file_name' in environ:
+        command.append(environ['in_file_name'])
     return _run_in_executor(environ, command, executor, ignore_errors=True)
 
 
