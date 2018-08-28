@@ -13,11 +13,10 @@ import six.moves.urllib.error
 import six.moves.urllib.parse
 import six.moves.urllib.request
 import email
-import errno
 
 from sio.workers import ft, _original_cwd
 from sio.workers.elf_loader_patch import _patch_elf_loader
-from sio.workers.util import rmtree
+from sio.workers.util import rmtree, mkdir
 
 SANDBOXES_BASEDIR = os.environ.get(
     'SIO_SANDBOXES_BASEDIR', os.path.expanduser(os.path.join('~', '.sio-sandboxes'))
@@ -40,14 +39,6 @@ def _filetracker_path(name):
 
 def _urllib_path(name):
     return '%s.tar.gz' % name
-
-
-def _mkdir(name):
-    try:
-        os.makedirs(name, 0o700)
-    except OSError as e:
-        if e.errno != errno.EEXIST:
-            raise
 
 
 def _sha1_file(filename, block_size=65536):
@@ -154,7 +145,7 @@ class Sandbox(object):
         self.name = name
 
         self.path = os.path.join(SANDBOXES_BASEDIR, name)
-        _mkdir(SANDBOXES_BASEDIR)
+        mkdir(SANDBOXES_BASEDIR)
         # This is needed for safe operation with multiple threads,
         # as file locking is useless for this.
         self.local_lock = Lock()
