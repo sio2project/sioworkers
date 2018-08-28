@@ -104,6 +104,14 @@ def rmtree(path):
     shutil.rmtree(path, onerror=remove_readonly)
 
 
+def mkdir(name):
+    try:
+        os.makedirs(name, 0o700)
+    except OSError as e:
+        if e.errno != errno.EEXIST:
+            raise
+
+
 threadlocal_dir = threading.local()
 
 
