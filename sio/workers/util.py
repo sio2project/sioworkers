@@ -9,6 +9,7 @@ import json
 import tempfile
 import shutil
 import threading
+import errno
 import six
 
 logger = logging.getLogger(__name__)
@@ -110,6 +111,10 @@ def mkdir(name):
     except OSError as e:
         if e.errno != errno.EEXIST:
             raise
+
+
+def is_exe(path):
+    return os.path.isfile(path) and os.access(path, os.X_OK)
 
 
 threadlocal_dir = threading.local()
