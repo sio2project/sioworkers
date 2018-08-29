@@ -15,6 +15,7 @@ from sio.workers.sandbox import get_sandbox
 from sio.workers.util import (
     ceil_ms2s,
     decode_fields,
+    is_exe,
     ms2s,
     s2ms,
     path_join_abs,
@@ -821,8 +822,8 @@ class PRootExecutor(BaseExecutor):
         self._chroot(self.chroot.path)
 
         sh_target = path.join(os.sep, 'bin', 'sh')
-        if not path.exists(path_join_abs(self.chroot.path, sh_target)):
-            self._bind(path_join_abs(self.proot.path, sh_target), sh_target)
+        if not is_exe(path_join_abs(self.chroot.path, sh_target)):
+            self._bind(path_join_abs(self.proot.path, sh_target), sh_target, force=True)
         else:
             # If /bin/sh exists, then bind unpatched version to it
             sh_patched = elf_loader_patch._get_unpatched_name(
