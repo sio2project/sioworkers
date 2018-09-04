@@ -208,10 +208,13 @@ def decode_fields(fields):
 
 
 def null_ctx_manager():
-    def dummy():
-        yield
+    class Dummy(object):
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
 
-    return contextmanager(dummy)()
+    return Dummy()
 
 
 # Copied and stripped from oioioi/base/utils/__init__.py
