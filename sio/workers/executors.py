@@ -722,6 +722,8 @@ class Sio2JailExecutor(CompoundSandboxExecutor, _SIOSupervisedExecutor):
         options += ['-b', self.chroot.path + ':/:ro']
         for (what, where, mode) in kwargs.pop('binds', []):
             options += ['-b', what + ':' + where + ':' + mode]
+        if kwargs.pop('no_bind_binary', False):
+            options += ['-B']
 
         options += ['--memory-limit', str(kwargs['mem_limit']) + 'K']
         real_time_limit = kwargs['real_time_limit']
