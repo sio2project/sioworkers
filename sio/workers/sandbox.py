@@ -151,8 +151,12 @@ class Sandbox(object):
     def __enter__(self):
         self._in_context += 1
         if self._in_context == 1:
-            self.lock = _FileLock(self.path + '.lock')
-            self._get()
+            try:
+                self.lock = _FileLock(self.path + '.lock')
+                self._get()
+            except:
+                self._in_context -= 1
+                raise
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
