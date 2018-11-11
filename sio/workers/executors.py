@@ -744,7 +744,8 @@ class Sio2JailExecutor(CompoundSandboxExecutor, _SIOSupervisedExecutor):
             # Limiting outside supervisor
             kwargs['real_time_limit'] = 2 * real_time_limit
 
-        options += ['--output-limit', str(kwargs['output_limit']) + 'K']
+        # sio2jail defaults to KB, so append 'B' explicitly
+        options += ['--output-limit', str(kwargs['output_limit']) + 'B']
 
         environ = kwargs.get('environ', {})
         fake_time = environ.get('fake_time', 'off')
