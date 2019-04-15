@@ -139,14 +139,13 @@ def replace_invalid_UTF(a_string):
     """ Replaces invalid characters in a string.
 
         In python 2 strings are also bytestrings.
-        In python 3 given a string it returns a string and given a bytestring
-        it returns a bytestring.
+        In python 3 it returns a string.
     """
     if six.PY2:
         return a_string.decode('utf-8', 'replace').encode('utf-8')
     else:
         if not isinstance(a_string, six.string_types):
-            return a_string.decode('utf-8', 'replace').encode()
+            return a_string.decode('utf-8', 'replace')
         else:
             return a_string.encode('utf-8', 'replace').decode()
 
