@@ -22,10 +22,7 @@ The following parameters are recognized in ``environ``:
     Filetracker path where the compiled file will be saved. Mandatory.
 
   ``compiler``
-    (optional) Name of compiler to use.
-
-    If not specified, the name ``default-<ext>`` is used, where ``<ext>`` is the
-    extension of the ``source_file``, all lowercase.
+    Name of the compiler to use.
 
   ``compilation_mem_limit``, ``compilation_time_limit``, ``compilation_real_time_limit``
     (optional) Resource limits for the compiler process, passed to

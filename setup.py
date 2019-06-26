@@ -73,24 +73,25 @@ setup(
             'foo = sio.compilers.template:run',
 
             # Default extension compilers:
-            'default-c = sio.compilers.gcc:run_default_c',
-            'default-cc = sio.compilers.gcc:run_default_cpp',
-            'default-cpp = sio.compilers.gcc:run_default_cpp',
-            'default-pas = sio.compilers.fpc:run_default',
-            'default-java = sio.compilers.java:run_default',
+            'default-c = sio.compilers.gcc:run_c_default',
+            'default-cc = sio.compilers.gcc:run_cpp_default',
+            'default-cpp = sio.compilers.gcc:run_cpp_default',
+            'default-pas = sio.compilers.fpc:run_pas_default',
+            'default-java = sio.compilers.java:run_java_default',
 
             # Sandboxed compilers:
-            'c = sio.compilers.gcc:run_gcc',
-            'gcc = sio.compilers.gcc:run_gcc',
+            'c = sio.compilers.gcc:run_c_default'
+            'gcc4_8_2_c99 = sio.compilers.gcc:run_c_gcc4_8_2_c99',
 
-            'cc = sio.compilers.gcc:run_gplusplus',
-            'cpp = sio.compilers.gcc:run_gplusplus',
-            'g++ = sio.compilers.gcc:run_gplusplus',
+            'cc = sio.compilers.gcc:run_cpp_default',
+            'cpp = sio.compilers.gcc:run_cpp_default',
+            'g++4_8_2_cpp11 = sio.compilers.gcc:run_cpp_gcc4_8_2_cpp11',
 
-            'pas = sio.compilers.fpc:run',
-            'fpc = sio.compilers.fpc:run',
+            'pas = sio.compilers.fpc:run_pas_default',
+            'fpc2_6_2 = sio.compilers.fpc:run_pas_fpc2_6_2',
 
-            'java = sio.compilers.java:run',
+            'java = sio.compilers.java:run_java_default',
+            'java1_8 = sio.compilers.java:run_java1_8',
 
             # Non-sandboxed compilers
             'system-c = sio.compilers.system_gcc:run_gcc',

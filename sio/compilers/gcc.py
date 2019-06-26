@@ -3,25 +3,44 @@ from sio.compilers.system_gcc import CStyleCompiler
 
 
 class CCompiler(CStyleCompiler):
-    sandbox = 'gcc.4_8_2'
     lang = 'c'
-    options = ['-std=gnu99', '-static', '-O2', '-s', '-lm']
+
+    @classmethod
+    def gcc_4_8_2_c99(cls):
+        obj = cls()
+        obj.sandbox = 'gcc.4_8_2'
+        obj.options = ['-std=gnu99', '-static', '-O2', '-s', '-lm']
+        return obj
 
 
 class CPPCompiler(CStyleCompiler):
-    sandbox = 'gcc.4_8_2'
     lang = 'cpp'
-    compiler = 'g++'
-    options = ['-std=c++11', '-static', '-O2', '-s', '-lm']
+
+    @classmethod
+    def gcc_4_8_2_cpp11(cls):
+        obj = cls('gcc.4_8_2')
+        obj.compiler = 'g++'
+        obj.options = ['-std=c++11', '-static', '-O2', '-s', '-lm']
+        return obj
 
 
-def run_gcc(environ):
-    return CCompiler().compile(environ)
+def run_gcc4_8_2_c99(environ):
+    return CCompiler.gcc_4_8_2_c99().compile(environ)
 
 
-def run_gplusplus(environ):
-    return CPPCompiler().compile(environ)
+def run_gcc_default(environ):
+    return CCompiler.gcc_4_8_2_c99().compile(environ)
 
 
-run_default_c = run_gcc
-run_default_cpp = run_gplusplus
+def run_gplusplus4_8_2_cpp11(environ):
+    return CPPCompiler.gcc_4_8_2_cpp11().compile(environ)
+
+
+def run_gplusplus_default(environ):
+    return CPPCompiler.gcc_4_8_2_cpp11().compile(environ)
+
+
+run_c_default = run_gcc_default
+run_c_gcc4_8_2_c99 = run_gcc4_8_2_c99
+run_cpp_default = run_gplusplus_default
+run_cpp_gcc4_8_2_cpp11 = run_gplusplus4_8_2_cpp11

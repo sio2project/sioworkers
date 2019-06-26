@@ -3,15 +3,23 @@ from sio.compilers.system_java import JavaCompiler as UnsafeJavaCompiler
 
 
 class JavaCompiler(UnsafeJavaCompiler):
-    sandbox = 'java.1_8'
 
     def _execute(self, *args, **kwargs):
         kwargs['proot_options'] = ['-b', '/proc']
         return super(JavaCompiler, self)._execute(*args, **kwargs)
 
+    @classmethod
+    def java1_8(cls):
+        return cls('java.1_8')
 
-def run(environ):
-    return JavaCompiler(sandbox='java.1_8').compile(environ)
+
+def run_java_default(environ):
+    return JavaCompiler().java1_8().compile(environ)
 
 
-run_default = run
+def run_java1_8(environ):
+    return JavaCompiler().java1_8().compile(environ)
+
+
+run_java_default = run_java_default
+run_java1_8 = run_java1_8

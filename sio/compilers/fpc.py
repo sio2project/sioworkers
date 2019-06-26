@@ -6,9 +6,7 @@ from sio.workers.util import tempcwd
 
 
 class FPCCompiler(Compiler):
-    sandbox = 'fpc.2_6_2'
     lang = 'pas'
-    options = ['-O2', '-XS', '-Xt']
     output_file = 'a'
 
     def _make_cmdline(self, executor):
@@ -26,9 +24,20 @@ class FPCCompiler(Compiler):
 
         return super(FPCCompiler, self)._run_in_executor(executor)
 
+    @classmethod
+    def fpc2_6_2(cls):
+        obj = cls('fpc.2_6_2')
+        obj.options = ['-O2', '-XS', '-Xt']
+        return obj
 
-def run(environ):
-    return FPCCompiler().compile(environ)
+
+def run_fpc_default(environ):
+    return FPCCompiler.fpc2_6_2().compile(environ)
 
 
-run_default = run
+def run_fpc2_6_2(environ):
+    return FPCCompiler.fpc2_6_2().compile(environ)
+
+
+run_pas_default = run_fpc_default
+run_pas_fpc2_6_2 = run_fpc2_6_2
