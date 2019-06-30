@@ -80,7 +80,7 @@ setup(
             'default-java = sio.compilers.java:run_java_default',
 
             # Sandboxed compilers:
-            'c = sio.compilers.gcc:run_c_default'
+            'c = sio.compilers.gcc:run_c_default',
             'gcc4_8_2_c99 = sio.compilers.gcc:run_c_gcc4_8_2_c99',
 
             'cc = sio.compilers.gcc:run_cpp_default',
