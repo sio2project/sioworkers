@@ -134,13 +134,14 @@ class Python3(LanguageModeWrapper):
     handled_executors = Sio2JailExecutor,
 
     def __init__(self, executor, environ):
-        executor = Sio2JailExecutor('compiler-python3.4.2-numpy_i386')
+        exec_info = environ['exec_info']
+        executor = Sio2JailExecutor('compiler-' + exec_info.get('version', 'python3.4.2-numpy_i386'))
 
         super(Python3, self).__init__(executor, environ)
-        self.exec_info = environ['exec_info']
+        self.exec_info = exec_info
 
     def __call__(self, file, args, **kwargs):
-        python = ['/usr/bin/python3.4']
+        python = [self.exec_info.get('python_bin', '/usr/bin/python3')]
 
         prog_dir = tempcwd('prog')
         inner_dir = '/tmp'

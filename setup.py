@@ -64,6 +64,8 @@ setup(
             'g++14_2_cpp23_amd64 = sio.compilers.gcc:run_cpp_gcc14_2_cpp23_amd64',
 
             'python_3_4_numpy = sio.compilers.python:run_python3_4_numpy',
+            'python_3_7 = sio.compilers.python:run_python3_7',
+            'python_3_7_numpy = sio.compilers.python:run_python3_7_numpy',
 
             'fpc2_6_2 = sio.compilers.fpc:run_pas_fpc2_6_2',
             'java1_8 = sio.compilers.java:run_java1_8',

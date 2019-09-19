@@ -51,6 +51,8 @@ class PythonCompiler(Compiler):
         if environ['result_code'] == 'OK':
             environ['exec_info'] = {
                     'mode': 'python3',
+                    'version': self.sandbox,
+                    'python_bin': self.python_executable_path,
                     'preferred_filename': 'a.tar',
                     'main_file': '%s.py' % self.module_name,
             }
@@ -58,13 +60,30 @@ class PythonCompiler(Compiler):
 
     @classmethod
     def python_3_4_numpy(cls):
-        obj = cls()
-        obj.sandbox = 'python3.4.2-numpy_i386'
+        obj = cls('python3.4.2-numpy_i386')
         obj.python_executable_path = '/usr/bin/python3.4'
+        return obj
+
+    @classmethod
+    def python_3_7(cls):
+        obj = cls('python3.7_i386')
+        obj.python_executable_path = '/usr/bin/python3.7'
+        return obj
+
+    @classmethod
+    def python_3_7_numpy(cls):
+        obj = cls('python3.7.3-numpy_i386')
+        obj.python_executable_path = '/usr/bin/python3.7'
         return obj
 
 
 def run_python3_4_numpy(environ):
     return PythonCompiler().python_3_4_numpy().compile(environ)
+
+def run_python3_7(environ):
+    return PythonCompiler().python_3_7().compile(environ)
+
+def run_python3_7_numpy(environ):
+    return PythonCompiler().python_3_7_numpy().compile(environ)
 
 run_python_default = run_python3_4_numpy
