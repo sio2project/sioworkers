@@ -7,8 +7,7 @@ class CCompiler(CStyleCompiler):
 
     @classmethod
     def gcc_4_8_2_c99(cls):
-        obj = cls()
-        obj.sandbox = 'gcc.4_8_2'
+        obj = cls('gcc.4_8_2')
         obj.options = ['-std=gnu99', '-static', '-O2', '-s', '-lm']
         return obj
 
