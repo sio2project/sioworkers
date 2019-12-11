@@ -72,6 +72,20 @@ setup(
             # Example compiler:
             'foo = sio.compilers.template:run',
 
+            # Sandboxed compilers:
+            'gcc4_8_2_c99 = sio.compilers.gcc:run_c_gcc4_8_2_c99',
+            'g++4_8_2_cpp11 = sio.compilers.gcc:run_cpp_gcc4_8_2_cpp11',
+            'fpc2_6_2 = sio.compilers.fpc:run_pas_fpc2_6_2',
+            'java1_8 = sio.compilers.java:run_java1_8',
+
+            # Non-sandboxed compilers
+            'system-gcc = sio.compilers.system_gcc:run_gcc',
+            'system-g++ = sio.compilers.system_gcc:run_gplusplus',
+            'system-fpc = sio.compilers.system_fpc:run',
+            'system-java = sio.compilers.system_java:run',
+
+            ####################################
+            # Deprecated, should be removed after 01.01.2021
             # Default extension compilers:
             'default-c = sio.compilers.gcc:run_c_default',
             'default-cc = sio.compilers.gcc:run_cpp_default',
@@ -79,32 +93,28 @@ setup(
             'default-pas = sio.compilers.fpc:run_pas_default',
             'default-java = sio.compilers.java:run_java_default',
 
+            ####################################
+            # Deprecated, should be removed after 01.01.2021
             # Sandboxed compilers:
             'c = sio.compilers.gcc:run_c_default',
-            'gcc4_8_2_c99 = sio.compilers.gcc:run_c_gcc4_8_2_c99',
 
             'cc = sio.compilers.gcc:run_cpp_default',
             'cpp = sio.compilers.gcc:run_cpp_default',
-            'g++4_8_2_cpp11 = sio.compilers.gcc:run_cpp_gcc4_8_2_cpp11',
 
             'pas = sio.compilers.fpc:run_pas_default',
-            'fpc2_6_2 = sio.compilers.fpc:run_pas_fpc2_6_2',
 
             'java = sio.compilers.java:run_java_default',
-            'java1_8 = sio.compilers.java:run_java1_8',
 
+            ####################################
+            # Deprecated, should be removed after 01.01.2021
             # Non-sandboxed compilers
             'system-c = sio.compilers.system_gcc:run_gcc',
-            'system-gcc = sio.compilers.system_gcc:run_gcc',
 
             'system-cc = sio.compilers.system_gcc:run_gplusplus',
             'system-cpp = sio.compilers.system_gcc:run_gplusplus',
-            'system-g++ = sio.compilers.system_gcc:run_gplusplus',
 
             'system-pas = sio.compilers.system_fpc:run',
-            'system-fpc = sio.compilers.system_fpc:run',
-
-            'system-java = sio.compilers.system_java:run',
+            ####################################
         ],
         'console_scripts': [
             'sio-batch = sio.workers.runner:main',
