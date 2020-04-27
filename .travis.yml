@@ -4,7 +4,10 @@ python:
 - '3.6'
 addons:
   apt:
-    packages: libdb-dev
+    packages:
+      - build-essential
+      - fp-compiler
+      - libdb-dev
 install: pip install codecov tox-travis
 script: tox
 after_success:
