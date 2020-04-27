@@ -1,0 +1,27 @@
+sudo: false
+language: python
+python:
+- '2.7'
+- '3.6'
+addons:
+  apt:
+    packages: libdb-dev
+install: pip install codecov tox-travis
+script: tox
+after_success:
+- codecov
+
+jobs:
+  include:
+    - stage: pypi release
+      python: '3.6'
+      script: echo "Deploying to PyPI..."
+      after_success: echo "Not running codecov from deploy stage..."
+      deploy:
+        provider: pypi
+        on:
+          branch: master
+          tags: true
+        user: sio2project
+        password:
+          secure: lfAYyhyzam68JEwgRXoK6+8spIZ0COflQtL4Vtl57ppGcopweZ63o0uruo1e5YztY3InkbUysiFufctcQ5aHH+rBz6HIHD8PfDP8G4dKJTOk+P03bnQXsg7eSeoiI0tTa3fCEwGmpp1MEyMYeOGN6m7DHg85CxwscANEPEWwR1GQfMoMq493OBlTx5fSgYFY8QSIdu0bzK4y5m8HCoKEEWDCfBthTdEyJR5bUa9c50gH7yx5gGBo4+6ur2OoYN2Pop/aNYoMr378Vb/HeJBWMMBcNYut7UByXJxpMmZihaQZY/eQs3ma5IWjAHsgyFmcgoL3UfsMV0RlCbtOTftWW9ldjCBs7hbbXlqgMreP6bgrEkJWe5BSnudBqaqip/NN+wzvRx88JrZ/YoKFWIRSR+SRuPslHOI2Wq2GVib8hbbRkLaxksXjiMZRG0Ljvf4x3Qmg+G/GcTUR2oDz06/PsrR0ggopoinOjdzkkiQqVNvHHD753MRgw8SQzQGuexlPccZ4X9vnoQ5T/bNUqAmluL/lPIcIPNh8HIGasJ12wRJeaVgqOX7+Ua5z2QXZ5AYsbQi2vXF2wUb/wc3fL0lihcMHYrlTHwmIIqqlfmpQ/vKGo1XD2RHoLyy1FDfGO44T7fF4VFb6SakTiMVzwHOFgTa6Mau/lD89NbHVtigpEv8=
