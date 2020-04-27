@@ -1,7 +1,7 @@
 language: python
 python:
-- '2.7'
-- '3.6'
+  - '2.7'
+  - '3.6'
 addons:
   apt:
     packages:
@@ -11,7 +11,7 @@ addons:
 install: pip install codecov tox-travis
 script: tox
 after_success:
-- codecov
+  - codecov
 
 jobs:
   include:

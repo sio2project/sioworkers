@@ -20,9 +20,10 @@ from sio.sioworkersd.workermanager import WorkerGone
 from twisted.logger import Logger, LogLevel
 
 
-if six.PY2:
+try:
+    # For Python2 (broken on Travis)
     import bsddb
-else:
+except ImportError:
     import bsddb3 as bsddb
 
 log = Logger()
