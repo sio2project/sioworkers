@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 from sio.workers.executors import UnprotectedExecutor, \
-    DetailedUnprotectedExecutor, VCPUExecutor, Sio2JailExecutor, \
+    DetailedUnprotectedExecutor, Sio2JailExecutor, \
     SupervisedExecutor, PRootExecutor
 from sio.workers.util import RegisteredSubclassesBase
 import os.path
@@ -85,7 +85,7 @@ class Executable(LanguageModeWrapper):
 
     handled_exec_mode = 'executable'
     handled_executors = UnprotectedExecutor, DetailedUnprotectedExecutor, \
-        PRootExecutor, VCPUExecutor, Sio2JailExecutor, SupervisedExecutor
+        PRootExecutor, Sio2JailExecutor, SupervisedExecutor
 
     def __call__(self, file, args, **kwargs):
         if os.path.isabs(file):

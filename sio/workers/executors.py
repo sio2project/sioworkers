@@ -498,35 +498,6 @@ class _SIOSupervisedExecutor(SandboxExecutor):
                 % (command, renv['result_string']))
         return renv
 
-class VCPUExecutor(_SIOSupervisedExecutor):
-    """Runs program in controlled environment while counting CPU instructions
-       using oitimetool.
-
-       Executed programs may only use stdin/stdout/stderr and manage it's
-       own memory. Returns extended statistics in ``renv`` containing:
-
-       ``time_used``: virtual time based on instruction counting (in ms).
-
-       ``mem_used``: memory used (in KiB).
-
-       ``num_syscall``: number of times a syscall has been called
-
-       ``result_code``: short code reporting result of rule obeying. Is one of
-                        ``OK``, ``RE``, ``TLE``, ``OLE``, ``MLE``, ``RV``
-
-       ``result_string``: string describing ``result_code``
-    """
-
-    def __init__(self):
-        self.options = ['-f', '3']
-        super(VCPUExecutor, self).__init__('vcpu_exec-sandbox')
-
-    def _execute(self, command, **kwargs):
-        command = [os.path.join(self.rpath, 'pin-supervisor',
-                                         'supervisor-bin', 'supervisor')] + \
-                    self.options + ['--'] + command
-        return super(VCPUExecutor, self)._execute(command, **kwargs)
-
 
 class Sio2JailExecutor(SandboxExecutor):
     """Runs program in controlled environment while counting CPU instructions

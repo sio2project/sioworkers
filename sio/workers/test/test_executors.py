@@ -16,7 +16,7 @@ from sio.executors.checker import RESULT_STRING_LENGTH_LIMIT
 from sio.workers import ft
 from sio.workers.execute import execute
 from sio.workers.executors import UnprotectedExecutor, \
-        DetailedUnprotectedExecutor, SupervisedExecutor, VCPUExecutor, \
+        DetailedUnprotectedExecutor, SupervisedExecutor, \
         ExecError, _SIOSupervisedExecutor
 from sio.workers.file_runners import get_file_runner
 from sio.workers.util import tempcwd, TemporaryCwd
@@ -110,7 +110,7 @@ JAVA_MEMORY_CHECKS = ['mem30MiBheap.java', 'mem30MiBstack.java']
 MEMORY_CHECKS_LIMIT = 30 * 1024  # in KiB
 SMALL_OUTPUT_LIMIT = 50  # in B
 CHECKING_EXECUTORS = [DetailedUnprotectedExecutor]
-SANDBOXED_CHECKING_EXECUTORS = [SupervisedExecutor, VCPUExecutor]
+SANDBOXED_CHECKING_EXECUTORS = [SupervisedExecutor]
 
 # Status helpers
 def res_ok(env):
@@ -153,7 +153,7 @@ def _make_running_cases():
     for executor in executors:
         yield '/add_print.c', executor(), res_ok
 
-        if executor != VCPUExecutor and not NO_JAVA_TESTS:
+        if not NO_JAVA_TESTS:
             yield '/add_print.java', executor(), res_ok
 
 
@@ -248,8 +248,6 @@ def _make_common_time_limiting_cases():
             yield "/1-sec-prog.c", 10, executor(), res_tle
 
         yield "/1-sec-prog.c", 1000, SupervisedExecutor(), res_ok
-        yield "/1-sec-prog.c", 990, VCPUExecutor(), res_tle
-        yield "/1-sec-prog.c", 1100, VCPUExecutor(), res_ok
         if not NO_JAVA_TESTS:
             yield "/proc1secprog.java", 100, SupervisedExecutor(), \
                     res_tle
@@ -533,8 +531,6 @@ def _make_capturing_stdout_cases():
         eq_(len(env['stdout']), 3)
 
     executors = [UnprotectedExecutor]
-    if ENABLE_SANDBOXES:
-        executors = executors + [VCPUExecutor]
 
     for executor in executors:
         yield ['/add_print.c', executor(), only_stdout,
@@ -684,21 +680,6 @@ def test_local_opens(args):
     _test_exec(*args)
 
 
-def _make_vcpu_accuracy_cases():
-    def used_1sec(env):
-        eq_('OK', env['result_code'])
-        eq_(1000, env['time_used'])
-
-    if ENABLE_SANDBOXES:
-        yield ['/1-sec-prog.c', VCPUExecutor(), used_1sec, {}]
-
-
-@pytest.mark.parametrize("args",
-    [test_case for test_case in _make_vcpu_accuracy_cases()])
-def test_vcpu_accuracy(args):
-    _test_exec(*args)
-
-
 def _make_real_time_limit_cases():
     def real_tle(limit):
         def inner(env):
@@ -711,9 +692,6 @@ def _make_real_time_limit_cases():
         in_('syscalls', env['result_string'])
 
     checking_executors = CHECKING_EXECUTORS
-    if ENABLE_SANDBOXES:
-        # FIXME: Supervised ignores realtime
-        checking_executors = checking_executors + [VCPUExecutor]
 
     for executor in checking_executors:
         yield ['/procspam.c', executor(), real_tle,
@@ -722,11 +700,6 @@ def _make_real_time_limit_cases():
     for executor in CHECKING_EXECUTORS:
         yield ['/iospam.c', executor(), real_tle,
             {'real_time_limit': 1000, 'time_limit': 10000}]
-
-    if ENABLE_SANDBOXES:
-        yield ['/iospam.c', VCPUExecutor(), syscall_limit,
-            {'time_limit': 500}]
-
 
 @pytest.mark.parametrize("args",
     [test_case for test_case in _make_real_time_limit_cases()])

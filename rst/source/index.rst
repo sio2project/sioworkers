@@ -150,16 +150,6 @@ We currently use the following sandboxes:
             It provides security. It returns information whether the execution
             was successful or if there was a runtime error.
 
-- ``vcpu_exec-sandbox.tar.gz``
-
-    This sandbox is needed to execute `vcpu-exec` job in safe environment.
-    It contains `Pin` library and additionally 2 files in ``supervisor-bin``
-    directory:
-        - ``supervisor``
-        - ``supervisor.so``
-    This sandbox is used for deterministic cpu instruction counting using
-    OiTimeTool.
-
 - ``sio2jail_exec-sandbox.tar.gz``
 
     This sandbox is needed to execute `sio2jail-exec` job in safe environment.
@@ -207,8 +197,6 @@ This module provides some ready to user executors which are:
 .. autoclass:: sio.workers.executors.DetailedUnprotectedExecutor
 
 .. autoclass:: sio.workers.executors.SupervisedExecutor
-
-.. autoclass:: sio.workers.executors.VCPUExecutor
 
 .. autoclass:: sio.workers.executors.Sio2JailExecutor
 

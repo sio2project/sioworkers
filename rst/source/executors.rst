@@ -149,12 +149,6 @@ Builtin jobs
 |              |      |            |is returned, no other job will be        |
 |              |      |            |executed simultaneously.                 |
 +--------------+------+------------+-----------------------------------------+
-|``vcpu-exec`` |Yes   |``vcpu_``\  |This is machine-independent execution    |
-|              |      |``exec-``\  |job, which uses instruction counting     |
-|              |      |``sandbox`` |for meansuring "runtime" of programs.    |
-|              |      |            |It uses a secure sandbox as well.        |
-|              |      |            |It uses OiTimeTool.                      |
-+--------------+------+------------+-----------------------------------------+
 |``sio2jail``\ |Yes   |``sio2``\   |This is machine-independent execution    |
 |``-exec``     |      |``jail_``\  |job, which uses instruction counting     |
 |              |      |``exec-``\  |for meansuring "runtime" of programs.    |

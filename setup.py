@@ -62,7 +62,6 @@ setup(
             'compile = sio.compilers.job:run',
             'exec = sio.executors.executor:run',
             'sio2jail-exec = sio.executors.sio2jail_exec:run',
-            'vcpu-exec = sio.executors.vcpu_exec:run',
             'cpu-exec = sio.executors.executor:run',
             'unsafe-exec = sio.executors.unsafe_exec:run',
             'ingen = sio.executors.ingen:run',
