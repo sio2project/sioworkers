@@ -157,15 +157,6 @@ Builtin jobs
 +--------------+------+------------+-----------------------------------------+
 
 
-Shell scripts
--------------
-
-The package provides a convenience shell script ``sio-compile`` which
-mimicks SIO1's ``compile.sh`` script. It expects three arguments: input file
-name, output file name and programming language source file extension
-(optionally).
-
-
 Defining new executors
 ----------------------
 
