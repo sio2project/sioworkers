@@ -101,7 +101,7 @@ class _WaitingTasksQueue(object):
         return self._tasks_required_ram
 
     def __repr__(self):
-        return '<OrderedSet %r>' % self.dict.keys()
+        return '<_WaitingTasksQueue %r>' % self._dict.keys()
 
     def __iter__(self):
         return iter(self.dict.keys())
