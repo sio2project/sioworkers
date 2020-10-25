@@ -104,7 +104,7 @@ class _WaitingTasksQueue(object):
         return '<_WaitingTasksQueue %r>' % self._dict.keys()
 
     def __iter__(self):
-        return iter(self.dict.keys())
+        return iter(self._dict.keys())
 
 
 class WorkerInfo(object):
