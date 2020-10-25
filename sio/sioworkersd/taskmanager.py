@@ -36,7 +36,7 @@ class MultiException(Exception):
         s = desc + '\n\n'
         l = []
         for (e, tb) in excs:
-            l.append("Exception: %s\n%s" % (str(e), tb))
+            l.append((u"Exception: %s\n%s" % (e, tb)).encode('utf-8'))
         s += ('='*80 + '\n').join(l)
         super(MultiException, self).__init__(s)
 
