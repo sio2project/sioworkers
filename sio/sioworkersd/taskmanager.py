@@ -111,6 +111,10 @@ class TaskManager(Service):
         if len(all_jobs) > 0:
             log.info("Unfinished jobs found in database, resuming them...")
 
+        return_old_task_concurrency = 16
+        jobs_to_return = [ [] for _ in range(return_old_task_concurrency) ]
+        j = 0
+
         for job in all_jobs:
             if job['status'] == 'to_judge':
                 d = self._addGroup(job['env'])
@@ -118,11 +122,22 @@ class TaskManager(Service):
                 d.addBoth(self.returnToSio, url=job['env']['return_url'],
                           orig_env=job['env'], tid=job['id'])
             elif job['status'] == 'to_return':
-                log.warn("Trying again to return old task {tid}",
-                         tid=job['id'])
-                self.returnToSio(job['env'], url=job['env']['return_url'],
-                                   orig_env=job['env'], tid=job['id'],
-                                   count=job['retry_cnt'])
+                jobs_to_return[j].append(job)
+                j = (j + 1) % return_old_task_concurrency
+
+        for i in range(return_old_task_concurrency):
+            log.warn("Returning {n} tasks", n=len(jobs_to_return[i]))
+            def return_old_task(x, i, jobs):
+                if len(jobs) != 0:
+                    job = jobs.pop()
+                    log.warn("Trying again to return old task {tid} from {qid}",
+                             tid=job['id'], qid=i)
+                    d = self.returnToSio(job['env'], url=job['env']['return_url'],
+                                           orig_env=job['env'], tid=job['id'],
+                                           count=job['retry_cnt'])
+                    d.addBoth(return_old_task, i=i, jobs=jobs)
+            return_old_task(None, i=i, jobs=jobs_to_return[i])
+
         self.workerm.notifyOnNewWorker(self._newWorker)
         self.workerm.notifyOnLostWorker(self._lostWorker)
         self._tryExecute()
