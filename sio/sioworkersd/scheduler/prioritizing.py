@@ -51,6 +51,9 @@ from sortedcontainers import SortedList, SortedSet
 
 from sio.sioworkersd.scheduler import Scheduler
 from sio.sioworkersd.utils import get_required_ram_for_job
+from twisted.logger import Logger, LogLevel
+
+log = Logger()
 
 
 class _WaitingTasksQueue(object):
@@ -404,6 +407,7 @@ class PrioritizingScheduler(Scheduler):
 
     def addWorker(self, worker_id):
         """Will be called when a new worker appears."""
+        log.warn("addWorker, workers {}".format(len(self.workers)))
         worker = WorkerInfo(worker_id,
             self.manager.getWorkers()[worker_id])
         self.workers[worker_id] = worker
@@ -693,10 +697,22 @@ class PrioritizingScheduler(Scheduler):
         """Return a list of tasks to be executed now, as a list of pairs
            (task_id, worker_id).
         """
+        if self.tasks:
+            log.warn("{} tasks availible, tasks queues:".format(len(self.tasks)))
+            for q, v in self.tasks_queues.iteritems():
+                log.warn("  {} {}".format(q, bool(v)))
+            log.warn("workers {}, queues:".format(len(self.workers)))
+            for q, v in self.workers_queues.iteritems():
+                log.warn("  {} {}".format(q, len(v)))
+
         result = []
         while True:
             association = self._scheduleOnce()
             if association is None:
                 break
             result.append(association)
+
+        if result:
+            log.warn("{} tasks scheduled".format(len(result)))
+
         return result

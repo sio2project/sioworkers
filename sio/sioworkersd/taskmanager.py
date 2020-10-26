@@ -155,6 +155,9 @@ class TaskManager(Service):
         # a performance problem for complex schedulers, especially during
         # rejudges. A solution exists, but it is a bit complex.
         jobs = self.scheduler.schedule()
+        if len(jobs) > 0:
+            log.warn("jobs: {}, inProgress: {}".format(len(jobs), len(self.inProgress)))
+
         for (task_id, worker) in jobs:
             task = self.inProgress[task_id]
             d = self.workerm.runOnWorker(worker, task.env)
@@ -208,6 +211,7 @@ class TaskManager(Service):
         if tid in self.inProgress:
             raise RuntimeError('Tried to add same task twice')
         d = defer.Deferred()
+        log.warn("adding task, inProgress {}".format(len(self.inProgress)))
         self.inProgress[tid] = Task(env=env, d=d)
 
         d.addBoth(self._taskDone, tid=tid)
