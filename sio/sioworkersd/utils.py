@@ -7,7 +7,7 @@ DEFAULT_RAM_REQUIREMENTS = {
    'inwer': 256 * 1024,
    'compile': 512 * 1024,
    'exec': 64 * 1024,
-   'checker': 256 * 1024,
+   'checker': 268 * 1024,
    'default': 256 * 1024,
 }
 
