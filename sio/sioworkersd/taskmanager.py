@@ -76,9 +76,9 @@ class DBWrapper(object):
         return items
 
     def update(self, job_id, dict_update, sync=True):
-        job = json.loads(self.db.get(job_id, '{}'))
+        job = json.loads(self.db.get(str(job_id), '{}'))
         job.update(dict_update)
-        self.db[job_id] = json.dumps(job)
+        self.db[str(job_id)] = json.dumps(job)
         if sync:
             self.db.sync()
 
@@ -120,7 +120,7 @@ class TaskManager(Service):
                 d = self._addGroup(job['env'])
                 log.debug("added again unfinished task {tid}", tid=job['id'])
                 d.addBoth(self.returnToSio, url=job['env']['return_url'],
-                          orig_env=job['env'], tid=job['id'])
+                          orig_env=job['env'], tid=str(job['id']))
             elif job['status'] == 'to_return':
                 jobs_to_return[j].append(job)
                 j = (j + 1) % return_old_task_concurrency
@@ -133,7 +133,7 @@ class TaskManager(Service):
                     log.warn("Trying again to return old task {tid} from {qid}",
                              tid=job['id'], qid=i)
                     d = self.returnToSio(job['env'], url=job['env']['return_url'],
-                                           orig_env=job['env'], tid=job['id'],
+                                           orig_env=job['env'], tid=str(job['id']),
                                            count=job['retry_cnt'])
                     d.addBoth(return_old_task, i=i, jobs=jobs)
             return_old_task(None, i=i, jobs=jobs_to_return[i])
@@ -181,6 +181,7 @@ class TaskManager(Service):
         return x
 
     def _taskDone(self, x, tid):
+        tid = str(tid)
         if isinstance(x, Failure):
             self.inProgress[tid].env['error'] = {
                 'message': x.getErrorMessage(),
@@ -208,6 +209,7 @@ class TaskManager(Service):
 
     def _deferTask(self, env):
         tid = env['task_id']
+        tid = str(tid)
         if tid in self.inProgress:
             raise RuntimeError('Tried to add same task twice')
         d = defer.Deferred()
@@ -360,7 +362,7 @@ class TaskManager(Service):
         return ret
 
     def _returnDone(self, _, tid):
-        self.database.delete(tid, sync=False)
+        self.database.delete(str(tid), sync=False)
         # No db sync here, because we are allowing some jobs to be done
         # multiple times in case of server failure for better performance.
         # It should be synced soon with other task
