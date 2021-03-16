@@ -62,9 +62,6 @@ From Python:
 
 .. autofunction:: sio.workers.runner.run
 
-There are also bindings for `Celery <http://celeryproject.org/>`_ in
-:mod:`sio.celery`.
-
 From the shell, you may use the ``sio-batch`` script, which expects an
 environment variable ``environ`` to be some JSON. After running the job, the
 output is printed to the standard output in the following format::
@@ -291,19 +288,6 @@ There is also a single job called ``ping`` available for testing. It expects
 an ``ping`` key in the environment and and basically does::
 
   environ['pong'] = environ['ping']
-
-Integration with Celery
------------------------
-
-.. autofuncion:: sio.celery.job.sioworkers_job
-
-There is also a script ``sio-celery-worker`` which starts the Celery daemon
-with the default configuration. The configuration is available in
-``sio.celery.default_config``, so a custom ``celeryconfig.py`` (for use with a
-stock ``celeryd``) may look like this::
-
-  from sio.celery.default_config import *
-  BROKER_URL = 'amqp://foo@bar:server/vhost'
 
 Available jobs
 ==============

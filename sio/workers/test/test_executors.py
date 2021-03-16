@@ -409,7 +409,7 @@ def _make_ingen_cases():
             for filename, path in six.iteritems(collected):
                 in_(filename, expected_files)
                 unversioned_path = '/%s/%s' % (upload_dir, filename)
-                upload_re_str = '%s@\d+' % (unversioned_path)
+                upload_re_str = r'%s@\d+' % (unversioned_path)
                 upload_re = re.compile(upload_re_str)
                 ok_(upload_re.match(path), 'Unexpected filetracker path')
 
