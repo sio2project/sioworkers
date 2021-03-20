@@ -2,10 +2,12 @@
 
 ### for python 2 installation ###
 pip install -r requirements.txt
+
 python setup.py install
 
 ### for python 3 installation ###
 pip install -r requirements_py3.txt
+
 python setup.py install
 
 # TESTS

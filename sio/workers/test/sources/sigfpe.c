@@ -1,3 +1,5 @@
 int main() {
-    return 4/0;
+    volatile int zero = 0; // To prevent the compilator from optimizing this out.
+    // Otherwise it can result in SIGILL.
+    return 4 / zero;
 }

@@ -5,23 +5,24 @@ from setuptools import setup, find_packages
 PYTHON_VERSION = version_info[0]
 
 python2_specific_requirements = [
-    'supervisor>=3.3.1',
-    'enum34',
-    'poster',
+    'supervisor==3.3.4',
+    'enum34==1.1.6',
+    'poster==0.8.1',
 ]
 
 python3_specific_requirements = [
-    'bsddb3',
+    'bsddb3==6.2.7',
 ]
 
 python23_universal_requirements = [
     'filetracker>=2.1,<3.0',
-    'simplejson',
-    'Twisted>=15.2.1',
+    'simplejson==3.14.0',
+    'Twisted==20.3.0',
+    'sortedcontainers==2.1.0',
     'six',
-    'pytest',
-    'pytest-runner',
-    'pytest-timeout',
+    'pytest>=4.6,<4.7',
+    'pytest-runner==5.1',
+    'pytest-timeout==1.3.3',
 ]
 
 if PYTHON_VERSION == 2:

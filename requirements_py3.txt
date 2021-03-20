@@ -1,1 +1,5 @@
 https://github.com/mrd1no/poster-0.8.1-for-Python-3.4/zipball/master#egg=poster==0.8.1
+
+# Requests need this version,
+# whereas hyperlink from Twisted install >=2.5 which defaults to 3.1.
+idna>=2.5,<3
