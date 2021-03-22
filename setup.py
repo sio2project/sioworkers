@@ -5,8 +5,8 @@ from setuptools import setup, find_packages
 PYTHON_VERSION = version_info[0]
 
 python2_specific_requirements = [
-    'supervisor==3.3.4',
-    'enum34==1.1.6',
+    'supervisor>=4.0,<4.3',
+    'enum34>=1.1,<1.2',
     'poster==0.8.1',
 ]
 
@@ -33,7 +33,7 @@ else:
 
 setup(
     name = "sioworkers",
-    version = '1.3',
+    version = '1.4',
     author = "SIO2 Project Team",
     author_email = 'sio2@sio2project.mimuw.edu.pl',
     description = "Programming contest judging infrastructure",
