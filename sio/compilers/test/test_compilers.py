@@ -8,13 +8,14 @@ import pytest
 from sio.assertion_utils import ok_, eq_, timed
 
 from sio.compilers.job import run
+from sio.executors.common import run as run_from_executors
 from sio.workers import ft
 from filetracker.client.dummy import DummyClient
 from sio.compilers.common import DEFAULT_COMPILER_OUTPUT_LIMIT, \
         DEFAULT_COMPILER_TIME_LIMIT, DEFAULT_COMPILER_MEM_LIMIT
 from sio.workers.executors import UnprotectedExecutor, PRootExecutor
 from sio.workers.file_runners import get_file_runner
-from sio.workers.util import TemporaryCwd
+from sio.workers.util import TemporaryCwd, tempcwd
 
 # sio2-compilers tests
 #
@@ -113,6 +114,7 @@ def _make_compilation_cases():
         if not NO_JAVA_TESTS:
             yield 'Hello World from java', compiler + 'java', \
                     '/simple.java', None
+        # Note that "output-only" compiler is tested in test_output_compilation_and_running
 
     if ENABLE_SANDBOXED_COMPILERS:
         yield '12903', 'default-cpp', '/cpp11.cpp', None
@@ -129,6 +131,38 @@ def test_compilation(message, compiler, source, program_args):
             'compiler': compiler,
             'out_file': '/out',
             }, message, program_args)
+
+
+@pytest.mark.parametrize("source", [('/simple.txt')])
+def test_output_compilation_and_running(source):
+    with TemporaryCwd():
+        upload_files()
+        result_env = run({
+            'source_file': source,
+            'compiler': 'output-only',
+        })
+        eq_(result_env['result_code'], 'OK')
+        eq_(result_env['exec_info'], {'mode': 'output-only'})
+
+        ft.download(result_env, 'out_file', tempcwd('out.txt'))
+        ft.download({'source_file': source}, 'source_file', tempcwd('source.txt'))
+        with open(tempcwd('out.txt'), 'r') as outfile:
+            with open(tempcwd('source.txt'), 'r') as sourcefile:
+                eq_(outfile.read(), sourcefile.read())
+
+        post_run_env = run_from_executors({
+            'exec_info': result_env['exec_info'],
+            'exe_file': result_env['out_file'],
+            'check_output': True,
+            'hint_file': source,
+        }, executor=None)
+        eq_(post_run_env['result_code'], 'OK')
+
+        ft.download(post_run_env, 'out_file', tempcwd('out.txt'))
+        ft.download({'source_file': source}, 'source_file', tempcwd('source.txt'))
+        with open(tempcwd('out.txt'), 'r') as outfile:
+            with open(tempcwd('source.txt'), 'r') as sourcefile:
+                eq_(outfile.read(), sourcefile.read())
 
 
 def _make_compilation_with_additional_library_cases():

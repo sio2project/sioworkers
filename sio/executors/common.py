@@ -15,6 +15,8 @@ def _populate_environ(renv, environ):
         environ[key] = renv.get(key, 0)
     for key in ('result_code', 'result_string'):
         environ[key] = renv.get(key, '')
+    if 'out_file' in renv:
+        environ['out_file'] = renv['out_file']
 
 
 @decode_fields(['result_string'])
@@ -29,6 +31,28 @@ def run(environ, executor, use_sandboxes=True):
     :param: use_sandboxes Enables safe checking output correctness.
                        See `sio.executors.checkers`. True by default.
     """
+
+    if environ.get('exec_info', {}).get('mode') == 'output-only':
+        renv = _fake_run_as_exe_is_output_file(environ)
+    else:
+        renv = _run(environ, executor, use_sandboxes)
+
+    _populate_environ(renv, environ)
+
+    if environ['result_code'] == 'OK' and environ.get('check_output'):
+        environ = checker.run(environ, use_sandboxes=use_sandboxes)
+
+    for key in ('result_code', 'result_string'):
+        environ[key] = replace_invalid_UTF(environ[key])
+
+    if 'out_file' in environ:
+        ft.upload(environ, 'out_file', tempcwd('out'),
+            to_remote_store=environ.get('upload_out', False))
+
+    return environ
+
+
+def _run(environ, executor, use_sandboxes):
     input_name = tempcwd('in')
 
     file_executor = get_file_runner(executor, environ)
@@ -64,18 +88,20 @@ def run(environ, executor, use_sandboxes=True):
                               stdin=inf, stdout=outf, ignore_errors=True,
                               environ=environ, environ_prefix='exec_')
 
-        _populate_environ(renv, environ)
-
-        if renv['result_code'] == 'OK' and environ.get('check_output'):
-            environ = checker.run(environ, use_sandboxes=use_sandboxes)
-
-        for key in ('result_code', 'result_string'):
-            environ[key] = replace_invalid_UTF(environ[key])
-
-        if 'out_file' in environ:
-            ft.upload(environ, 'out_file', tempcwd('out'),
-                to_remote_store=environ.get('upload_out', False))
     finally:
         rmtree(zipdir)
 
-    return environ
+    return renv
+
+
+def _fake_run_as_exe_is_output_file(environ):
+    # later code expects 'out' file to be present after compilation
+    ft.download(environ, 'exe_file', tempcwd('out'))
+    return {
+        # copy filetracker id of 'exe_file' as 'out_file' (thanks to that checker will grab it)
+        'out_file': environ['exe_file'],
+        # 'result_code' is left by executor, as executor is not used
+        # this variable has to be set manually
+        'result_code': 'OK',
+        'result_string': 'ok',
+    }

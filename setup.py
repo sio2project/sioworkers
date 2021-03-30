@@ -82,6 +82,9 @@ setup(
             'system-fpc = sio.compilers.system_fpc:run',
             'system-java = sio.compilers.system_java:run',
 
+            # Compiler for output only tasks solutions
+            'output-only = sio.compilers.output:run',
+
             ####################################
             # Deprecated, should be removed after 01.01.2021
             # Default extension compilers:
