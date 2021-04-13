@@ -4,8 +4,16 @@ import os.path
 import re
 import filecmp
 
-from sio.assertion_utils import ok_, eq_, not_eq_, nottest, raises, \
-        assert_raises, in_, not_in_
+from sio.assertion_utils import (
+    ok_,
+    eq_,
+    not_eq_,
+    nottest,
+    raises,
+    assert_raises,
+    in_,
+    not_in_,
+)
 from filetracker.client.dummy import DummyClient
 
 from sio.compilers.job import run as run_compiler
@@ -15,9 +23,13 @@ from sio.executors.inwer import run as run_inwer
 from sio.executors.checker import RESULT_STRING_LENGTH_LIMIT
 from sio.workers import ft
 from sio.workers.execute import execute
-from sio.workers.executors import UnprotectedExecutor, \
-        DetailedUnprotectedExecutor, SupervisedExecutor, \
-        ExecError, _SIOSupervisedExecutor
+from sio.workers.executors import (
+    UnprotectedExecutor,
+    DetailedUnprotectedExecutor,
+    SupervisedExecutor,
+    ExecError,
+    _SIOSupervisedExecutor,
+)
 from sio.workers.file_runners import get_file_runner
 from sio.workers.util import tempcwd, TemporaryCwd
 import six
@@ -56,6 +68,7 @@ def upload_files():
     for path in glob.glob(os.path.join(SOURCES, '*')):
         ft.upload({'path': '/' + os.path.basename(path)}, 'path', path)
 
+
 def compile(source, output='/exe', use_sandboxes=ENABLE_SANDBOXES):
     ext = os.path.splitext(source.split('@')[0])[1][1:]
     compiler_env = {
@@ -74,13 +87,14 @@ def compile(source, output='/exe', use_sandboxes=ENABLE_SANDBOXES):
     eq_(result_env['result_code'], 'OK')
     return result_env
 
+
 def compile_and_execute(source, executor, **exec_args):
-    cenv = compile(source,
-                   use_sandboxes=isinstance(executor, _SIOSupervisedExecutor))
+    cenv = compile(source, use_sandboxes=isinstance(executor, _SIOSupervisedExecutor))
     frunner = get_file_runner(executor, cenv)
 
-    ft.download({'exe_file': cenv['out_file']}, 'exe_file',
-                frunner.preferred_filename())
+    ft.download(
+        {'exe_file': cenv['out_file']}, 'exe_file', frunner.preferred_filename()
+    )
     os.chmod(tempcwd('exe'), 0o700)
     ft.download({'in_file': '/input'}, 'in_file', 'in')
 
@@ -90,22 +104,25 @@ def compile_and_execute(source, executor, **exec_args):
 
     return renv
 
+
 def compile_and_run(source, executor_env, executor, use_sandboxes=False):
-    renv = compile(source,
-                   use_sandboxes=isinstance(executor, _SIOSupervisedExecutor))
+    renv = compile(source, use_sandboxes=isinstance(executor, _SIOSupervisedExecutor))
     executor_env['exe_file'] = renv['out_file']
     executor_env['exec_info'] = renv['exec_info']
     return run_executor(executor_env, executor, use_sandboxes=use_sandboxes)
 
+
 def print_env(env):
     from pprint import pprint
+
     pprint(env)
+
 
 def fail(*args, **kwargs):
     ok_(False, "Forced fail")
 
-MEMORY_CHECKS = ['30MiB-bss.c', '30MiB-data.c', '30MiB-malloc.c',
-        '30MiB-stack.c']
+
+MEMORY_CHECKS = ['30MiB-bss.c', '30MiB-data.c', '30MiB-malloc.c', '30MiB-stack.c']
 JAVA_MEMORY_CHECKS = ['mem30MiBheap.java', 'mem30MiBstack.java']
 MEMORY_CHECKS_LIMIT = 30 * 1024  # in KiB
 SMALL_OUTPUT_LIMIT = 50  # in B
@@ -116,31 +133,40 @@ SANDBOXED_CHECKING_EXECUTORS = [SupervisedExecutor]
 def res_ok(env):
     eq_('OK', env['result_code'])
 
+
 def res_not_ok(env):
     not_eq_(env['result_code'], 'OK')
 
+
 def res_wa(env):
     eq_('WA', env['result_code'])
+
 
 def res_re(reason):
     def inner(env):
         eq_('RE', env['result_code'])
         in_(str(reason), env['result_string'])
+
     return inner
+
 
 def res_tle(env):
     eq_(env['result_code'], 'TLE')
+
 
 def res_rv(msg):
     def inner(env):
         eq_('RV', env['result_code'])
         in_(msg, env['result_string'])
+
     return inner
+
 
 def due_signal(code):
     def inner(env):
         res_re('due to signal')(env)
         in_(str(code), env['result_string'])
+
     return inner
 
 
@@ -157,15 +183,15 @@ def _make_running_cases():
             yield '/add_print.java', executor(), res_ok
 
 
-@pytest.mark.parametrize("source,executor,callback",
-    [test_case for test_case in _make_running_cases()])
+@pytest.mark.parametrize(
+    "source,executor,callback", [test_case for test_case in _make_running_cases()]
+)
 def test_running_cases(source, executor, callback):
     with TemporaryCwd():
         upload_files()
-        result_env = compile_and_run(source, {
-            'in_file': '/input',
-            'exec_time_limit': 1000
-        }, executor)
+        result_env = compile_and_run(
+            source, {'in_file': '/input', 'exec_time_limit': 1000}, executor
+        )
         print_env(result_env)
         callback(result_env)
 
@@ -173,15 +199,14 @@ def test_running_cases(source, executor, callback):
 def test_zip():
     with TemporaryCwd():
         upload_files()
-        compile_and_run("/echo.c", {
-            'in_file': '/input.zip',
-            'out_file': '/output',
-            'exec_mem_limit': 102400
-            }, DetailedUnprotectedExecutor())
+        compile_and_run(
+            "/echo.c",
+            {'in_file': '/input.zip', 'out_file': '/output', 'exec_mem_limit': 102400},
+            DetailedUnprotectedExecutor(),
+        )
         ft.download({'in_file': '/input'}, 'in_file', 'out.expected')
         ft.download({'out_file': '/output'}, 'out_file', 'out.real')
-        ok_(filecmp.cmp(tempcwd('out.expected'),
-                        tempcwd('out.real')))
+        ok_(filecmp.cmp(tempcwd('out.expected'), tempcwd('out.real')))
 
 
 def _make_commmon_memory_limiting_cases():
@@ -192,17 +217,15 @@ def _make_commmon_memory_limiting_cases():
 
     for test in MEMORY_CHECKS:
         for executor in CHECKING_EXECUTORS:
-            yield "/" + test, int(MEMORY_CHECKS_LIMIT*1.2),\
-                executor(), res_ok
-            yield "/" + test, int(MEMORY_CHECKS_LIMIT*0.9), \
-                executor(), res_not_ok
+            yield "/" + test, int(MEMORY_CHECKS_LIMIT * 1.2), executor(), res_ok
+            yield "/" + test, int(MEMORY_CHECKS_LIMIT * 0.9), executor(), res_not_ok
 
         if ENABLE_SANDBOXES:
             for executor in SANDBOXED_CHECKING_EXECUTORS:
-                yield "/" + test, int(MEMORY_CHECKS_LIMIT*1.2), \
-                        executor(),  res_ok
-                yield "/" + test, int(MEMORY_CHECKS_LIMIT*0.9), \
-                        executor(), res_mle_or_fail
+                yield "/" + test, int(MEMORY_CHECKS_LIMIT * 1.2), executor(), res_ok
+                yield "/" + test, int(
+                    MEMORY_CHECKS_LIMIT * 0.9
+                ), executor(), res_mle_or_fail
 
     if not NO_JAVA_TESTS:
         for test in JAVA_MEMORY_CHECKS:
@@ -210,28 +233,25 @@ def _make_commmon_memory_limiting_cases():
                 # XXX: The OpenJDK JVM has enormous stack memory overhead!
                 oh = 2.5 if 'stack' in test else 1.2
 
-                yield "/" + test, int(MEMORY_CHECKS_LIMIT*oh), \
-                    executor(), res_ok
-                yield "/" + test, int(MEMORY_CHECKS_LIMIT*0.9), \
-                    executor(), res_not_ok
+                yield "/" + test, int(MEMORY_CHECKS_LIMIT * oh), executor(), res_ok
+                yield "/" + test, int(MEMORY_CHECKS_LIMIT * 0.9), executor(), res_not_ok
 
             if ENABLE_SANDBOXES:
                 executor = SupervisedExecutor
-                yield "/" + test, int(MEMORY_CHECKS_LIMIT*1.2), \
-                    executor(), res_ok
-                yield "/" + test, int(MEMORY_CHECKS_LIMIT*0.8), \
-                    executor(), res_not_ok
+                yield "/" + test, int(MEMORY_CHECKS_LIMIT * 1.2), executor(), res_ok
+                yield "/" + test, int(MEMORY_CHECKS_LIMIT * 0.8), executor(), res_not_ok
 
 
-@pytest.mark.parametrize("source,mem_limit,executor,callback",
-    [test_case for test_case in _make_commmon_memory_limiting_cases()])
+@pytest.mark.parametrize(
+    "source,mem_limit,executor,callback",
+    [test_case for test_case in _make_commmon_memory_limiting_cases()],
+)
 def test_common_memory_limiting(source, mem_limit, executor, callback):
     with TemporaryCwd():
         upload_files()
-        result_env = compile_and_run(source, {
-            'in_file': '/input',
-            'exec_mem_limit': mem_limit
-        }, executor)
+        result_env = compile_and_run(
+            source, {'in_file': '/input', 'exec_mem_limit': mem_limit}, executor
+        )
         print_env(result_env)
         callback(result_env)
 
@@ -249,21 +269,20 @@ def _make_common_time_limiting_cases():
 
         yield "/1-sec-prog.c", 1000, SupervisedExecutor(), res_ok
         if not NO_JAVA_TESTS:
-            yield "/proc1secprog.java", 100, SupervisedExecutor(), \
-                    res_tle
-            yield "/proc1secprog.java", 1000, SupervisedExecutor(), \
-                    res_ok
+            yield "/proc1secprog.java", 100, SupervisedExecutor(), res_tle
+            yield "/proc1secprog.java", 1000, SupervisedExecutor(), res_ok
 
 
-@pytest.mark.parametrize("source,time_limit,executor,callback",
-    [test_case for test_case in _make_common_time_limiting_cases()])
+@pytest.mark.parametrize(
+    "source,time_limit,executor,callback",
+    [test_case for test_case in _make_common_time_limiting_cases()],
+)
 def test_common_time_limiting(source, time_limit, executor, callback):
     with TemporaryCwd():
         upload_files()
-        result_env = compile_and_run(source, {
-            'in_file': '/input',
-            'exec_time_limit': time_limit
-        }, executor)
+        result_env = compile_and_run(
+            source, {'in_file': '/input', 'exec_time_limit': time_limit}, executor
+        )
         print_env(result_env)
         callback(result_env)
 
@@ -272,31 +291,44 @@ def test_outputting_non_utf8():
     if ENABLE_SANDBOXES:
         with TemporaryCwd():
             upload_files()
-            renv = compile_and_run('/output-non-utf8.c', {
+            renv = compile_and_run(
+                '/output-non-utf8.c',
+                {
                     'in_file': '/input',
                     'check_output': True,
                     'hint_file': '/input',
-                    }, SupervisedExecutor(), use_sandboxes=True)
+                },
+                SupervisedExecutor(),
+                use_sandboxes=True,
+            )
             print_env(renv)
             in_('42', renv['result_string'])
             ok_(renv['result_string'])
 
+
 def test_truncating_output():
     with TemporaryCwd():
         upload_files()
-        checker_bin = compile('/chk-output-too-long.c',
-                '/chk-output-too-long.e')['out_file']
+        checker_bin = compile('/chk-output-too-long.c', '/chk-output-too-long.e')[
+            'out_file'
+        ]
     with TemporaryCwd():
-        renv = compile_and_run('/output-too-long.c', {
+        renv = compile_and_run(
+            '/output-too-long.c',
+            {
                 'in_file': '/input',
                 'check_output': True,
                 'hint_file': '/input',
                 'chk_file': checker_bin,
-                }, DetailedUnprotectedExecutor(), use_sandboxes=False)
+            },
+            DetailedUnprotectedExecutor(),
+            use_sandboxes=False,
+        )
         length = len(renv['result_string'])
         if length > RESULT_STRING_LENGTH_LIMIT:
-            raise AssertionError("result_string too long, %d > %d"
-                    % (length, RESULT_STRING_LENGTH_LIMIT))
+            raise AssertionError(
+                "result_string too long, %d > %d" % (length, RESULT_STRING_LENGTH_LIMIT)
+            )
 
 
 def _make_untrusted_checkers_cases():
@@ -317,23 +349,33 @@ def _make_untrusted_checkers_cases():
         yield '/chk-rtn2.c', None, True, SystemError
 
 
-@pytest.mark.parametrize("checker,callback,sandboxed,exception",
-    [test_case for test_case in _make_untrusted_checkers_cases()])
+@pytest.mark.parametrize(
+    "checker,callback,sandboxed,exception",
+    [test_case for test_case in _make_untrusted_checkers_cases()],
+)
 def test_untrusted_checkers(checker, callback, sandboxed, exception):
     def _test():
         with TemporaryCwd():
             upload_files()
             checker_bin = compile(checker, '/chk.e')['out_file']
         with TemporaryCwd():
-            executor = SupervisedExecutor(use_program_return_code=True) if \
-                    sandboxed else DetailedUnprotectedExecutor()
-            renv = compile_and_run('/add_print.c', {
+            executor = (
+                SupervisedExecutor(use_program_return_code=True)
+                if sandboxed
+                else DetailedUnprotectedExecutor()
+            )
+            renv = compile_and_run(
+                '/add_print.c',
+                {
                     'in_file': '/input',
                     'check_output': True,
                     'hint_file': '/hint',
                     'chk_file': checker_bin,
                     'untrusted_checker': True,
-            }, executor, use_sandboxes=sandboxed)
+                },
+                executor,
+                use_sandboxes=sandboxed,
+            )
             print_env(renv)
             if callback:
                 callback(renv)
@@ -359,11 +401,12 @@ def _make_inwer_cases():
 
     def check_inwer_big_output(use_sandboxes):
         def inner(env):
-            if(use_sandboxes):
+            if use_sandboxes:
                 eq_(env['result_code'], "OLE")
             else:
                 eq_(env['result_code'], "OK")
                 eq_(env['stdout'], [b'A' * SMALL_OUTPUT_LIMIT])
+
         return inner
 
     sandbox_options = [False]
@@ -372,16 +415,17 @@ def _make_inwer_cases():
 
     for use_sandboxes in sandbox_options:
         yield '/inwer.c', '/inwer_ok', use_sandboxes, check_inwer_ok
-        yield '/inwer.c', '/inwer_wrong', use_sandboxes, \
-                check_inwer_wrong
-        yield '/inwer_faulty.c', '/inwer_ok', use_sandboxes, \
-                check_inwer_faulty
-        yield '/inwer_big_output.c', '/inwer_ok', use_sandboxes, \
-                check_inwer_big_output(use_sandboxes)
+        yield '/inwer.c', '/inwer_wrong', use_sandboxes, check_inwer_wrong
+        yield '/inwer_faulty.c', '/inwer_ok', use_sandboxes, check_inwer_faulty
+        yield '/inwer_big_output.c', '/inwer_ok', use_sandboxes, check_inwer_big_output(
+            use_sandboxes
+        )
 
 
-@pytest.mark.parametrize("inwer,in_file,use_sandboxes,callback",
-    [test_case for test_case in _make_inwer_cases()])
+@pytest.mark.parametrize(
+    "inwer,in_file,use_sandboxes,callback",
+    [test_case for test_case in _make_inwer_cases()],
+)
 def test_inwer(inwer, in_file, use_sandboxes, callback):
     with TemporaryCwd():
         upload_files()
@@ -415,6 +459,7 @@ def _make_ingen_cases():
 
                 ft.download({'in': unversioned_path}, 'in', filename)
                 eq_(expected_files[filename], open(tempcwd(filename)).read())
+
         return inner
 
     def check_proot_fail(env):
@@ -425,51 +470,52 @@ def _make_ingen_cases():
         sandbox_options.append(True)
 
     test_sets = [
-            {
-                'program': '/ingen.c',
-                'dir': 'somedir',
-                're_string': r'.*\.upload',
-                'files': {
-                    'two.upload': '2\n',
-                    'five.five.upload': '5\n',
-                    },
-                'output': [b"Everything OK", b"Really"],
-                },
-            {
-                'program': '/ingen_big_output.c',
-                'dir': 'other_dir',
-                're_string': r'.*_upload',
-                'files': {
-                    'three_upload': '3\n',
-                    },
-                'output': [b'A' * SMALL_OUTPUT_LIMIT],
-                },
-            ]
+        {
+            'program': '/ingen.c',
+            'dir': 'somedir',
+            're_string': r'.*\.upload',
+            'files': {
+                'two.upload': '2\n',
+                'five.five.upload': '5\n',
+            },
+            'output': [b"Everything OK", b"Really"],
+        },
+        {
+            'program': '/ingen_big_output.c',
+            'dir': 'other_dir',
+            're_string': r'.*_upload',
+            'files': {
+                'three_upload': '3\n',
+            },
+            'output': [b'A' * SMALL_OUTPUT_LIMIT],
+        },
+    ]
 
     for use_sandboxes in sandbox_options:
         for test in test_sets:
-            yield test['program'], test['re_string'], test['dir'], \
-                    use_sandboxes, \
-                    check_upload(test['dir'], test['files'], test['output'])
+            yield test['program'], test['re_string'], test[
+                'dir'
+            ], use_sandboxes, check_upload(test['dir'], test['files'], test['output'])
     if ENABLE_SANDBOXES:
-        yield '/ingen_nosy.c', 'myfile.txt', 'somedir', True, \
-                check_proot_fail
+        yield '/ingen_nosy.c', 'myfile.txt', 'somedir', True, check_proot_fail
 
 
-@pytest.mark.parametrize("ingen,re_string,upload_dir,use_sandboxes,callback",
-    [test_case for test_case in _make_ingen_cases()])
+@pytest.mark.parametrize(
+    "ingen,re_string,upload_dir,use_sandboxes,callback",
+    [test_case for test_case in _make_ingen_cases()],
+)
 def test_ingen(ingen, re_string, upload_dir, use_sandboxes, callback):
     with TemporaryCwd():
         upload_files()
         ingen_bin = compile(ingen, '/ingen.e')['out_file']
     with TemporaryCwd():
         env = {
-                're_string': re_string,
-                'collected_files_path': '/' + upload_dir,
-                'exe_file': ingen_bin,
-                'use_sandboxes': use_sandboxes,
-                'ingen_output_limit': SMALL_OUTPUT_LIMIT,
-                }
+            're_string': re_string,
+            'collected_files_path': '/' + upload_dir,
+            'exe_file': ingen_bin,
+            'use_sandboxes': use_sandboxes,
+            'ingen_output_limit': SMALL_OUTPUT_LIMIT,
+        }
         renv = run_ingen(env)
         print_env(renv)
         if callback:
@@ -480,11 +526,15 @@ def test_ingen(ingen, re_string, upload_dir, use_sandboxes, callback):
 def test_uploading_out():
     with TemporaryCwd():
         upload_files()
-        renv = compile_and_run('/add_print.c', {
-            'in_file': '/input',
-            'out_file': '/output',
-            'upload_out': True,
-        }, DetailedUnprotectedExecutor())
+        renv = compile_and_run(
+            '/add_print.c',
+            {
+                'in_file': '/input',
+                'out_file': '/output',
+                'upload_out': True,
+            },
+            DetailedUnprotectedExecutor(),
+        )
         print_env(renv)
 
         ft.download({'path': '/output'}, 'path', 'd_out')
@@ -533,16 +583,24 @@ def _make_capturing_stdout_cases():
     executors = [UnprotectedExecutor]
 
     for executor in executors:
-        yield ['/add_print.c', executor(), only_stdout,
-                {'capture_output': True}]
-        yield ['/add_print.c', executor(), lines_split,
-                {'capture_output': True, 'split_lines': True}]
-        yield ['/add_print.c', executor(), with_stderr,
-                {'capture_output': True, 'forward_stderr': True}]
+        yield ['/add_print.c', executor(), only_stdout, {'capture_output': True}]
+        yield [
+            '/add_print.c',
+            executor(),
+            lines_split,
+            {'capture_output': True, 'split_lines': True},
+        ]
+        yield [
+            '/add_print.c',
+            executor(),
+            with_stderr,
+            {'capture_output': True, 'forward_stderr': True},
+        ]
 
 
-@pytest.mark.parametrize("args",
-    [test_case for test_case in _make_capturing_stdout_cases()])
+@pytest.mark.parametrize(
+    "args", [test_case for test_case in _make_capturing_stdout_cases()]
+)
 def test_capturing_stdout(args):
     _test_exec(*args)
 
@@ -554,12 +612,24 @@ def _make_return_codes_cases():
     executors = [UnprotectedExecutor]
 
     for executor in executors:
-        yield raises(ExecError)(_test_transparent_exec), ['/return-scanf.c',
-                executor(), None, {}]
-        yield _test_transparent_exec, ['/return-scanf.c', executor(), ret_42,
-                {'ignore_errors': True}]
-        yield _test_transparent_exec, ['/return-scanf.c', executor(), ret_42,
-                {'extra_ignore_errors': (42,)}]
+        yield raises(ExecError)(_test_transparent_exec), [
+            '/return-scanf.c',
+            executor(),
+            None,
+            {},
+        ]
+        yield _test_transparent_exec, [
+            '/return-scanf.c',
+            executor(),
+            ret_42,
+            {'ignore_errors': True},
+        ]
+        yield _test_transparent_exec, [
+            '/return-scanf.c',
+            executor(),
+            ret_42,
+            {'extra_ignore_errors': (42,)},
+        ]
 
     checking_executors = CHECKING_EXECUTORS
     if ENABLE_SANDBOXES:
@@ -569,12 +639,17 @@ def _make_return_codes_cases():
         yield _test_exec, ['/return-scanf.c', executor(), res_re(42), {}]
 
     if ENABLE_SANDBOXES:
-        yield _test_exec, ['/return-scanf.c', SupervisedExecutor(), res_ok,
-                {'ignore_return': True}]
+        yield _test_exec, [
+            '/return-scanf.c',
+            SupervisedExecutor(),
+            res_ok,
+            {'ignore_return': True},
+        ]
 
 
-@pytest.mark.parametrize("test_func,args",
-    [test_case for test_case in _make_return_codes_cases()])
+@pytest.mark.parametrize(
+    "test_func,args", [test_case for test_case in _make_return_codes_cases()]
+)
 def test_return_codes(test_func, args):
     test_func(*args)
 
@@ -586,26 +661,31 @@ def _make_output_limit_cases():
     def stdout_shorter(limit):
         def inner(env):
             ok_(len(env['stdout']) <= limit)
+
         return inner
 
     executors = [UnprotectedExecutor]
 
     for executor in executors:
-        yield ['/add_print.c', executor(), stdout_shorter(10),
-                {'capture_output': True, 'output_limit': 10}]
+        yield [
+            '/add_print.c',
+            executor(),
+            stdout_shorter(10),
+            {'capture_output': True, 'output_limit': 10},
+        ]
 
-    checking_executors = [] # UnprotectedExecutor doesn't support OLE
+    checking_executors = []  # UnprotectedExecutor doesn't support OLE
     if ENABLE_SANDBOXES:
         checking_executors = checking_executors + SANDBOXED_CHECKING_EXECUTORS
 
     for executor in checking_executors:
-        yield ['/add_print.c', executor(), ole,
-            {'output_limit': 10}]
+        yield ['/add_print.c', executor(), ole, {'output_limit': 10}]
         yield ['/iospam-hard.c', executor(), ole, {}]  # Default
 
 
-@pytest.mark.parametrize("args",
-    [test_case for test_case in _make_output_limit_cases()])
+@pytest.mark.parametrize(
+    "args", [test_case for test_case in _make_output_limit_cases()]
+)
 def test_output_limit(args):
     _test_exec(*args)
 
@@ -616,18 +696,17 @@ def _make_signals_cases():
         checking_executors = checking_executors + SANDBOXED_CHECKING_EXECUTORS
 
     SIGNALS_CHECKS = [
-            ('sigabrt.c', 6),
-            ('sigfpe.c', 8),
-            ('sigsegv.c', 11),
-            ]
+        ('sigabrt.c', 6),
+        ('sigfpe.c', 8),
+        ('sigsegv.c', 11),
+    ]
 
     for executor in checking_executors:
         for (prog, code) in SIGNALS_CHECKS:
             yield ['/' + prog, executor(), due_signal(code), {}]
 
 
-@pytest.mark.parametrize("args",
-    [test_case for test_case in _make_signals_cases()])
+@pytest.mark.parametrize("args", [test_case for test_case in _make_signals_cases()])
 def test_signals(args):
     _test_exec(*args)
 
@@ -641,8 +720,9 @@ def _make_rule_violation_cases():
         yield ['/open.c', executor(), res_rv('opening files'), {}]
 
 
-@pytest.mark.parametrize("args",
-    [test_case for test_case in _make_rule_violation_cases()])
+@pytest.mark.parametrize(
+    "args", [test_case for test_case in _make_rule_violation_cases()]
+)
 def test_rule_violation(args):
     _test_exec(*args)
 
@@ -662,20 +742,14 @@ def _make_local_opens_cases():
     yield ['/openrw.c', DetailedUnprotectedExecutor(), change, {}]
 
     if ENABLE_SANDBOXES:
-        yield ['/open.c', SupervisedExecutor(),
-                res_rv('opening files'), {}]
-        yield ['/openrw.c', SupervisedExecutor(),
-                res_rv('opening files'), {}]
-        yield ['/open.c',
-                SupervisedExecutor(allow_local_open=True), res_ok, {}]
-        yield ['/openrw.c',
-                SupervisedExecutor(allow_local_open=True), nochange, {}]
-        yield ['/open2.c',
-                SupervisedExecutor(allow_local_open=True), res_re(1), {}]
+        yield ['/open.c', SupervisedExecutor(), res_rv('opening files'), {}]
+        yield ['/openrw.c', SupervisedExecutor(), res_rv('opening files'), {}]
+        yield ['/open.c', SupervisedExecutor(allow_local_open=True), res_ok, {}]
+        yield ['/openrw.c', SupervisedExecutor(allow_local_open=True), nochange, {}]
+        yield ['/open2.c', SupervisedExecutor(allow_local_open=True), res_re(1), {}]
 
 
-@pytest.mark.parametrize("args",
-    [test_case for test_case in _make_local_opens_cases()])
+@pytest.mark.parametrize("args", [test_case for test_case in _make_local_opens_cases()])
 def test_local_opens(args):
     _test_exec(*args)
 
@@ -685,6 +759,7 @@ def _make_real_time_limit_cases():
         def inner(env):
             eq_('TLE', env['result_code'])
             ok_(env['real_time_used'] > limit)
+
         return inner
 
     def syscall_limit(env):
@@ -694,15 +769,25 @@ def _make_real_time_limit_cases():
     checking_executors = CHECKING_EXECUTORS
 
     for executor in checking_executors:
-        yield ['/procspam.c', executor(), real_tle,
-            {'real_time_limit': 1000, 'time_limit': 10000}]
+        yield [
+            '/procspam.c',
+            executor(),
+            real_tle,
+            {'real_time_limit': 1000, 'time_limit': 10000},
+        ]
 
     for executor in CHECKING_EXECUTORS:
-        yield ['/iospam.c', executor(), real_tle,
-            {'real_time_limit': 1000, 'time_limit': 10000}]
+        yield [
+            '/iospam.c',
+            executor(),
+            real_tle,
+            {'real_time_limit': 1000, 'time_limit': 10000},
+        ]
 
-@pytest.mark.parametrize("args",
-    [test_case for test_case in _make_real_time_limit_cases()])
+
+@pytest.mark.parametrize(
+    "args", [test_case for test_case in _make_real_time_limit_cases()]
+)
 def test_real_time_limit(args):
     _test_exec(*args)
 
@@ -722,4 +807,3 @@ def test_execute():
         eq_(rc, 0)
         rc, out = execute(['ls', tempcwd()])
         in_(b'spam', out)
-

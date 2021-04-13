@@ -26,6 +26,7 @@ def run(environ):
     ft.upload(environ, 'out_file', 'compiled')
     return environ
 
+
 # This function is registered as default compiler for extension '.foo'
 def run_default(environ):
     environ['compiler'] = 'foo.1_0'

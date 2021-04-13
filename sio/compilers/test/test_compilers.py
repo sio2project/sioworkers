@@ -11,8 +11,11 @@ from sio.compilers.job import run
 from sio.executors.common import run as run_from_executors
 from sio.workers import ft
 from filetracker.client.dummy import DummyClient
-from sio.compilers.common import DEFAULT_COMPILER_OUTPUT_LIMIT, \
-        DEFAULT_COMPILER_TIME_LIMIT, DEFAULT_COMPILER_MEM_LIMIT
+from sio.compilers.common import (
+    DEFAULT_COMPILER_OUTPUT_LIMIT,
+    DEFAULT_COMPILER_TIME_LIMIT,
+    DEFAULT_COMPILER_MEM_LIMIT,
+)
 from sio.workers.executors import UnprotectedExecutor, PRootExecutor
 from sio.workers.file_runners import get_file_runner
 from sio.workers.util import TemporaryCwd, tempcwd
@@ -55,13 +58,16 @@ def upload_files():
     for path in glob.glob(os.path.join(SOURCES, '*')):
         ft.upload({'path': '/' + os.path.basename(path)}, 'path', path)
 
+
 def print_env(env):
     from pprint import pprint
+
     pprint(env)
+
 
 def compile_and_run(compiler_env, expected_output, program_args=None):
     """Helper function for compiling, launching and
-       testing the result of a program.
+    testing the result of a program.
     """
 
     # Dummy sandbox doesn't support asking for versioned filename
@@ -90,8 +96,9 @@ def compile_and_run(compiler_env, expected_output, program_args=None):
 
     frunner = get_file_runner(executor, result_env)
     with frunner:
-        renv = frunner(binary, program_args,
-                       stderr=sys.__stderr__, capture_output=True, **frkwargs)
+        renv = frunner(
+            binary, program_args, stderr=sys.__stderr__, capture_output=True, **frkwargs
+        )
     eq_(renv['return_code'], 0)
     eq_(renv['stdout'].decode().strip(), expected_output)
 
@@ -105,15 +112,13 @@ def _make_compilation_cases():
 
     for compiler in compilers:
         yield 'Hello World from c', compiler + 'c', '/simple.c', None
-        yield '6.907167, 31.613478, 1.569796', compiler + 'c', \
-                '/libm.c', ['999.412']
+        yield '6.907167, 31.613478, 1.569796', compiler + 'c', '/libm.c', ['999.412']
         yield 'Hello World from cpp', compiler + 'cpp', '/simple.cpp', None
         yield 'Hello World from cc', compiler + 'cc', '/simple.cc', None
         yield '3\n5\n5\n7\n9\n10', compiler + 'cpp', '/libstdc++.cpp', None
         yield 'Hello World from pas', compiler + 'pas', '/simple.pas', None
         if not NO_JAVA_TESTS:
-            yield 'Hello World from java', compiler + 'java', \
-                    '/simple.java', None
+            yield 'Hello World from java', compiler + 'java', '/simple.java', None
         # Note that "output-only" compiler is tested in test_output_compilation_and_running
 
     if ENABLE_SANDBOXED_COMPILERS:
@@ -121,26 +126,34 @@ def _make_compilation_cases():
         yield 'Hello World from GNU99', 'default-c', '/gnu99.c', None
 
 
-@pytest.mark.parametrize("message,compiler,source,program_args",
-    [test_case for test_case in _make_compilation_cases()])
+@pytest.mark.parametrize(
+    "message,compiler,source,program_args",
+    [test_case for test_case in _make_compilation_cases()],
+)
 def test_compilation(message, compiler, source, program_args):
     with TemporaryCwd():
         upload_files()
-        compile_and_run({
-            'source_file': source,
-            'compiler': compiler,
-            'out_file': '/out',
-            }, message, program_args)
+        compile_and_run(
+            {
+                'source_file': source,
+                'compiler': compiler,
+                'out_file': '/out',
+            },
+            message,
+            program_args,
+        )
 
 
 @pytest.mark.parametrize("source", [('/simple.txt')])
 def test_output_compilation_and_running(source):
     with TemporaryCwd():
         upload_files()
-        result_env = run({
-            'source_file': source,
-            'compiler': 'output-only',
-        })
+        result_env = run(
+            {
+                'source_file': source,
+                'compiler': 'output-only',
+            }
+        )
         eq_(result_env['result_code'], 'OK')
         eq_(result_env['exec_info'], {'mode': 'output-only'})
 
@@ -150,12 +163,15 @@ def test_output_compilation_and_running(source):
             with open(tempcwd('source.txt'), 'r') as sourcefile:
                 eq_(outfile.read(), sourcefile.read())
 
-        post_run_env = run_from_executors({
-            'exec_info': result_env['exec_info'],
-            'exe_file': result_env['out_file'],
-            'check_output': True,
-            'hint_file': source,
-        }, executor=None)
+        post_run_env = run_from_executors(
+            {
+                'exec_info': result_env['exec_info'],
+                'exe_file': result_env['out_file'],
+                'check_output': True,
+                'hint_file': source,
+            },
+            executor=None,
+        )
         eq_(post_run_env['result_code'], 'OK')
 
         ft.download(post_run_env, 'out_file', tempcwd('out.txt'))
@@ -171,31 +187,33 @@ def _make_compilation_with_additional_library_cases():
         compilers += ['default-']
 
     for compiler in compilers:
-        yield 'Hello World from c-lib', compiler + 'c', \
-              '/simple-lib.c', '/library.c', '/library.h'
-        yield 'Hello World from cpp-lib', compiler + 'cpp', \
-              '/simple-lib.cpp', '/library.cpp', '/library.h'
-        yield 'Hello World from pas-lib', compiler + 'pas', \
-              '/simple-lib.pas', '/pas_library.pas', {}
+        yield 'Hello World from c-lib', compiler + 'c', '/simple-lib.c', '/library.c', '/library.h'
+        yield 'Hello World from cpp-lib', compiler + 'cpp', '/simple-lib.cpp', '/library.cpp', '/library.h'
+        yield 'Hello World from pas-lib', compiler + 'pas', '/simple-lib.pas', '/pas_library.pas', {}
         if not NO_JAVA_TESTS:
-            yield 'Hello World from java-lib', compiler + 'java', \
-                    '/simple_lib.java', '/library.java', {}
+            yield 'Hello World from java-lib', compiler + 'java', '/simple_lib.java', '/library.java', {}
 
 
-@pytest.mark.parametrize("message,compiler,source,sources,includes",
-    [test_case for test_case in _make_compilation_with_additional_library_cases()])
-def test_compilation_with_additional_library(message, compiler,
-            source, sources, includes):
+@pytest.mark.parametrize(
+    "message,compiler,source,sources,includes",
+    [test_case for test_case in _make_compilation_with_additional_library_cases()],
+)
+def test_compilation_with_additional_library(
+    message, compiler, source, sources, includes
+):
     with TemporaryCwd():
-            upload_files()
+        upload_files()
 
-            compile_and_run({
-                    'source_file': source,
-                    'additional_includes': includes,
-                    'additional_sources': sources,
-                    'compiler': compiler,
-                    'out_file': '/out',
-                    }, message)
+        compile_and_run(
+            {
+                'source_file': source,
+                'additional_includes': includes,
+                'additional_sources': sources,
+                'compiler': compiler,
+                'out_file': '/out',
+            },
+            message,
+        )
 
 
 def _make_compilation_with_additional_library_and_directory_params_cases():
@@ -205,61 +223,76 @@ def _make_compilation_with_additional_library_and_directory_params_cases():
 
     for compiler in compilers:
         yield 'Hello World from c-lib', compiler + 'c', '/simple-lib.c'
-        yield 'Hello World from cpp-lib', compiler + 'cpp', \
-            '/simple-lib.cpp'
-        yield 'Hello World from pas-lib', compiler + 'pas', \
-            '/simple-lib.pas'
+        yield 'Hello World from cpp-lib', compiler + 'cpp', '/simple-lib.cpp'
+        yield 'Hello World from pas-lib', compiler + 'pas', '/simple-lib.pas'
         if not NO_JAVA_TESTS:
-            yield 'Hello World from java-lib', compiler + 'java', \
-                '/simple_lib.java'
+            yield 'Hello World from java-lib', compiler + 'java', '/simple_lib.java'
 
 
-@pytest.mark.parametrize("message,compiler,source",
-    [test_case for test_case in _make_compilation_with_additional_library_and_directory_params_cases()])
-def test_compilation_with_additional_library_and_dictionary_params(message, compiler, source):
+@pytest.mark.parametrize(
+    "message,compiler,source",
+    [
+        test_case
+        for test_case in _make_compilation_with_additional_library_and_directory_params_cases()
+    ],
+)
+def test_compilation_with_additional_library_and_dictionary_params(
+    message, compiler, source
+):
     with TemporaryCwd():
         upload_files()
 
-        compile_and_run({
+        compile_and_run(
+            {
                 'source_file': source,
                 'additional_includes': {
                     'c': '/library.h',
                     'cpp': '/library.h',
-                    },
+                },
                 'additional_sources': {
                     'c': '/library.c',
                     'cpp': '/library.cpp',
                     'pas': '/pas_library.pas',
                     'java': '/library.java',
-                    },
+                },
                 'compiler': compiler,
                 'out_file': '/out',
-                }, message)
+            },
+            message,
+        )
 
 
 def _make_compilation_with_additional_archive_cases():
-    yield 'Hello World from c-lib', 'system-c', '/simple-lib.c', \
-          '/library.c', '/library-archive.zip', ['../b.txt']
+    yield 'Hello World from c-lib', 'system-c', '/simple-lib.c', '/library.c', '/library-archive.zip', [
+        '../b.txt'
+    ]
 
     if ENABLE_SANDBOXED_COMPILERS:
-        yield 'Hello World from c-lib', 'default-c', \
-              '/simple-lib.c', '/library.c', '/library-archive.zip', \
-              ['../b.txt']
+        yield 'Hello World from c-lib', 'default-c', '/simple-lib.c', '/library.c', '/library-archive.zip', [
+            '../b.txt'
+        ]
 
 
-@pytest.mark.parametrize("message,compiler,source,sources,archive,unexpected_files",
-    [test_case for test_case in _make_compilation_with_additional_archive_cases()])
-def test_compilation_with_additional_archive(message, compiler, source, sources, archive, unexpected_files):
+@pytest.mark.parametrize(
+    "message,compiler,source,sources,archive,unexpected_files",
+    [test_case for test_case in _make_compilation_with_additional_archive_cases()],
+)
+def test_compilation_with_additional_archive(
+    message, compiler, source, sources, archive, unexpected_files
+):
     with TemporaryCwd(inner_directory='one_more_level'):
         upload_files()
 
-        compile_and_run({
+        compile_and_run(
+            {
                 'source_file': source,
                 'additional_sources': sources,
                 'additional_archive': archive,
                 'compiler': compiler,
                 'out_file': '/out',
-                }, message)
+            },
+            message,
+        )
 
         for f in unexpected_files:
             ok_(not os.path.exists(f))
@@ -267,6 +300,7 @@ def test_compilation_with_additional_archive(message, compiler, source, sources,
 
 COMPILATION_OUTPUT_LIMIT = 100  # in bytes
 COMPILATION_RESULT_SIZE_LIMIT = 5 * 1024 * 1024  # in bytes
+
 
 def compile_fail(compiler_env, expected_in_compiler_output=None):
     """Helper function for compiling and asserting that it fails."""
@@ -276,12 +310,13 @@ def compile_fail(compiler_env, expected_in_compiler_output=None):
 
     eq_(result_env['result_code'], 'CE')
 
-    if 'compilation_output_limit' not in  compiler_env:
-        ok_(len(result_env['compiler_output']) <=
-                DEFAULT_COMPILER_OUTPUT_LIMIT)
+    if 'compilation_output_limit' not in compiler_env:
+        ok_(len(result_env['compiler_output']) <= DEFAULT_COMPILER_OUTPUT_LIMIT)
     elif compiler_env['compilation_output_limit'] is not None:
-        ok_(len(result_env['compiler_output']) <=
-                compiler_env['compilation_output_limit'])
+        ok_(
+            len(result_env['compiler_output'])
+            <= compiler_env['compilation_output_limit']
+        )
 
     if expected_in_compiler_output:
         in_(expected_in_compiler_output, result_env['compiler_output'])
@@ -297,7 +332,7 @@ def _get_limits():
     return {
         'mem_limit': mem_limit,
         'time_limit': time_limit,
-        'time_hard_limit': time_hard_limit
+        'time_hard_limit': time_hard_limit,
     }
 
 
@@ -307,29 +342,29 @@ def _make_compilation_error_gcc_size_and_out_limit_cases():
     if ENABLE_SANDBOXED_COMPILERS:
         compilers += ['default-cpp']
 
-    nasty_loopers = ['self-include.cpp',
-                    'dev-random.cpp',
-                    'infinite-warnings.cpp',
-                    'templates-infinite-loop.cpp'
-                    ]
-    nasty_loopers = [ '/nasty-%s' % (s,) for s in nasty_loopers]
+    nasty_loopers = [
+        'self-include.cpp',
+        'dev-random.cpp',
+        'infinite-warnings.cpp',
+        'templates-infinite-loop.cpp',
+    ]
+    nasty_loopers = ['/nasty-%s' % (s,) for s in nasty_loopers]
 
     exec_size_exceeders = [(250, '250MB-exec.cpp'), (5, '5MiB-exec.cpp')]
-    exec_size_exceeders = [(s, '/nasty-%s' % f)
-                           for s, f in exec_size_exceeders]
+    exec_size_exceeders = [(s, '/nasty-%s' % f) for s, f in exec_size_exceeders]
 
     for compiler in compilers:
         for size, fname in exec_size_exceeders:
-            yield   \
-                'Compiled file size limit' if size < mem_limit else '', \
-                compiler, fname
+            yield 'Compiled file size limit' if size < mem_limit else '', compiler, fname
 
         for fname in nasty_loopers:
             yield None, compiler, fname
 
 
-@pytest.mark.parametrize("message,compiler,source",
-    [test_case for test_case in _make_compilation_error_gcc_size_and_out_limit_cases()])
+@pytest.mark.parametrize(
+    "message,compiler,source",
+    [test_case for test_case in _make_compilation_error_gcc_size_and_out_limit_cases()],
+)
 @timed(_get_limits()['time_hard_limit'] * 1.1)
 def test_compilation_error_gcc_size_and_out_limit(message, compiler, source):
     mem_limit = _get_limits()['mem_limit']
@@ -337,16 +372,19 @@ def test_compilation_error_gcc_size_and_out_limit(message, compiler, source):
     time_hard_limit = _get_limits()['time_hard_limit']
     with TemporaryCwd():
         upload_files()
-        compile_fail({
-            'source_file': source,
-            'compiler': compiler,
-            'out_file': '/out',
-            'compilation_time_limit': time_limit,
-            'compilation_real_time_limit': time_hard_limit,
-            'compilation_result_size_limit': COMPILATION_RESULT_SIZE_LIMIT,
-            'compilation_mem_limit': mem_limit * 2**10,
-            'compilation_output_limit': COMPILATION_OUTPUT_LIMIT,
-            }, message)
+        compile_fail(
+            {
+                'source_file': source,
+                'compiler': compiler,
+                'out_file': '/out',
+                'compilation_time_limit': time_limit,
+                'compilation_real_time_limit': time_hard_limit,
+                'compilation_result_size_limit': COMPILATION_RESULT_SIZE_LIMIT,
+                'compilation_mem_limit': mem_limit * 2 ** 10,
+                'compilation_output_limit': COMPILATION_OUTPUT_LIMIT,
+            },
+            message,
+        )
 
 
 def _make_compilation_error_gcc_large_limit_cases():
@@ -358,32 +396,36 @@ def _make_compilation_error_gcc_large_limit_cases():
         yield None, compiler, '/nasty-infinite-warnings.cpp'
 
 
-@pytest.mark.parametrize("message,compiler,source",
-    [test_case for test_case in _make_compilation_error_gcc_large_limit_cases()])
+@pytest.mark.parametrize(
+    "message,compiler,source",
+    [test_case for test_case in _make_compilation_error_gcc_large_limit_cases()],
+)
 @timed(_get_limits()['time_hard_limit'] * 1.1)
 def test_compilation_error_gcc_large_limit(message, compiler, source):
     time_limit = _get_limits()['time_limit']
     time_hard_limit = _get_limits()['time_hard_limit']
     with TemporaryCwd():
         upload_files()
-        result_env = compile_fail({
-            'source_file': source,
-            'compiler': compiler,
-            'out_file': '/out',
-            'compilation_time_limit': time_limit,
-            'compilation_real_time_limit': time_hard_limit,
-            'compilation_output_limit': 100 * DEFAULT_COMPILER_OUTPUT_LIMIT
-        }, message)
+        result_env = compile_fail(
+            {
+                'source_file': source,
+                'compiler': compiler,
+                'out_file': '/out',
+                'compilation_time_limit': time_limit,
+                'compilation_real_time_limit': time_hard_limit,
+                'compilation_output_limit': 100 * DEFAULT_COMPILER_OUTPUT_LIMIT,
+            },
+            message,
+        )
 
-        ok_(len(result_env['compiler_output']) >
-            DEFAULT_COMPILER_OUTPUT_LIMIT)
+        ok_(len(result_env['compiler_output']) > DEFAULT_COMPILER_OUTPUT_LIMIT)
 
 
 # TODO: Do not run slow tests by default
 ## Slow tests with real time/memory limit may behave differently (for example
 ## the compiler may run out of memory or generate 1GB of output etc.)
-#@attr('slow')
-#def test_compilation_error_gcc_slow():
+# @attr('slow')
+# def test_compilation_error_gcc_slow():
 #    test_compilation_error_gcc(DEFAULT_COMPILER_TIME_LIMIT,
 #            DEFAULT_COMPILER_MEM_LIMIT)
 
@@ -397,14 +439,19 @@ def _make_compilation_extremes_cases():
         yield "0", compiler, '/extreme-4.9MB-static-exec.cpp'
 
 
-@pytest.mark.parametrize("message,compiler,source",
-    [test_case for test_case in _make_compilation_extremes_cases()])
+@pytest.mark.parametrize(
+    "message,compiler,source",
+    [test_case for test_case in _make_compilation_extremes_cases()],
+)
 def test_compilation_extremes(message, compiler, source):
     with TemporaryCwd():
         upload_files()
-        compile_and_run({
-            'source_file': source,
-            'compiler': compiler,
-            'out_file': '/out',
-            'compilation_result_size_limit': COMPILATION_RESULT_SIZE_LIMIT,
-        }, message)
+        compile_and_run(
+            {
+                'source_file': source,
+                'compiler': compiler,
+                'out_file': '/out',
+                'compilation_result_size_limit': COMPILATION_RESULT_SIZE_LIMIT,
+            },
+            message,
+        )

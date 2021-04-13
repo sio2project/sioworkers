@@ -1,7 +1,11 @@
 from __future__ import absolute_import
-from sio.workers.executors import UnprotectedExecutor, \
-    DetailedUnprotectedExecutor, Sio2JailExecutor, \
-    SupervisedExecutor, PRootExecutor
+from sio.workers.executors import (
+    UnprotectedExecutor,
+    DetailedUnprotectedExecutor,
+    Sio2JailExecutor,
+    SupervisedExecutor,
+    PRootExecutor,
+)
 from sio.workers.util import RegisteredSubclassesBase
 import os.path
 
@@ -9,9 +13,9 @@ import os.path
 class LanguageModeWrapper(RegisteredSubclassesBase):
     """Language mode wrapper runs compiled file within ``executor``.
 
-       Wrappers produce shell commands suitable to be run inside executors,
-       as not all files are directly executable. For example, to run 'exe.py'
-       one needs to execute ``python exe.py`` in a shell.
+    Wrappers produce shell commands suitable to be run inside executors,
+    as not all files are directly executable. For example, to run 'exe.py'
+    one needs to execute ``python exe.py`` in a shell.
     """
 
     abstract = True
@@ -30,7 +34,8 @@ class LanguageModeWrapper(RegisteredSubclassesBase):
     def register_subclass(cls, subcls):
         if cls is not subcls:
             cls.wrappers.setdefault(subcls.handled_exec_mode, {}).update(
-                {ex: subcls for ex in subcls.handled_executors})
+                {ex: subcls for ex in subcls.handled_executors}
+            )
 
     @classmethod
     def execution_mode_wrapper(cls, executor, environ):
@@ -39,8 +44,9 @@ class LanguageModeWrapper(RegisteredSubclassesBase):
             runner = cls.wrappers[exec_info['mode']][type(executor)]
         except KeyError:
             raise SystemError(
-                "No way of running file of kind %s in executor %s." %
-                (exec_info['mode'], executor))
+                "No way of running file of kind %s in executor %s."
+                % (exec_info['mode'], executor)
+            )
 
         return runner(executor, environ)
 
@@ -58,7 +64,7 @@ class LanguageModeWrapper(RegisteredSubclassesBase):
     def __call__(self, file, args, **kwargs):
         """Run given ``file`` in underlying executor with arguments ``args``.
 
-           Keyword arguments are passed to the executor.
+        Keyword arguments are passed to the executor.
         """
         raise NotImplementedError
 
@@ -84,8 +90,13 @@ class Executable(LanguageModeWrapper):
     """Runs directly executable ``exe`` file with ``./exe``."""
 
     handled_exec_mode = 'executable'
-    handled_executors = UnprotectedExecutor, DetailedUnprotectedExecutor, \
-        PRootExecutor, Sio2JailExecutor, SupervisedExecutor
+    handled_executors = (
+        UnprotectedExecutor,
+        DetailedUnprotectedExecutor,
+        PRootExecutor,
+        Sio2JailExecutor,
+        SupervisedExecutor,
+    )
 
     def __call__(self, file, args, **kwargs):
         if os.path.isabs(file):
@@ -113,17 +124,18 @@ class Java(_BaseJava):
     """Wraps compiled java's ``.jar`` and takes care of memory limiting."""
 
     handled_exec_mode = 'java'
-    handled_executors = UnprotectedExecutor, DetailedUnprotectedExecutor, \
-        PRootExecutor
+    handled_executors = UnprotectedExecutor, DetailedUnprotectedExecutor, PRootExecutor
 
     def __call__(self, file, args, entry_point=None, **kwargs):
         environ = kwargs.get('environ', {})
         environ_prefix = kwargs.get('environ_prefix', 'exec')
-        mem_limit = environ.pop(environ_prefix + 'mem_limit',
-                                kwargs.get('mem_limit'))
+        mem_limit = environ.pop(environ_prefix + 'mem_limit', kwargs.get('mem_limit'))
         if mem_limit:
-            options = ['-Xmx%dk' % mem_limit, '-Xms%dk' % mem_limit,
-                '-Xss%dk' % mem_limit]
+            options = [
+                '-Xmx%dk' % mem_limit,
+                '-Xms%dk' % mem_limit,
+                '-Xss%dk' % mem_limit,
+            ]
             kwargs['mem_limit'] = None
         else:
             options = []
@@ -140,16 +152,15 @@ class Java(_BaseJava):
 
 class JavaSIO(_BaseJava):
     handled_exec_mode = 'java'
-    handled_executors = SupervisedExecutor,
+    handled_executors = (SupervisedExecutor,)
 
     def __call__(self, file, args, **kwargs):
-        return self.executor([file] + args,
-                             java_sandbox='compiler-java.1_8', **kwargs)
+        return self.executor([file] + args, java_sandbox='compiler-java.1_8', **kwargs)
 
 
 def get_file_runner(executor, environ):
     """Finds appropriate wrapper to run ``environ['exe_file']`` in
-       given ``executor``.
+    given ``executor``.
     """
     environ.setdefault('exec_info', {'mode': 'executable'})
     return LanguageModeWrapper.execution_mode_wrapper(executor, environ)

@@ -9,6 +9,7 @@ import six
 
 log = Logger()
 
+
 def escape_arguments(func):
     def unpack(a):
         try:
@@ -18,9 +19,12 @@ def escape_arguments(func):
 
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        return func(self,
-                    *[unpack(a) for a in args],
-                    **{k: unpack(v) for (k, v) in six.iteritems(kwargs)})
+        return func(
+            self,
+            *[unpack(a) for a in args],
+            **{k: unpack(v) for (k, v) in six.iteritems(kwargs)}
+        )
+
     return wrapper
 
 
@@ -37,10 +41,14 @@ class SIORPC(XMLRPC):
     def xmlrpc_get_workers(self):
         ret = []
         for k, v in six.iteritems(self.workerm.getWorkers()):
-            ret.append({'name': k,
-                'info': v.info,
-                'tasks': list(v.tasks),
-                'is_running_cpu_exec': v.is_running_cpu_exec})
+            ret.append(
+                {
+                    'name': k,
+                    'info': v.info,
+                    'tasks': list(v.tasks),
+                    'is_running_cpu_exec': v.is_running_cpu_exec,
+                }
+            )
         return ret
 
     def xmlrpc_get_queue(self):
@@ -58,8 +66,7 @@ class SIORPC(XMLRPC):
     def xmlrpc_run_group(self, env):
         self._prepare_group(env)
         d = self.taskm.addTaskGroup(env)
-        d.addBoth(self.taskm.returnToSio, url=env['return_url'],
-                orig_env=env)
+        d.addBoth(self.taskm.returnToSio, url=env['return_url'], orig_env=env)
         return env['group_id']
 
     @escape_arguments

@@ -1,6 +1,6 @@
 class Scheduler(object):
-    """Abstract scheduler interface.
-    """
+    """Abstract scheduler interface."""
+
     def __init__(self, manager):
         self.manager = manager
 

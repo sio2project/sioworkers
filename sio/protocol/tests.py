@@ -24,7 +24,7 @@ class TestServer(rpc.WorkerRPC):
         rpc.WorkerRPC.__init__(self, server=True)
 
     def cmd_mul3(self, x):
-        return x*3
+        return x * 3
 
 
 class TestServerFactory(protocol.Factory):
@@ -41,6 +41,7 @@ def decode(x):
     # encoding netstrings is handled by Twisted and should work
     data = x.partition(b':')[2][:-1].decode('utf-8')
     return json.loads(data)
+
 
 hello_msg = {'type': 'hello', 'data': {}}
 
@@ -65,8 +66,9 @@ class ServerTestCase(unittest.TestCase):
     def test_server_mul3(self):
         self._hello()
         self.tr.clear()
-        self.proto.dataReceived(encode({'type': 'call', 'method': 'mul3',
-                                        'args': [5], 'id': 0}))
+        self.proto.dataReceived(
+            encode({'type': 'call', 'method': 'mul3', 'args': [5], 'id': 0})
+        )
         ret = decode(self.tr.value())
         self.assertEqual(ret['result'], 15)
 
@@ -102,8 +104,7 @@ class ClientTestCase(unittest.TestCase):
         self.tr.clear()
         d = self.proto.call('foobar', timeout=0.5)
         d = self.assertFailure(d, rpc.TimeoutError)
-        d.addCallback(
-                lambda _: self.assertDictEqual(self.proto.pendingCalls, {}))
+        d.addCallback(lambda _: self.assertDictEqual(self.proto.pendingCalls, {}))
         return d
 
 
@@ -121,8 +122,8 @@ class IntegrationTestCase(unittest.TestCase):
             d = client.call('mul3', 11)
             d.addCallback(self.assertEqual, 33)
             return d
-        return creator.connectTCP('127.0.0.1', self.port.getHost().port).\
-                addCallback(cb)
+
+        return creator.connectTCP('127.0.0.1', self.port.getHost().port).addCallback(cb)
 
     def test_nomethod(self):
         creator = protocol.ClientCreator(reactor, TestClient)
@@ -131,5 +132,5 @@ class IntegrationTestCase(unittest.TestCase):
             self.addCleanup(client.transport.loseConnection)
             d = client.call('asdf')
             return self.assertFailure(d, rpc.RemoteError)
-        return creator.connectTCP('127.0.0.1', self.port.getHost().port).\
-                addCallback(cb)
+
+        return creator.connectTCP('127.0.0.1', self.port.getHost().port).addCallback(cb)

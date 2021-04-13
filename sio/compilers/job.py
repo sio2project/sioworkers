@@ -17,32 +17,33 @@ def run(environ):
     if 'compiler' not in environ:
         _, extension = os.path.splitext(environ['source_file'])
         environ['compiler'] = 'default-' + extension[1:].lower()
-    compiler = first_entry_point('sio.compilers',
-                                 environ['compiler'].split('.')[0])
+    compiler = first_entry_point('sio.compilers', environ['compiler'].split('.')[0])
     environ = compiler(environ)
-    assert 'compiler_output' in environ, \
-        "Mandatory key 'compiler_output' not returned by job."
-    assert 'result_code' in environ, \
-        "Mandatory key 'result_code' not returned by job."
+    assert (
+        'compiler_output' in environ
+    ), "Mandatory key 'compiler_output' not returned by job."
+    assert 'result_code' in environ, "Mandatory key 'result_code' not returned by job."
     return environ
 
 
 def main():
     if len(sys.argv) < 3:
-        print("""Usage: %s source output [compiler [extra_compilation_args ...]]
+        print(
+            """Usage: %s source output [compiler [extra_compilation_args ...]]
 
    If source or output path starts with '/', then it's considered to
-   be filetracker path, if not, relative to the current directory.""" \
-              % sys.argv[0].split('/')[-1])
+   be filetracker path, if not, relative to the current directory."""
+            % sys.argv[0].split('/')[-1]
+        )
         raise SystemExit(1)
 
     # Simulate compile.sh from sio1
     environ = {
-            'source_file': sys.argv[1],
-            'out_file': sys.argv[2],
-            'use_filetracker': 'auto',
-            'extra_compilation_args': sys.argv[4:]
-        }
+        'source_file': sys.argv[1],
+        'out_file': sys.argv[2],
+        'use_filetracker': 'auto',
+        'extra_compilation_args': sys.argv[4:],
+    }
     if len(sys.argv) > 3:
         compiler = sys.argv[3].lower()
         if '-' not in compiler:

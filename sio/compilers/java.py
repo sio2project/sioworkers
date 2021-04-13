@@ -3,7 +3,6 @@ from sio.compilers.system_java import JavaCompiler as UnsafeJavaCompiler
 
 
 class JavaCompiler(UnsafeJavaCompiler):
-
     def _execute(self, *args, **kwargs):
         kwargs['proot_options'] = ['-b', '/proc']
         return super(JavaCompiler, self)._execute(*args, **kwargs)

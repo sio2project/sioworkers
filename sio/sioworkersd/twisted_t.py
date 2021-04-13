@@ -26,18 +26,15 @@ def _fill_env(env):
         env['job_type'] = 'cpu-exec'
     return env
 
+
 def _wrap_into_group_env(env):
     env['group_id'] = 'asdf_group'
-    return {
-        'group_id': 'asdf_group',
-        'workers_jobs': {
-            env['task_id']: env
-        }
-    }
+    return {'group_id': 'asdf_group', 'workers_jobs': {env['task_id']: env}}
 
 
 class TestWithDB(unittest.TestCase):
     """Abstract class for testing sioworkersd parts that need a database."""
+
     SAVED_TASKS = []
 
     def __init__(self, *args):
@@ -61,7 +58,9 @@ class TestWithDB(unittest.TestCase):
         self.app = Application('test')
         self.wm = workermanager.WorkerManager()
         self.sched = PrioritizingScheduler(self.wm)
-        self.taskm = taskmanager.TaskManager(self.db_path, self.wm, self.sched, max_task_ram_mb=2048)
+        self.taskm = taskmanager.TaskManager(
+            self.db_path, self.wm, self.sched, max_task_ram_mb=2048
+        )
 
         # HACK: tests needs clear twisted's reactor, so we're mocking
         #       method that creates additional deferreds.
@@ -72,36 +71,45 @@ class TestWithDB(unittest.TestCase):
 
         return self.taskm.startService()
 
+
 class TaskManagerTest(TestWithDB):
     SAVED_TASKS = [
-        (b'asdf_group', {
-            "id": "asdf_group",
-            "status": "to_judge",
-            "timestamp": "1491407526.72",
-            "retry_cnt": 0,
-            "env": {
-                "group_id": "asdf_group",
-                "return_url": "localhost",
-                "workers_jobs": {
-                    "asdf": {
-                        "task_id": "asdf",
-                        "group_id": "asdf_group",
-                        "job_type": "cpu-exec"
-                    }
-                }
-            }
-        })
+        (
+            b'asdf_group',
+            {
+                "id": "asdf_group",
+                "status": "to_judge",
+                "timestamp": "1491407526.72",
+                "retry_cnt": 0,
+                "env": {
+                    "group_id": "asdf_group",
+                    "return_url": "localhost",
+                    "workers_jobs": {
+                        "asdf": {
+                            "task_id": "asdf",
+                            "group_id": "asdf_group",
+                            "job_type": "cpu-exec",
+                        }
+                    },
+                },
+            },
+        )
     ]
 
     def test_restore(self):
         d = self._prepare_svc()
-        d.addCallback(lambda _:
-                self.assertIn('asdf', self.taskm.inProgress))
-        d.addCallback(lambda _:
-                self.assertDictEqual(self.taskm.inProgress['asdf'].env,
-                        {'task_id': 'asdf', 'job_type': 'cpu-exec',
-                         'group_id': 'asdf_group',
-                         'contest_uid': (None, None)}))
+        d.addCallback(lambda _: self.assertIn('asdf', self.taskm.inProgress))
+        d.addCallback(
+            lambda _: self.assertDictEqual(
+                self.taskm.inProgress['asdf'].env,
+                {
+                    'task_id': 'asdf',
+                    'job_type': 'cpu-exec',
+                    'group_id': 'asdf_group',
+                    'contest_uid': (None, None),
+                },
+            )
+        )
         return d
 
 
@@ -126,7 +134,7 @@ class TestWorker(server.WorkerServer):
                 'name': self.name,
                 'concurrency': 2,
                 'available_ram_mb': 4096,
-                'can_run_cpu_exec': True
+                'can_run_cpu_exec': True,
             }
         else:
             self.name = clientInfo['name']
@@ -181,8 +189,7 @@ class WorkerManagerTest(TestWithDB):
     @defer.inlineCallbacks
     def test_run(self):
         yield self.assertIn('test_worker', self.wm.workers)
-        ret = yield self.wm.runOnWorker('test_worker',
-                _fill_env({'task_id': 'ok'}))
+        ret = yield self.wm.runOnWorker('test_worker', _fill_env({'task_id': 'ok'}))
         yield self.assertIn('foo', ret)
         yield self.assertEqual('bar', ret['foo'])
 
@@ -197,7 +204,7 @@ class WorkerManagerTest(TestWithDB):
                 'name': id,
                 'concurrency': 2,
                 'available_ram_mb': ram,
-                'can_run_cpu_exec': is_any_cpu
+                'can_run_cpu_exec': is_any_cpu,
             }
             self.wm.newWorker(id, TestWorker(clientInfo))
 
@@ -222,20 +229,28 @@ class WorkerManagerTest(TestWithDB):
 
     def test_cpu_exec(self):
         self.wm.runOnWorker('test_worker', _fill_env({'task_id': 'hang1'}))
-        self.assertRaises(RuntimeError,
-                self.wm.runOnWorker, 'test_worker',
-                _fill_env({'task_id': 'hang2'}))
+        self.assertRaises(
+            RuntimeError,
+            self.wm.runOnWorker,
+            'test_worker',
+            _fill_env({'task_id': 'hang2'}),
+        )
 
     def test_cpu_exec2(self):
-        self.wm.runOnWorker('test_worker',
-                _fill_env({'task_id': 'hang1', 'job-type': 'vcpu-exec'}))
-        self.assertRaises(RuntimeError,
-                self.wm.runOnWorker, 'test_worker',
-                _fill_env({'task_id': 'hang2'}))
+        self.wm.runOnWorker(
+            'test_worker', _fill_env({'task_id': 'hang1', 'job-type': 'vcpu-exec'})
+        )
+        self.assertRaises(
+            RuntimeError,
+            self.wm.runOnWorker,
+            'test_worker',
+            _fill_env({'task_id': 'hang2'}),
+        )
 
     def test_gone(self):
-        d = self.wm.runOnWorker('test_worker',
-                _fill_env({'task_id': 'hang', 'job_type': 'cpu-exec'}))
+        d = self.wm.runOnWorker(
+            'test_worker', _fill_env({'task_id': 'hang', 'job_type': 'cpu-exec'})
+        )
         self.wm.workerLost(self.worker_proto)
         return self.assertFailure(d, workermanager.WorkerGone)
 
@@ -257,32 +272,40 @@ class WorkerManagerTest(TestWithDB):
         d = self.wm.newWorker('no_concurrency', w3)
         self.assertFailure(d, server.WorkerRejected)
 
-        w4 = TestWorker({
-            'name': 'unique4',
-            'concurrency': 'not a number',
-            'can_run_cpu_exec': True,
-            'ram': 256})
+        w4 = TestWorker(
+            {
+                'name': 'unique4',
+                'concurrency': 'not a number',
+                'can_run_cpu_exec': True,
+                'ram': 256,
+            }
+        )
         d = self.wm.newWorker('unique4', w4)
         self.assertFailure(d, server.WorkerRejected)
 
-        w5 = TestWorker({
-            'name': 'unique5',
-            'concurrency': 2,
-            'can_run_cpu_exec': 'not boolean',
-            'ram': 256})
+        w5 = TestWorker(
+            {
+                'name': 'unique5',
+                'concurrency': 2,
+                'can_run_cpu_exec': 'not boolean',
+                'ram': 256,
+            }
+        )
         d = self.wm.newWorker('unique5', w5)
         self.assertFailure(d, server.WorkerRejected)
 
-        w6 = TestWorker({
-            'name': 'no_ram', 'concurrency': 2, 'can_run_cpu_exec': True})
+        w6 = TestWorker({'name': 'no_ram', 'concurrency': 2, 'can_run_cpu_exec': True})
         d = self.wm.newWorker('no_ram', w6)
         self.assertFailure(d, server.WorkerRejected)
 
-        w7 = TestWorker({
-            'name': 'unique7',
-            'concurrency': 2,
-            'can_run_cpu_exec': True,
-            'ram': 'not a number'})
+        w7 = TestWorker(
+            {
+                'name': 'unique7',
+                'concurrency': 2,
+                'can_run_cpu_exec': True,
+                'ram': 'not a number',
+            }
+        )
         d = self.wm.newWorker('unique7', w7)
         self.assertFailure(d, server.WorkerRejected)
 
@@ -299,7 +322,7 @@ class TestClient(rpc.WorkerRPC):
             'name': self.name,
             'concurrency': 1,
             'available_ram_mb': 4096,
-            'can_run_cpu_exec': self.can_run_cpu_exec
+            'can_run_cpu_exec': self.can_run_cpu_exec,
         }
 
     def cmd_get_running(self):
@@ -318,8 +341,10 @@ class TestClient(rpc.WorkerRPC):
         def _rm(x):
             self.running.remove(env['task_id'])
             return x
+
         d.addBoth(_rm)
         return d
+
 
 class IntegrationTest(TestWithDB):
     def __init__(self, *args, **kwargs):
@@ -349,20 +374,23 @@ class IntegrationTest(TestWithDB):
             self.addCleanup(client.transport.loseConnection)
             # We have to wait for a few (local) network roundtrips, hence the
             # magic one-second delay.
-            return task.deferLater(
-                    reactor, 1, callback, client, **callback_args)
-        return creator.connectTCP('127.0.0.1', self.port.getHost().port).\
-                addCallback(cb)
+            return task.deferLater(reactor, 1, callback, client, **callback_args)
+
+        return creator.connectTCP('127.0.0.1', self.port.getHost().port).addCallback(cb)
 
     def test_remote_run(self):
         def cb(client):
             self.assertIn('test', self.wm.workers)
             d = self.taskm.addTaskGroup(
-                    _wrap_into_group_env(_fill_env({'task_id': 'asdf'})))
-            d.addCallback(lambda x: self.assertIn('workers_jobs', x) and
-                        self.assertIn('asdf', x['workers_jobs']) and
-                        self.assertIn('task_id', x['workers_jobs']['asdf']))
+                _wrap_into_group_env(_fill_env({'task_id': 'asdf'}))
+            )
+            d.addCallback(
+                lambda x: self.assertIn('workers_jobs', x)
+                and self.assertIn('asdf', x['workers_jobs'])
+                and self.assertIn('task_id', x['workers_jobs']['asdf'])
+            )
             return d
+
         return self._wrap_test(cb, {}, set())
 
     def test_timeout(self):
@@ -374,10 +402,12 @@ class IntegrationTest(TestWithDB):
 
         def cb(client):
             d = self.taskm.addTaskGroup(
-                    _wrap_into_group_env(_fill_env({'task_id': 'hang'})))
+                _wrap_into_group_env(_fill_env({'task_id': 'hang'}))
+            )
             d = self.assertFailure(d, rpc.TimeoutError)
             d.addBoth(cb2, client)
             return d
+
         return self._wrap_test(cb, {}, set())
 
     def test_gone(self):
@@ -385,8 +415,7 @@ class IntegrationTest(TestWithDB):
             self.assertFalse(d.called)
             self.assertDictEqual(self.wm.workers, {})
             self.assertTrue(self.sched.tasks_queues['both'])
-            self.assertEqual(self.sched.tasks_queues['both'].chooseTask().id,
-                    'hang')
+            self.assertEqual(self.sched.tasks_queues['both'].chooseTask().id, 'hang')
 
         def cb2(client, d):
             client.transport.loseConnection()
@@ -395,9 +424,11 @@ class IntegrationTest(TestWithDB):
 
         def cb(client):
             d = self.taskm.addTaskGroup(
-                    _wrap_into_group_env(_fill_env({'task_id': 'hang'})))
+                _wrap_into_group_env(_fill_env({'task_id': 'hang'}))
+            )
             # Allow the task to schedule
             return task.deferLater(reactor, 0, cb2, client, d)
+
         return self._wrap_test(cb, {}, set())
 
     def test_cpu_exec(self):
@@ -416,23 +447,30 @@ class IntegrationTest(TestWithDB):
 
         def cb(client):
             d = self.taskm.addTaskGroup(
-                    _wrap_into_group_env(
-                        _fill_env({'task_id': 'asdf',
-                                   'job_type': 'cpu-exec'})))
-            d.addCallback(lambda x: self.assertIn('workers_jobs', x) and
-                        self.assertIn('asdf', x['workers_jobs']) and
-                        self.assertIn('task_id', x['workers_jobs']['asdf']))
+                _wrap_into_group_env(
+                    _fill_env({'task_id': 'asdf', 'job_type': 'cpu-exec'})
+                )
+            )
+            d.addCallback(
+                lambda x: self.assertIn('workers_jobs', x)
+                and self.assertIn('asdf', x['workers_jobs'])
+                and self.assertIn('task_id', x['workers_jobs']['asdf'])
+            )
             return task.deferLater(reactor, 1, cb2, d)
+
         return self._wrap_test(cb, {}, set(), False, 'test1')
 
     def test_huge_tasks_should_be_rejected(self):
         def cb(client):
             d = self.taskm.addTaskGroup(
-                _wrap_into_group_env({
-                    'task_id': 'asdf',
-                    'job_type': 'cpu-exec',
-                    'exec_mem_limit': 64 * 1024 * 1024,     # 64 GiB in KiB
-                }))
+                _wrap_into_group_env(
+                    {
+                        'task_id': 'asdf',
+                        'job_type': 'cpu-exec',
+                        'exec_mem_limit': 64 * 1024 * 1024,  # 64 GiB in KiB
+                    }
+                )
+            )
 
             d.addCallback(lambda d: self.assertIn('error', d))
             return d

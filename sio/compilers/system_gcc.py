@@ -13,12 +13,15 @@ class CStyleCompiler(Compiler):
     options = []  # Compiler options
 
     def _make_cmdline(self, executor):
-        cmdline = [self.compiler, tempcwd(self.source_file),
-                    '-o', tempcwd(self.output_file)] + \
-                    self.options + list(self.extra_compilation_args)
+        cmdline = (
+            [self.compiler, tempcwd(self.source_file), '-o', tempcwd(self.output_file)]
+            + self.options
+            + list(self.extra_compilation_args)
+        )
 
-        cmdline.extend(tempcwd(os.path.basename(source))
-            for source in self.additional_sources)
+        cmdline.extend(
+            tempcwd(os.path.basename(source)) for source in self.additional_sources
+        )
         return cmdline
 
 

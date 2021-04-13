@@ -200,8 +200,9 @@ class PrioritizingSchedulerTest(unittest.TestCase):
         any_cpu_worker_1 = {'id': 2, 'is_real_cpu': True}
         any_cpu_worker_2 = {'id': 3, 'is_real_cpu': True}
 
-        scheduler = prioritizing.PrioritizingScheduler(WorkerManagerStub(
-            vcpu_only_worker, any_cpu_worker_1, any_cpu_worker_2))
+        scheduler = prioritizing.PrioritizingScheduler(
+            WorkerManagerStub(vcpu_only_worker, any_cpu_worker_1, any_cpu_worker_2)
+        )
 
         scheduler.addWorker(1)
         scheduler.addWorker(2)
@@ -218,10 +219,15 @@ class PrioritizingSchedulerTest(unittest.TestCase):
 
     def test_should_respect_ram_limits_when_assigning_vcpu_tasks(self):
         vcpu_only_worker = {
-            'id': 1, 'concurrency': 4, 'ram': 2048, 'is_real_cpu': False}
+            'id': 1,
+            'concurrency': 4,
+            'ram': 2048,
+            'is_real_cpu': False,
+        }
 
-        scheduler = prioritizing.PrioritizingScheduler(WorkerManagerStub(
-            vcpu_only_worker))
+        scheduler = prioritizing.PrioritizingScheduler(
+            WorkerManagerStub(vcpu_only_worker)
+        )
 
         scheduler.addWorker(1)
 
@@ -238,10 +244,15 @@ class PrioritizingSchedulerTest(unittest.TestCase):
 
     def test_should_respect_concurrency_limits_when_assigning_vcpu_tasks(self):
         vcpu_only_worker = {
-            'id': 1, 'concurrency': 2, 'ram': 8192, 'is_real_cpu': False}
+            'id': 1,
+            'concurrency': 2,
+            'ram': 8192,
+            'is_real_cpu': False,
+        }
 
-        scheduler = prioritizing.PrioritizingScheduler(WorkerManagerStub(
-            vcpu_only_worker))
+        scheduler = prioritizing.PrioritizingScheduler(
+            WorkerManagerStub(vcpu_only_worker)
+        )
 
         scheduler.addWorker(1)
 
@@ -259,8 +270,9 @@ class PrioritizingSchedulerTest(unittest.TestCase):
     def test_should_assign_vcpu_tasks_to_any_cpu_workers_if_no_others(self):
         any_cpu_worker = {'id': 1, 'is_real_cpu': True}
 
-        scheduler = prioritizing.PrioritizingScheduler(WorkerManagerStub(
-            any_cpu_worker))
+        scheduler = prioritizing.PrioritizingScheduler(
+            WorkerManagerStub(any_cpu_worker)
+        )
 
         scheduler.addWorker(1)
 
@@ -272,13 +284,12 @@ class PrioritizingSchedulerTest(unittest.TestCase):
         six.assertCountEqual(self, [(1, 1)], scheduled_tasks)
 
     def test_should_block_partially_busy_workers_for_real_cpu_tasks(self):
-        any_cpu_worker_1 = {
-            'id': 1, 'concurrency': 2, 'ram': 512, 'is_real_cpu': True}
-        any_cpu_worker_2 = {
-            'id': 2, 'concurrency': 2, 'ram': 4096, 'is_real_cpu': True}
+        any_cpu_worker_1 = {'id': 1, 'concurrency': 2, 'ram': 512, 'is_real_cpu': True}
+        any_cpu_worker_2 = {'id': 2, 'concurrency': 2, 'ram': 4096, 'is_real_cpu': True}
 
-        scheduler = prioritizing.PrioritizingScheduler(WorkerManagerStub(
-            any_cpu_worker_1, any_cpu_worker_2))
+        scheduler = prioritizing.PrioritizingScheduler(
+            WorkerManagerStub(any_cpu_worker_1, any_cpu_worker_2)
+        )
 
         scheduler.addWorker(1)
         scheduler.addWorker(2)
@@ -313,8 +324,9 @@ class PrioritizingSchedulerTest(unittest.TestCase):
         any_cpu_worker_1 = {'id': 1, 'ram': 512, 'is_real_cpu': True}
         any_cpu_worker_2 = {'id': 2, 'ram': 4096, 'is_real_cpu': True}
 
-        scheduler = prioritizing.PrioritizingScheduler(WorkerManagerStub(
-            any_cpu_worker_1, any_cpu_worker_2))
+        scheduler = prioritizing.PrioritizingScheduler(
+            WorkerManagerStub(any_cpu_worker_1, any_cpu_worker_2)
+        )
 
         scheduler.addWorker(1)
         scheduler.addWorker(2)
@@ -332,12 +344,21 @@ class PrioritizingSchedulerTest(unittest.TestCase):
     def test_should_try_to_match_tasks_ram_to_workers_average_ram(self):
         """For more info, check out _getSuitableWorkerForVcpuTask()."""
         vcpu_only_worker_1 = {
-            'id': 1, 'concurrency': 4, 'ram': 2048, 'is_real_cpu': False}
+            'id': 1,
+            'concurrency': 4,
+            'ram': 2048,
+            'is_real_cpu': False,
+        }
         vcpu_only_worker_2 = {
-            'id': 2, 'concurrency': 4, 'ram': 8192, 'is_real_cpu': False}
+            'id': 2,
+            'concurrency': 4,
+            'ram': 8192,
+            'is_real_cpu': False,
+        }
 
-        scheduler = prioritizing.PrioritizingScheduler(WorkerManagerStub(
-            vcpu_only_worker_1, vcpu_only_worker_2))
+        scheduler = prioritizing.PrioritizingScheduler(
+            WorkerManagerStub(vcpu_only_worker_1, vcpu_only_worker_2)
+        )
 
         scheduler.addWorker(1)
         scheduler.addWorker(2)
@@ -355,15 +376,13 @@ class PrioritizingSchedulerTest(unittest.TestCase):
         six.assertCountEqual(self, [(1, 2), (2, 1)], scheduled_tasks)
 
     def test_should_block_more_workers_if_waiting_tasks_are_huge(self):
-        any_cpu_worker_1 = {
-            'id': 1, 'concurrency': 2, 'ram': 512, 'is_real_cpu': True}
-        any_cpu_worker_2 = {
-            'id': 2, 'concurrency': 2, 'ram': 2048, 'is_real_cpu': True}
-        any_cpu_worker_3 = {
-            'id': 3, 'concurrency': 2, 'ram': 8192, 'is_real_cpu': True}
+        any_cpu_worker_1 = {'id': 1, 'concurrency': 2, 'ram': 512, 'is_real_cpu': True}
+        any_cpu_worker_2 = {'id': 2, 'concurrency': 2, 'ram': 2048, 'is_real_cpu': True}
+        any_cpu_worker_3 = {'id': 3, 'concurrency': 2, 'ram': 8192, 'is_real_cpu': True}
 
-        scheduler = prioritizing.PrioritizingScheduler(WorkerManagerStub(
-            any_cpu_worker_1, any_cpu_worker_2, any_cpu_worker_3))
+        scheduler = prioritizing.PrioritizingScheduler(
+            WorkerManagerStub(any_cpu_worker_1, any_cpu_worker_2, any_cpu_worker_3)
+        )
 
         scheduler.addWorker(1)
         scheduler.addWorker(2)
@@ -426,21 +445,21 @@ class WorkerManagerStub(object):
         }
 
         any_cpus_ram = [
-                worker.available_ram_mb
-                for _, worker in six.iteritems(self.workerData)
-                if worker.can_run_cpu_exec]
+            worker.available_ram_mb
+            for _, worker in six.iteritems(self.workerData)
+            if worker.can_run_cpu_exec
+        ]
 
         vcpu_onlys_ram = [
-                worker.available_ram_mb
-                for _, worker in six.iteritems(self.workerData)
-                if not worker.can_run_cpu_exec]
+            worker.available_ram_mb
+            for _, worker in six.iteritems(self.workerData)
+            if not worker.can_run_cpu_exec
+        ]
 
         self.minAnyCpuWorkerRam = min(any_cpus_ram) if any_cpus_ram else None
         self.maxAnyCpuWorkerRam = max(any_cpus_ram) if any_cpus_ram else None
-        self.minVcpuOnlyWorkerRam = (
-                min(vcpu_onlys_ram) if vcpu_onlys_ram else None)
-        self.maxVcpuOnlyWorkerRam = (
-                max(vcpu_onlys_ram) if vcpu_onlys_ram else None)
+        self.minVcpuOnlyWorkerRam = min(vcpu_onlys_ram) if vcpu_onlys_ram else None
+        self.maxVcpuOnlyWorkerRam = max(vcpu_onlys_ram) if vcpu_onlys_ram else None
 
     def getWorkers(self):
         return self.workerData
@@ -459,18 +478,15 @@ def create_worker_info(id=0, concurrency=4, ram=4096, is_real_cpu=False):
 
 
 def create_contest_info(id=0, priority=10, weight=10):
-    return prioritizing.ContestInfo(
-        contest_uid=id, priority=priority, weight=weight)
+    return prioritizing.ContestInfo(contest_uid=id, priority=priority, weight=weight)
 
 
 # This function can be useful for some helper structure tests,
 # but unfortunately scheduler API accepts the env dict directly,
 # so it can't be used there.
-def create_task_info(id=0,
-                     ram=256,
-                     is_real_cpu=False,
-                     contest=create_contest_info(),
-                     priority=0):
+def create_task_info(
+    id=0, ram=256, is_real_cpu=False, contest=create_contest_info(), priority=0
+):
     env = {
         'task_id': id,
         'job_type': 'cpu-exec' if is_real_cpu else 'vcpu-exec',
@@ -483,12 +499,9 @@ def create_task_info(id=0,
 
 # This function is similar to the one above, but can be used with
 # the scheduler API.
-def add_task_to_scheduler(scheduler,
-                          id,
-                          contest_uid=1,
-                          is_real_cpu=True,
-                          ram=256,
-                          priority=0):
+def add_task_to_scheduler(
+    scheduler, id, contest_uid=1, is_real_cpu=True, ram=256, priority=0
+):
     env = {
         'task_id': id,
         'contest_uid': 1,

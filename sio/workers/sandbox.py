@@ -18,10 +18,12 @@ from sio.workers import ft, _original_cwd
 from sio.workers.elf_loader_patch import _patch_elf_loader
 from sio.workers.util import rmtree
 
-SANDBOXES_BASEDIR = os.environ.get('SIO_SANDBOXES_BASEDIR',
-        os.path.expanduser(os.path.join('~', '.sio-sandboxes')))
-SANDBOXES_URL = os.environ.get('SIO_SANDBOXES_URL',
-                    'http://downloads.sio2project.mimuw.edu.pl/sandboxes')
+SANDBOXES_BASEDIR = os.environ.get(
+    'SIO_SANDBOXES_BASEDIR', os.path.expanduser(os.path.join('~', '.sio-sandboxes'))
+)
+SANDBOXES_URL = os.environ.get(
+    'SIO_SANDBOXES_URL', 'http://downloads.sio2project.mimuw.edu.pl/sandboxes'
+)
 CHECK_INTERVAL = int(os.environ.get('SIO_SANDBOXES_CHECK_INTERVAL', 3600))
 
 logger = logging.getLogger(__name__)
@@ -30,11 +32,14 @@ logger = logging.getLogger(__name__)
 class SandboxError(Exception):
     pass
 
+
 def _filetracker_path(name):
     return '/sandboxes/%s.tar.gz' % name
 
+
 def _urllib_path(name):
     return '%s.tar.gz' % name
+
 
 def _mkdir(name):
     try:
@@ -43,8 +48,10 @@ def _mkdir(name):
         if e.errno != errno.EEXIST:
             raise
 
+
 def _sha1_file(filename, block_size=65536):
     import hashlib
+
     sha1 = hashlib.sha1()
     f = open(filename, 'rb')
     while True:
@@ -53,6 +60,7 @@ def _sha1_file(filename, block_size=65536):
             break
         sha1.update(chunk)
     return sha1.hexdigest()
+
 
 class _FileLock(object):
     """File-based lock (exclusive or shared).
@@ -78,54 +86,55 @@ class _FileLock(object):
         self.unlock()
         os.close(self.fd)
 
+
 class Sandbox(object):
     """Represents a sandbox... that is some place in the filesystem when
-       the previously prepared package with some software is extracted
-       (for example compiler, libraries, default output comparator).
+    the previously prepared package with some software is extracted
+    (for example compiler, libraries, default output comparator).
 
-       Sandbox in our terminology does not mean isolation or security. It is
-       just one directory containing files.
+    Sandbox in our terminology does not mean isolation or security. It is
+    just one directory containing files.
 
-       This class deals only with *using* sandboxes, not creating, changing
-       or uploading them. Each sandbox is uniquely identified by ``name``.
-       The moment you create the instance of ``Sandbox``, an appropriate
-       archive is downloaded and extracted (if not exists; also a check for
-       newer version is performed). The path to the extracted sandbox is in
-       the ``path`` attribute. This path is valid as long as the ``Sandbox``
-       instance exists (is not garbage collected).
+    This class deals only with *using* sandboxes, not creating, changing
+    or uploading them. Each sandbox is uniquely identified by ``name``.
+    The moment you create the instance of ``Sandbox``, an appropriate
+    archive is downloaded and extracted (if not exists; also a check for
+    newer version is performed). The path to the extracted sandbox is in
+    the ``path`` attribute. This path is valid as long as the ``Sandbox``
+    instance exists (is not garbage collected).
 
-       Sandbox images are looked up from two places:
+    Sandbox images are looked up from two places:
 
-       * from Filetracker, at path ``/sandboxes/<name>``,
+    * from Filetracker, at path ``/sandboxes/<name>``,
 
-       * if not found there, the URL from ``SIO_SANDBOXES_URL`` environment
-         variable is used,
+    * if not found there, the URL from ``SIO_SANDBOXES_URL`` environment
+      variable is used,
 
-       * if such environment variable is not defined, some default URL is used.
+    * if such environment variable is not defined, some default URL is used.
 
-       Sandboxes are extracted to the folder named in ``SIO_SANDBOXES_BASEDIR``
-       environment variable (or in ``~/.sio-sandboxes`` if the variable is not
-       in the environment).
+    Sandboxes are extracted to the folder named in ``SIO_SANDBOXES_BASEDIR``
+    environment variable (or in ``~/.sio-sandboxes`` if the variable is not
+    in the environment).
 
-       .. note::
+    .. note::
 
-           Processes must not modify the content of the extracted sandbox in
-           any way. It is also safe to use the same sandbox by multiple
-           processes concurrently, as the folder is locked to ensure no
-           problems if an upgrade is needed.
+        Processes must not modify the content of the extracted sandbox in
+        any way. It is also safe to use the same sandbox by multiple
+        processes concurrently, as the folder is locked to ensure no
+        problems if an upgrade is needed.
 
-       .. note::
+    .. note::
 
-           :class:`Sandbox` is a context manager, so it should be used in a
-           ``with`` statement. Upon entering, the sandbox is downloaded,
-           extracted and locked, to prevent other processes from performing an
-           upgrade.
+        :class:`Sandbox` is a context manager, so it should be used in a
+        ``with`` statement. Upon entering, the sandbox is downloaded,
+        extracted and locked, to prevent other processes from performing an
+        upgrade.
 
-       .. note::
+    .. note::
 
-           Do not constuct instances of this class yourself, use
-           :func:`get_sandbox`. Otherwise you may encounter deadlocks when
-           having two ``Sandbox`` instances of the same name.
+        Do not constuct instances of this class yourself, use
+        :func:`get_sandbox`. Otherwise you may encounter deadlocks when
+        having two ``Sandbox`` instances of the same name.
     """
 
     _instances = weakref.WeakValueDictionary()
@@ -165,7 +174,10 @@ class Sandbox(object):
             self.lock.unlock()
 
     def __str__(self):
-        return "<Sandbox: %s at %s>" % (self.name, self.path,)
+        return "<Sandbox: %s at %s>" % (
+            self.name,
+            self.path,
+        )
 
     def _mark_checked(self):
         """Sets the time of last check for update of the sandbox to now."""
@@ -202,8 +214,10 @@ class Sandbox(object):
             ft_client = ft.instance()
             expected_hash = ft_client.file_version(ft_path)
             if not expected_hash:
-                raise SandboxError("Server did not return hash for "
-                        "the sandbox image '%s'" % self.name)
+                raise SandboxError(
+                    "Server did not return hash for "
+                    "the sandbox image '%s'" % self.name
+                )
             expected_hash = str(expected_hash)
 
             hash_file = os.path.join(self.path, '.hash')
@@ -220,8 +234,7 @@ class Sandbox(object):
             return False
 
         except Exception:
-            logger.warning("Failed to check if sandbox is up-to-date",
-                    exc_info=True)
+            logger.warning("Failed to check if sandbox is up-to-date", exc_info=True)
             if os.path.isdir(self.path):
                 # If something fails, but we have the sandbox itself, better do
                 # not try to download it again.
@@ -250,8 +263,9 @@ class Sandbox(object):
         open(fixups_file, 'w').write('\n'.join(self.required_fixups))
 
         operatives_file = os.path.join(self.path, '.fixups_operative')
-        open(operatives_file, 'w').write('\n'.join(
-            [fixup for fixup in operative if operative[fixup]]))
+        open(operatives_file, 'w').write(
+            '\n'.join([fixup for fixup in operative if operative[fixup]])
+        )
 
     def has_fixup(self, name):
         """This function check whether the sandbox has applied the
@@ -305,8 +319,9 @@ class Sandbox(object):
                 vname = ft_client.get_file(ft_path, archive_path)
                 version = ft_client.file_version(vname)
             except Exception:
-                logger.warning("Failed to download sandbox from filetracker",
-                        exc_info=True)
+                logger.warning(
+                    "Failed to download sandbox from filetracker", exc_info=True
+                )
                 if SANDBOXES_URL:
                     url = SANDBOXES_URL + '/' + _urllib_path(name)
                     logger.info("  trying url: %s", url)
@@ -320,8 +335,7 @@ class Sandbox(object):
                         raise
                     version = self._parse_last_modified(http_f)
                 else:
-                    raise SandboxError("Could not download sandbox '%s'"
-                                        % (name,))
+                    raise SandboxError("Could not download sandbox '%s'" % (name,))
 
             logger.info(" extracting ...")
 
@@ -330,8 +344,10 @@ class Sandbox(object):
             os.unlink(archive_path)
 
             if not os.path.isdir(path):
-                raise SandboxError("Downloaded sandbox archive "
-                        "did not contain expected directory '%s'" % name)
+                raise SandboxError(
+                    "Downloaded sandbox archive "
+                    "did not contain expected directory '%s'" % name
+                )
 
             self._apply_fixups()
 
@@ -347,6 +363,7 @@ class Sandbox(object):
 
         self.lock.lock_shared()
 
+
 def get_sandbox(name):
     """Constructs a :class:`Sandbox` with the given ``name``.
 
@@ -357,6 +374,7 @@ def get_sandbox(name):
     :class:`Sandbox` instances.
     """
     return Sandbox._instance(name)
+
 
 class NullSandbox(object):
     """A dummy sandbox doing nothing."""
@@ -377,5 +395,6 @@ class NullSandbox(object):
 
 if __name__ == '__main__':
     import sys
+
     with get_sandbox(sys.argv[1]) as sandbox:
         print(sandbox.path)

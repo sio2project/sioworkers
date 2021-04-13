@@ -21,6 +21,7 @@ class Worker(object):
     ``tasks``: set() of currently executing ``task_id``s
     ``is_running_cpu_exec``: bool, True if the worker is running cpu-exec job
     """
+
     def __init__(self, info, tasks, can_run_cpu_exec=True):
         self.info = info
         self.tasks = tasks
@@ -33,7 +34,10 @@ class Worker(object):
 
     def printInfo(self):
         print('%s, %s' % (str(self.info), str(self.tasks)))
+
+
 # --------------------------------------------------------------------------#
+
 
 class Manager(object):
     def __init__(self):
@@ -61,18 +65,24 @@ class Manager(object):
     def _checkInnerState(self):
         for wid, w in six.iteritems(self.workers):
             if len(w.tasks) > w.info['concurrency']:
-                return 'Worker %s has too many jobs - can have %s and has %d' \
-                    % (str(wid), str(w.info['concurrency']), len(w.tasks))
-            if any([self.tasks[t]['job_type'] == 'cpu-exec'
-                        for t in w.tasks]) and len(w.tasks) > 1:
-                return 'Worker %s is running cpu-exec task and other task' \
-                        % str(wid)
+                return 'Worker %s has too many jobs - can have %s and has %d' % (
+                    str(wid),
+                    str(w.info['concurrency']),
+                    len(w.tasks),
+                )
+            if (
+                any([self.tasks[t]['job_type'] == 'cpu-exec' for t in w.tasks])
+                and len(w.tasks) > 1
+            ):
+                return 'Worker %s is running cpu-exec task and other task' % str(wid)
         return 'OK'
 
     def _showInnerState(self):
         for wid, w in six.iteritems(self.workers):
-            print('Worker (id: %d, concurr: %d) does %s' %
-                (wid, w.info['concurrency'], w.tasks))
+            print(
+                'Worker (id: %d, concurr: %d) does %s'
+                % (wid, w.info['concurrency'], w.tasks)
+            )
 
     def getWorkers(self):
         return self.workers
@@ -85,24 +95,23 @@ class Manager(object):
         self.scheduler.updateContest(contest_uid, priority, weight)
 
     def addWorker(self, wid, conc, can_run_cpu_exec=True):
-        self.workers[wid] = Worker({'concurrency': conc}, [],
-            can_run_cpu_exec=can_run_cpu_exec)
+        self.workers[wid] = Worker(
+            {'concurrency': conc}, [], can_run_cpu_exec=can_run_cpu_exec
+        )
         self.scheduler.addWorker(wid)
 
     def delWorker(self, wid):
         del self.workers[wid]
         self.scheduler.delWorker(wid)
 
-    def addTask(
-            self, tid, cpu_concerned, contest_uid=None,
-            task_priority=0):
+    def addTask(self, tid, cpu_concerned, contest_uid=None, task_priority=0):
         task = {
             'task_id': tid,
             'job_type': 'cpu-exec' if cpu_concerned else 'vcpu-exec',
             'contest_uid': contest_uid,
             'task_priority': task_priority,
             'assigned_worker_id': None,
-            }
+        }
         self.tasks[task['task_id']] = task
         self.scheduler.addTask(task)
 
@@ -111,12 +120,13 @@ class Manager(object):
             w_tasks = self.workers[wid].tasks
             tid_position = self.random.randint(0, len(w_tasks) - 1)
             # Swap with last element
-            w_tasks[tid_position], w_tasks[len(w_tasks) - 1] = \
-                w_tasks[len(w_tasks) - 1], w_tasks[tid_position]
+            w_tasks[tid_position], w_tasks[len(w_tasks) - 1] = (
+                w_tasks[len(w_tasks) - 1],
+                w_tasks[tid_position],
+            )
             tid = w_tasks.pop()
             self.workers[wid].count_cpu_exec -= 1
-            self.workers[wid].is_running_cpu_exec = \
-                self.workers[wid].count_cpu_exec > 0
+            self.workers[wid].is_running_cpu_exec = self.workers[wid].count_cpu_exec > 0
             del self.tasks[tid]
             self.scheduler.delTask(tid)
 
@@ -129,11 +139,11 @@ class Manager(object):
 
 
 def testDefaultSchedulerExistence():
-    module_name, class_name = getDefaultSchedulerClassName() \
-                                  .rsplit('.', 1)
+    module_name, class_name = getDefaultSchedulerClassName().rsplit('.', 1)
     # can throw ImportError and fail test
     module = importlib.import_module(module_name)
     assert hasattr(module, class_name)
+
 
 def testCpuExec():
     for mk_sch in schedulers:
@@ -150,6 +160,7 @@ def testCpuExec():
         man.schedule()
         man.completeOneTask(1)
         assert not man.tasks
+
 
 def testCpuExecWorkerGone():
     for mk_sch in schedulers:
@@ -169,13 +180,14 @@ def testCpuExecWorkerGone():
         man.completeOneTask(2)
         assert not man.tasks
 
+
 def testExclusiveTaskGone():
     man = Manager()
     sch = PrioritizingScheduler(man)
     man.setScheduler(sch)
     man.addWorker(1, 2, True)
     man.updateContest('Konkurs A', 1, 1)
-    man.updateContest(('Konkurs', 'B'), 1, 10**6)
+    man.updateContest(('Konkurs', 'B'), 1, 10 ** 6)
     man.addTask(200, True, 'Konkurs A', 200)
     man.addTask(100, False, ('Konkurs', 'B'), 100)
     man.schedule()
@@ -184,6 +196,7 @@ def testExclusiveTaskGone():
     man.completeOneTask(1)
     assert not man.tasks
     man.schedule()
+
 
 def _randomTesting1(Scheduler, contests_count, workers_count, tasks_count):
     man = Manager()
@@ -225,12 +238,11 @@ def _randomTesting1(Scheduler, contests_count, workers_count, tasks_count):
             tid = created_tasks_count
             cpu_concerned = bool(random.randint(0, 1))
             contest_uid = random.randint(1, contests_count)
-            task_priority = random.randint(1, 10**9)
+            task_priority = random.randint(1, 10 ** 9)
             if not contest_uid in man.contests:
                 man.updateContest(
-                    contest_uid,
-                    random.randint(-3, 3),
-                    random.randint(1, 10**6))
+                    contest_uid, random.randint(-3, 3), random.randint(1, 10 ** 6)
+                )
             man.addTask(tid, cpu_concerned, contest_uid, task_priority)
         elif operation == 'addWorker':
             created_workers_count += 1
@@ -239,7 +251,7 @@ def _randomTesting1(Scheduler, contests_count, workers_count, tasks_count):
             if created_workers_count == 1:
                 can_run_cpu_exec = True
             else:
-                can_run_cpu_exec = (random.randint(0, 10) >= 7)
+                can_run_cpu_exec = random.randint(0, 10) >= 7
             worker_ids.append(wid)
             man.addWorker(wid, conc, can_run_cpu_exec)
         elif operation == 'delWorker':
@@ -247,8 +259,10 @@ def _randomTesting1(Scheduler, contests_count, workers_count, tasks_count):
             # at least one cpu-enabled worker.
             wid_position = random.randint(0 + 1, len(worker_ids) - 1)
             # Swap with last element
-            worker_ids[wid_position], worker_ids[len(worker_ids) - 1] = \
-                worker_ids[len(worker_ids) - 1], worker_ids[wid_position]
+            worker_ids[wid_position], worker_ids[len(worker_ids) - 1] = (
+                worker_ids[len(worker_ids) - 1],
+                worker_ids[wid_position],
+            )
             wid = worker_ids.pop()
             while man.workers[wid].tasks:
                 man.completeOneTask(wid)
@@ -273,10 +287,12 @@ def _randomTesting1(Scheduler, contests_count, workers_count, tasks_count):
     assert len(man.workers) == 0
     # All tasks judged.
 
+
 def testSmallRandom():
     for mk_sch in schedulers:
         _randomTesting1(mk_sch, 100, 100, 100)
 
+
 def testBigRandom():
-    _randomTesting1(PrioritizingScheduler, 10, 10**3, 10**3)
-    _randomTesting1(PrioritizingScheduler, 10**3, 10**2, 10**2)
+    _randomTesting1(PrioritizingScheduler, 10, 10 ** 3, 10 ** 3)
+    _randomTesting1(PrioritizingScheduler, 10 ** 3, 10 ** 2, 10 ** 2)

@@ -9,6 +9,7 @@ from sio.workers.file_runners import get_file_runner
 from sio.executors import checker
 import six
 
+
 def _populate_environ(renv, environ):
     """Takes interesting fields from renv into environ"""
     for key in ('time_used', 'mem_used', 'num_syscalls'):
@@ -46,8 +47,12 @@ def run(environ, executor, use_sandboxes=True):
         environ[key] = replace_invalid_UTF(environ[key])
 
     if 'out_file' in environ:
-        ft.upload(environ, 'out_file', tempcwd('out'),
-            to_remote_store=environ.get('upload_out', False))
+        ft.upload(
+            environ,
+            'out_file',
+            tempcwd('out'),
+            to_remote_store=environ.get('upload_out', False),
+        )
 
     return environ
 
@@ -84,9 +89,15 @@ def _run(environ, executor, use_sandboxes):
                 # only to the end of the output file. Otherwise,
                 # a contestant's program could modify the middle of the file.
                 with open(tempcwd('out'), 'ab') as outf:
-                    renv = fe(tempcwd(exe_filename), [],
-                              stdin=inf, stdout=outf, ignore_errors=True,
-                              environ=environ, environ_prefix='exec_')
+                    renv = fe(
+                        tempcwd(exe_filename),
+                        [],
+                        stdin=inf,
+                        stdout=outf,
+                        ignore_errors=True,
+                        environ=environ,
+                        environ_prefix='exec_',
+                    )
 
     finally:
         rmtree(zipdir)

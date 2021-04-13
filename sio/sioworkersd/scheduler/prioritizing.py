@@ -108,7 +108,7 @@ class _WaitingTasksQueue(object):
 class WorkerInfo(object):
     """A class responsible for tracking state of a single worker.
 
-       There is exactly one instance of this class for each running worker.
+    There is exactly one instance of this class for each running worker.
     """
 
     def __init__(self, wid, wdata):
@@ -135,8 +135,7 @@ class WorkerInfo(object):
         return self.id < other.id
 
     def getQueueName(self):
-        if (self.is_running_real_cpu
-                or self.running_tasks == self.concurrency):
+        if self.is_running_real_cpu or self.running_tasks == self.concurrency:
             return None
         elif self.cpu_enabled:
             return 'any-cpu'
@@ -178,8 +177,7 @@ class WorkerInfo(object):
 
     def detachTask(self, task):
         assert self.running_tasks >= 1
-        assert (self.running_tasks == 1 or
-            self.is_running_real_cpu is False)
+        assert self.running_tasks == 1 or self.is_running_real_cpu is False
         assert self.used_ram_mb >= task.required_ram_mb
 
         self.used_ram_mb -= task.required_ram_mb
@@ -190,18 +188,19 @@ class WorkerInfo(object):
 class TaskInfo(object):
     """Represent a single task.
 
-       There is exactly one instance of this class for each task which have
-       been added to scheduler and not deleted.
+    There is exactly one instance of this class for each task which have
+    been added to scheduler and not deleted.
     """
 
     sequence_counter = 0
 
     def __init__(self, env, contest):
-        assert ('task_priority' not in env or
-            isinstance(env['task_priority'], six.integer_types))
+        assert 'task_priority' not in env or isinstance(
+            env['task_priority'], six.integer_types
+        )
         # Immutable data
         self.id = env['task_id']
-        self.real_cpu = (env['job_type'] == 'cpu-exec')
+        self.real_cpu = env['job_type'] == 'cpu-exec'
         self.required_ram_mb = get_required_ram_for_job(env)
         self.priority = env.get('task_priority', 0)
         self.contest = contest
@@ -214,10 +213,10 @@ class TaskInfo(object):
 class ContestInfo(object):
     """Tracks priority and weight of a contest.
 
-       There is exactly one instance of this class for each contest that have
-       been ever added to scheduler.
+    There is exactly one instance of this class for each contest that have
+    been ever added to scheduler.
 
-       Instances of this class are never deleted.
+    Instances of this class are never deleted.
     """
 
     def __init__(self, contest_uid, priority, weight):
@@ -234,8 +233,8 @@ class ContestInfo(object):
 class TasksQueues(object):
     """Per-contest priority queues of tasks.
 
-       A single instance of this class stores one priority queue of
-       tasks (:cls:`TaskInfo` instances) for each contest.
+    A single instance of this class stores one priority queue of
+    tasks (:cls:`TaskInfo` instances) for each contest.
     """
 
     def __init__(self, random):
@@ -249,13 +248,17 @@ class TasksQueues(object):
     __bool__ = __nonzero__  # for Python 2/3 compatibility
 
     def addTask(self, task):
-        contest_queue = self.queues.setdefault(task.contest,
-            SortedSet(key=
+        contest_queue = self.queues.setdefault(
+            task.contest,
+            SortedSet(
+                key=
                 # It's important that if we have many tasks with the same
                 # priority, then we give priority to the oldest.
                 # Otherwise, it would be unfair to the contestants if we
                 # judged recently submitted solutions before the old ones.
-                lambda t: (t.priority, -t.sequence_number)))
+                lambda t: (t.priority, -t.sequence_number)
+            ),
+        )
         assert task not in contest_queue
         contest_queue.add(task)
 
@@ -268,12 +271,12 @@ class TasksQueues(object):
 
     def chooseTask(self):
         """Returns the highest-priority task from a contest chosen according
-           to contest priorities and weights.
+        to contest priorities and weights.
 
-           It is not aware of tasks' types and workers' types.
+        It is not aware of tasks' types and workers' types.
 
-           See the module docstring for a fuller description of the task choice
-           strategy.
+        See the module docstring for a fuller description of the task choice
+        strategy.
         """
 
         # Assumes that contests' weights are positive integers.
@@ -288,8 +291,10 @@ class TasksQueues(object):
         contests_weights_sum = None
         for contest in six.iterkeys(self.queues):
             current_contest_priority = contest.priority
-            if (max_contest_priority is None
-                    or current_contest_priority > max_contest_priority):
+            if (
+                max_contest_priority is None
+                or current_contest_priority > max_contest_priority
+            ):
                 max_contest_priority = current_contest_priority
                 contests_weights_sum = 0
             if max_contest_priority == current_contest_priority:
@@ -312,17 +317,17 @@ class TasksQueues(object):
 class PrioritizingScheduler(Scheduler):
     """The prioritizing scheduler main class, implementing scheduler interface.
 
-       It consist of two parts: Worker scheduler and Task scheduler.
+    It consist of two parts: Worker scheduler and Task scheduler.
 
-       Worker scheduler is responsible for tracking state of all running
-       workers. It is responsible for choosing the best worker for given task
-       type, according to the priorities and weights.
+    Worker scheduler is responsible for tracking state of all running
+    workers. It is responsible for choosing the best worker for given task
+    type, according to the priorities and weights.
 
-       Task scheduler coordinates everything. It is responsible for tracking
-       state of all tasks (it uses TasksQueues), scheduling and assigning
-       tasks to workers. It is aware of tasks' types and workers' types and
-       ensures that they match. It also protects real-cpu tasks against
-       starvation.
+    Task scheduler coordinates everything. It is responsible for tracking
+    state of all tasks (it uses TasksQueues), scheduling and assigning
+    tasks to workers. It is aware of tasks' types and workers' types and
+    ensures that they match. It also protects real-cpu tasks against
+    starvation.
     """
 
     def __init__(self, manager):
@@ -334,14 +339,14 @@ class PrioritizingScheduler(Scheduler):
         # Queues of workers which are not full (free or partially free).
         self.workers_queues = {
             'vcpu-only': SortedSet(),
-            'any-cpu': SortedSet(key=
+            'any-cpu': SortedSet(
+                key=
                 # For scheduling real-cpu tasks (which must run on
                 # any-cpu workers) we need empty workers and we prefer
                 # lower available RAM (it should be just enough for the task).
                 # such workers will be sorted first.
-                lambda w: (w.running_tasks > 0,
-                           w.getAvailableRam(),
-                           w.id))
+                lambda w: (w.running_tasks > 0, w.getAvailableRam(), w.id)
+            ),
         }
 
         # Task scheduling data
@@ -362,7 +367,7 @@ class PrioritizingScheduler(Scheduler):
     def __unicode__(self):
         """Admin-friendly text representation of the queue.
 
-           Used for debugging and displaying in the admin panel.
+        Used for debugging and displaying in the admin panel.
         """
         return six.text_type((self.tasks_queues, self.waiting_real_cpu_tasks))
 
@@ -380,8 +385,7 @@ class PrioritizingScheduler(Scheduler):
 
     def addWorker(self, worker_id):
         """Will be called when a new worker appears."""
-        worker = WorkerInfo(worker_id,
-            self.manager.getWorkers()[worker_id])
+        worker = WorkerInfo(worker_id, self.manager.getWorkers()[worker_id])
         self.workers[worker_id] = worker
         self._insertWorkerToQueue(worker)
 
@@ -395,8 +399,7 @@ class PrioritizingScheduler(Scheduler):
     def _getAnyCpuQueueSize(self):
         return len(self.workers_queues['any-cpu'])
 
-    def _getBestWorkerForVirtualCpuTask(
-            self, queue, task_ram, prefer_busy=False):
+    def _getBestWorkerForVirtualCpuTask(self, queue, task_ram, prefer_busy=False):
         """Selects a worker from the queue best suited for a given task.
 
         The algorithm used picks a worker such that
@@ -408,9 +411,11 @@ class PrioritizingScheduler(Scheduler):
 
         Returns None if there are no viable workers.
         """
+
         def suitability(worker):
             worker_optimal_ram = (
-                    worker.getAvailableRam() / worker.getAvailableVcpuSlots())
+                worker.getAvailableRam() / worker.getAvailableVcpuSlots()
+            )
             difference = abs(worker_optimal_ram - task_ram)
 
             if prefer_busy:
@@ -422,10 +427,13 @@ class PrioritizingScheduler(Scheduler):
         for worker in queue:
             # getAvailableVcpuSlots() should never be 0 in normal conditions
             # because fully busy workers shouldn't be added to queues.
-            if (worker.getAvailableRam() >= task_ram
-                    and worker.getAvailableVcpuSlots() > 0):
-                if (assigned_worker is None
-                        or suitability(worker) > suitability(assigned_worker)):
+            if (
+                worker.getAvailableRam() >= task_ram
+                and worker.getAvailableVcpuSlots() > 0
+            ):
+                if assigned_worker is None or suitability(worker) > suitability(
+                    assigned_worker
+                ):
                     assigned_worker = worker
 
         # Performance note: the execution time is linear in relation to
@@ -442,7 +450,8 @@ class PrioritizingScheduler(Scheduler):
         doesn't have enough RAM available), returns None.
         """
         return self._getBestWorkerForVirtualCpuTask(
-            self.workers_queues['vcpu-only'], task_ram)
+            self.workers_queues['vcpu-only'], task_ram
+        )
 
     def _getBestAnyCpuWorkerForVirtualCpuTask(self, task_ram):
         """Returns any-cpu worker suitable for running given virtual-cpu task.
@@ -454,7 +463,8 @@ class PrioritizingScheduler(Scheduler):
         _scheduleOnce for details.
         """
         return self._getBestWorkerForVirtualCpuTask(
-            self.workers_queues['any-cpu'], task_ram, prefer_busy=True)
+            self.workers_queues['any-cpu'], task_ram, prefer_busy=True
+        )
 
     def _getBestAnyCpuWorkerForRealCpuTask(self, task_ram):
         """Returns any-cpu worker suitable for running a given real-cpu task.
@@ -551,29 +561,30 @@ class PrioritizingScheduler(Scheduler):
         the any-cpu worker queue is returned (which means all of them
         should be considered blocked).
         """
-        if (self.manager.minAnyCpuWorkerRam is None
-                or not self.waiting_real_cpu_tasks):
+        if self.manager.minAnyCpuWorkerRam is None or not self.waiting_real_cpu_tasks:
             return 0
 
-        waiting_real_cpu_tasks_ram = (
-            self.waiting_real_cpu_tasks.getTasksRequiredRam())
+        waiting_real_cpu_tasks_ram = self.waiting_real_cpu_tasks.getTasksRequiredRam()
 
         # This is the most common case, and we should handle this in O(1).
         if self.manager.minAnyCpuWorkerRam >= waiting_real_cpu_tasks_ram[-1]:
             return len(self.waiting_real_cpu_tasks)
 
         workers_ram = [
-                w.available_ram_mb
-                for _, w in six.iteritems(self.manager.getWorkers())
-                if w.can_run_cpu_exec]
+            w.available_ram_mb
+            for _, w in six.iteritems(self.manager.getWorkers())
+            if w.can_run_cpu_exec
+        ]
 
         workers_ram.sort()
 
         next_worker_index = 0
         # This list is sorted.
         for task_ram in waiting_real_cpu_tasks_ram:
-            while (next_worker_index < len(workers_ram)
-                    and workers_ram[next_worker_index] < task_ram):
+            while (
+                next_worker_index < len(workers_ram)
+                and workers_ram[next_worker_index] < task_ram
+            ):
                 next_worker_index += 1
 
             if next_worker_index < len(workers_ram):
@@ -587,8 +598,8 @@ class PrioritizingScheduler(Scheduler):
     def _scheduleOnce(self):
         """Selects one task to be executed.
 
-           Returns a pair ``(task_id, worker_id)`` or ``None`` if it is not
-           possible.
+        Returns a pair ``(task_id, worker_id)`` or ``None`` if it is not
+        possible.
         """
 
         # If there is a virtual-cpu task, and a suitable vcpu-only worker,
@@ -597,7 +608,8 @@ class PrioritizingScheduler(Scheduler):
             vcpu_task = self.tasks_queues['virtual-cpu'].chooseTask()
             if vcpu_task:
                 vcpu_worker = self._getBestVcpuOnlyWorkerForVirtualCpuTask(
-                    vcpu_task.required_ram_mb)
+                    vcpu_task.required_ram_mb
+                )
                 if vcpu_worker:
                     self._removeTaskFromQueues(vcpu_task)
                     self._attachTaskToWorker(vcpu_task, vcpu_worker)
@@ -610,7 +622,8 @@ class PrioritizingScheduler(Scheduler):
         waiting_rcpu_task = self.waiting_real_cpu_tasks.left()
         if waiting_rcpu_task:
             rcpu_worker = self._getBestAnyCpuWorkerForRealCpuTask(
-                waiting_rcpu_task.required_ram_mb)
+                waiting_rcpu_task.required_ram_mb
+            )
             if rcpu_worker:
                 self.waiting_real_cpu_tasks.popleft()
                 self._attachTaskToWorker(waiting_rcpu_task, rcpu_worker)
@@ -634,12 +647,15 @@ class PrioritizingScheduler(Scheduler):
         #
         # The logic above allows to assign any-cpu workers to both virtual-cpu
         # and real-cpu tasks without starving any of them.
-        if (self._getAnyCpuQueueSize() > self._getNumberOfBlockedAnyCpuWorkers()
-                and self.tasks_queues['both']):
+        if (
+            self._getAnyCpuQueueSize() > self._getNumberOfBlockedAnyCpuWorkers()
+            and self.tasks_queues['both']
+        ):
             task = self.tasks_queues['both'].chooseTask()
             if not task.real_cpu:
                 worker = self._getBestAnyCpuWorkerForVirtualCpuTask(
-                    task.required_ram_mb)
+                    task.required_ram_mb
+                )
                 # It's possible that no worker has enough RAM for this task.
                 # In this case, we do nothing and simply wait until some worker
                 # (possibly vcpu-only) is now available.
@@ -648,8 +664,7 @@ class PrioritizingScheduler(Scheduler):
                     self._attachTaskToWorker(task, worker)
                     return task.id, worker.id
             else:
-                worker = self._getBestAnyCpuWorkerForRealCpuTask(
-                    task.required_ram_mb)
+                worker = self._getBestAnyCpuWorkerForRealCpuTask(task.required_ram_mb)
                 if worker:
                     self._removeTaskFromQueues(task)
                     self._attachTaskToWorker(task, worker)
@@ -667,7 +682,7 @@ class PrioritizingScheduler(Scheduler):
 
     def schedule(self):
         """Return a list of tasks to be executed now, as a list of pairs
-           (task_id, worker_id).
+        (task_id, worker_id).
         """
         result = []
         while True:

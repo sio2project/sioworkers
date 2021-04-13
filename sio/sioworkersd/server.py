@@ -10,6 +10,7 @@ log = Logger()
 class DuplicateWorker(Exception):
     """A worker connected twice"""
 
+
 class WorkerRejected(Exception):
     """This worker was rejected for some reason."""
 
@@ -26,15 +27,18 @@ class WorkerServer(rpc.WorkerRPC):
         self.clientInfo['host'] = (addr.host, addr.port)
         self.name = self.clientInfo.get('name', '<unnamed>')
         self.uniqueID = '%s@%s:%d' % (self.name, addr.host, addr.port)
-        log.info('{addr!s} connected, name: {name}',
-                addr=addr, name=self.name)
+        log.info('{addr!s} connected, name: {name}', addr=addr, name=self.name)
         return self.factory.workerConnected(self)
 
     def connectionLost(self, reason):
         rpc.WorkerRPC.connectionLost(self, reason)
         self.factory.workerDisconnected(self)
-        log.info('{addr!s} disconnected, reason: {reason!r}',
-                addr=self.transport.getPeer(), reason=reason)
+        log.info(
+            '{addr!s} disconnected, reason: {reason!r}',
+            addr=self.transport.getPeer(),
+            reason=reason,
+        )
+
 
 class WorkerServerFactory(ServerFactory):
     protocol = WorkerServer

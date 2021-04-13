@@ -13,6 +13,7 @@ TASK_TIMEOUT = 60 * 60
 
 class WorkerGone(Exception):
     """Worker disconnected while executing task."""
+
     pass
 
 
@@ -26,6 +27,7 @@ class Worker(object):
     ``concurrency``: number of tasks that worker can handle at the same time
     ``available_ram_mb``: total amount of RAM that worker can dedicate to tasks
     """
+
     def __init__(self, info, tasks, is_running_cpu_exec):
         self.info = info
         self.tasks = tasks
@@ -76,22 +78,25 @@ class WorkerManager(service.MultiService):
         name = proto.name
         if name in self.workers:
             proto.transport.loseConnection()
-            log.warn('WARNING: Worker {w} connected twice and was dropped',
-                    w=name)
+            log.warn('WARNING: Worker {w} connected twice and was dropped', w=name)
             raise server.DuplicateWorker()
         running = yield proto.call('get_running', timeout=5)
         # if running is non-empty the worker is executing something
         if running:
-            log.warn('Rejecting worker {w} because it is running tasks',
-                    w=name)
+            log.warn('Rejecting worker {w} because it is running tasks', w=name)
             raise server.WorkerRejected()
         # if information received from worker doesn't meet expectations
         # reject it
         try:
             worker = Worker(proto.clientInfo, set(), False)
         except Exception as e:
-            log.warn('Rejecting worker {w} because it sent invalid ({e})'
-                    ' client info: {d}', w=name, e=e, d=proto.clientInfo)
+            log.warn(
+                'Rejecting worker {w} because it sent invalid ({e})'
+                ' client info: {d}',
+                w=name,
+                e=e,
+                d=proto.clientInfo,
+            )
             raise server.WorkerRejected()
         self.workers[name] = proto
         self.workerData[name] = worker
@@ -120,22 +125,22 @@ class WorkerManager(service.MultiService):
         wd = self.workerData[worker]
         job_type = task['job_type']
         if wd.is_running_cpu_exec:
-            raise RuntimeError(
-                    'Tried to send task to worker running cpu-exec job')
+            raise RuntimeError('Tried to send task to worker running cpu-exec job')
         if len(wd.tasks) >= wd.concurrency:
             raise RuntimeError('Tried to send task to fully loaded worker')
         if job_type == 'cpu-exec':
             if wd.tasks:
-                raise RuntimeError(
-                        'Tried to send cpu-exec job to busy worker')
+                raise RuntimeError('Tried to send cpu-exec job to busy worker')
             if not wd.can_run_cpu_exec:
                 raise RuntimeError(
-                        "Tried to send cpu-exec job to worker which "
-                        "isn't allowed to run them.")
+                    "Tried to send cpu-exec job to worker which "
+                    "isn't allowed to run them."
+                )
             wd.is_running_cpu_exec = True
         tid = task['task_id']
-        log.info('Running {job_type} {tid} on {w}',
-                job_type=job_type, tid=tid, w=worker)
+        log.info(
+            'Running {job_type} {tid} on {w}', job_type=job_type, tid=tid, w=worker
+        )
         wd.tasks.add(tid)
         d = w.call('run', task, timeout=TASK_TIMEOUT)
         self.deferreds[tid] = d
@@ -144,8 +149,10 @@ class WorkerManager(service.MultiService):
             wd.tasks.discard(tid)
             del self.deferreds[tid]
             if wd.is_running_cpu_exec and wd.tasks:
-                log.critical('FATAL: impossible happened: worker was running '
-                    'cpu-exec job, but still has tasks left. Aborting.')
+                log.critical(
+                    'FATAL: impossible happened: worker was running '
+                    'cpu-exec job, but still has tasks left. Aborting.'
+                )
                 reactor.crash()
             wd.is_running_cpu_exec = False
             return x
@@ -155,8 +162,9 @@ class WorkerManager(service.MultiService):
             # This is probably the ugliest, most blunt solution possible,
             # but it at least works. TODO kill the task on the worker.
             w.transport.loseConnection()
-            log.warn('WARNING: Worker {w} timed out while executing {tid}',
-                    w=worker, tid=tid)
+            log.warn(
+                'WARNING: Worker {w} timed out while executing {tid}', w=worker, tid=tid
+            )
             return failure
 
         d.addBoth(_free)
@@ -171,16 +179,16 @@ class WorkerManager(service.MultiService):
         any_cpus_ram = [
             worker.available_ram_mb
             for _, worker in six.iteritems(self.workerData)
-            if worker.can_run_cpu_exec]
+            if worker.can_run_cpu_exec
+        ]
 
         vcpu_onlys_ram = [
             worker.available_ram_mb
             for _, worker in six.iteritems(self.workerData)
-            if not worker.can_run_cpu_exec]
+            if not worker.can_run_cpu_exec
+        ]
 
         self.minAnyCpuWorkerRam = min(any_cpus_ram) if any_cpus_ram else None
         self.maxAnyCpuWorkerRam = max(any_cpus_ram) if any_cpus_ram else None
-        self.minVcpuOnlyWorkerRam = (
-            min(vcpu_onlys_ram) if vcpu_onlys_ram else None)
-        self.maxVcpuOnlyWorkerRam = (
-            max(vcpu_onlys_ram) if vcpu_onlys_ram else None)
+        self.minVcpuOnlyWorkerRam = min(vcpu_onlys_ram) if vcpu_onlys_ram else None
+        self.maxVcpuOnlyWorkerRam = max(vcpu_onlys_ram) if vcpu_onlys_ram else None

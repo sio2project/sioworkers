@@ -32,8 +32,9 @@ Task = namedtuple('Task', 'env d')
 
 MAX_RETRIES_OF_RESULT_RETURNING = 6
 # How many seconds wait between following retry attempts.
-RETRY_DELAY_OF_RESULT_RETURNING = \
-    [10 ** i for i in range(1, MAX_RETRIES_OF_RESULT_RETURNING + 1)]
+RETRY_DELAY_OF_RESULT_RETURNING = [
+    10 ** i for i in range(1, MAX_RETRIES_OF_RESULT_RETURNING + 1)
+]
 DB_SYNC_INTERVAL_IN_SEC = 10
 # Should not be too small. We want to avoid lots of errors in case of server
 # failure.
@@ -46,7 +47,7 @@ class MultiException(Exception):
         l = []
         for (e, tb) in excs:
             l.append("Exception: %s\n%s" % (str(e), tb))
-        s += ('='*80 + '\n').join(l)
+        s += ('=' * 80 + '\n').join(l)
         super(MultiException, self).__init__(s)
 
 
@@ -62,13 +63,17 @@ class DBWrapper(object):
     def start_periodic_sync(self):
         def restart_db_sync_task(failure, task):
             log.error("Failed to sync database. Error:", failure)
-            d = deferLater(reactor, DB_SYNC_RESTART_INTERVAL_IN_SEC,
-                           lambda: task.start(DB_SYNC_INTERVAL_IN_SEC))
+            d = deferLater(
+                reactor,
+                DB_SYNC_RESTART_INTERVAL_IN_SEC,
+                lambda: task.start(DB_SYNC_INTERVAL_IN_SEC),
+            )
             d.addErrback(restart_db_sync_task, task=task)
             return d
-        self.db_sync_task.start(DB_SYNC_INTERVAL_IN_SEC) \
-                         .addErrback(restart_db_sync_task,
-                                     task=self.db_sync_task)
+
+        self.db_sync_task.start(DB_SYNC_INTERVAL_IN_SEC).addErrback(
+            restart_db_sync_task, task=self.db_sync_task
+        )
 
     def get_items(self):
         loaded = []
@@ -79,7 +84,6 @@ class DBWrapper(object):
                 log.error('Failed to load json from DB: {}'.format(self.db[k].decode()))
                 del self.db[k]
         return loaded
-
 
     def update(self, job_id, dict_update, sync=True):
         job = json.loads(self.db.get(job_id, '{}'))
@@ -121,14 +125,21 @@ class TaskManager(Service):
             if job['status'] == 'to_judge':
                 d = self._addGroup(job['env'])
                 log.debug("added again unfinished task {tid}", tid=job['id'])
-                d.addBoth(self.returnToSio, url=job['env']['return_url'],
-                          orig_env=job['env'], tid=job['id'])
+                d.addBoth(
+                    self.returnToSio,
+                    url=job['env']['return_url'],
+                    orig_env=job['env'],
+                    tid=job['id'],
+                )
             elif job['status'] == 'to_return':
-                log.warn("Trying again to return old task {tid}",
-                         tid=job['id'])
-                self.returnToSio(job['env'], url=job['env']['return_url'],
-                                   orig_env=job['env'], tid=job['id'],
-                                   count=job['retry_cnt'])
+                log.warn("Trying again to return old task {tid}", tid=job['id'])
+                self.returnToSio(
+                    job['env'],
+                    url=job['env']['return_url'],
+                    orig_env=job['env'],
+                    tid=job['id'],
+                    count=job['retry_cnt'],
+                )
         self.workerm.notifyOnNewWorker(self._newWorker)
         self.workerm.notifyOnLostWorker(self._lostWorker)
         self._tryExecute()
@@ -156,8 +167,10 @@ class TaskManager(Service):
                 # exceptions, errback the original Deferred.
                 if exc is None:
                     return task.d.errback(failure)
-                log.warn('Worker executing task {t} disappeared. '
-                         'Will retry on another.', t=task_id)
+                log.warn(
+                    'Worker executing task {t} disappeared. ' 'Will retry on another.',
+                    t=task_id,
+                )
                 # someone could write a scheduler that requires this
                 self.scheduler.delTask(task_id)
                 self.scheduler.addTask(task.env)
@@ -172,17 +185,21 @@ class TaskManager(Service):
         if isinstance(x, Failure):
             self.inProgress[tid].env['error'] = {
                 'message': x.getErrorMessage(),
-                'traceback': x.getTraceback()
+                'traceback': x.getTraceback(),
             }
         # There is no need to save synchronous task. In case of server
         # failure client is disconnected, so it can't receive the result
         # anyway.
         save = 'return_url' in self.inProgress[tid].env
         if save:
-            self.database.update(tid, {
-                'env': self.inProgress[tid].env,
-                'status': 'to_return',
-            }, sync=False)
+            self.database.update(
+                tid,
+                {
+                    'env': self.inProgress[tid].env,
+                    'status': 'to_return',
+                },
+                sync=False,
+            )
             # No db sync here, because we are allowing some jobs to be done
             # multiple times in case of server failure for better performance.
             # It should be synced soon with other task
@@ -210,11 +227,12 @@ class TaskManager(Service):
     def _addGroup(self, group_env):
         singleTasks = []
         idMap = {}
-        contest_uid = (group_env.get('oioioi_instance'),
-            group_env.get('contest_id'))
-        self.scheduler.updateContest(contest_uid,
+        contest_uid = (group_env.get('oioioi_instance'), group_env.get('contest_id'))
+        self.scheduler.updateContest(
+            contest_uid,
             group_env.get('contest_priority', 0),
-            group_env.get('contest_weight', 1))
+            group_env.get('contest_weight', 1),
+        )
         for k, v in six.iteritems(group_env['workers_jobs']):
             v['contest_uid'] = contest_uid
             idMap[v['task_id']] = k
@@ -266,13 +284,16 @@ class TaskManager(Service):
         # anyway.
         save = 'return_url' in group_env
         if save:
-            self.database.update(group_env['group_id'], {
-                'id': group_env['group_id'],
-                'env': group_env,
-                'status': 'to_judge',
-                'timestamp': time.time(),
-                'retry_cnt': 0,
-            })
+            self.database.update(
+                group_env['group_id'],
+                {
+                    'id': group_env['group_id'],
+                    'env': group_env,
+                    'status': 'to_judge',
+                    'timestamp': time.time(),
+                    'retry_cnt': 0,
+                },
+            )
         ret = yield self._addGroup(group_env)
         defer.returnValue(ret)
 
@@ -287,8 +308,7 @@ class TaskManager(Service):
         if not tid:
             tid = env['group_id']
 
-        bodygen, hdr = encode.multipart_encode({
-                        'data': json.dumps(env)})
+        bodygen, hdr = encode.multipart_encode({'data': json.dumps(env)})
         body = ''.join(bodygen)
 
         headers = Headers({'User-Agent': ['sioworkersd']})
@@ -305,19 +325,23 @@ class TaskManager(Service):
             headers.removeHeader('content-length')
 
             producer = client.FileBodyProducer(StringIO(body))
-            d = self.agent.request('POST', url.encode('utf-8'),
-                    headers, producer)
+            d = self.agent.request('POST', url.encode('utf-8'), headers, producer)
 
             @defer.inlineCallbacks
             def _response(r):
                 if r.code != 200:
-                    log.error('return error: server responded with status" \
-                            "code {r.code}, response body follows...', r)
+                    log.error(
+                        'return error: server responded with status" \
+                            "code {r.code}, response body follows...',
+                        r,
+                    )
                     bodyD = yield client.readBody(r)
                     log.debug(bodyD)
                     raise RuntimeError('Failed to return task')
+
             d.addCallback(_response)
             return d
+
         ret = do_return()
 
         def _updateCount(x, n):
@@ -330,18 +354,26 @@ class TaskManager(Service):
 
         def retry(err, retry_cnt):
             if retry_cnt >= MAX_RETRIES_OF_RESULT_RETURNING:
-                log.error('Failed to return {tid} {count} times, giving up.',
-                          tid=tid, count=retry_cnt)
+                log.error(
+                    'Failed to return {tid} {count} times, giving up.',
+                    tid=tid,
+                    count=retry_cnt,
+                )
                 return
-            log.warn('Returning {tid} to url {url} failed, retrying[{n}]...',
-                     tid=tid, url=url, n=retry_cnt)
+            log.warn(
+                'Returning {tid} to url {url} failed, retrying[{n}]...',
+                tid=tid,
+                url=url,
+                n=retry_cnt,
+            )
             log.failure('error was:', err, LogLevel.info)
-            d = deferLater(reactor,
-                           RETRY_DELAY_OF_RESULT_RETURNING[retry_cnt],
-                           do_return)
+            d = deferLater(
+                reactor, RETRY_DELAY_OF_RESULT_RETURNING[retry_cnt], do_return
+            )
             d.addBoth(_updateCount, n=retry_cnt)
             d.addErrback(retry, retry_cnt + 1)
             return d
+
         ret.addErrback(retry, retry_cnt=count)
         ret.addBoth(self._returnDone, tid=tid)
         return ret
@@ -364,9 +396,11 @@ class TaskManager(Service):
         """
         required_ram_mb = get_required_ram_for_job(task_env)
         if required_ram_mb > self.max_task_ram_mb:
-            error = ('One of the tasks requires %d MiB of RAM, '
-                    'exceeding the limit of %d MiB'
-                    % (required_ram_mb, self.max_task_ram_mb))
+            error = (
+                'One of the tasks requires %d MiB of RAM, '
+                'exceeding the limit of %d MiB'
+                % (required_ram_mb, self.max_task_ram_mb)
+            )
             return False, error
 
         return True, None

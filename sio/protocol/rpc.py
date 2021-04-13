@@ -34,6 +34,7 @@ class NoSuchMethodError(RemoteError):
     def __init__(self, err=None, uid=None):
         super(NoSuchMethodError, self).__init__(err, uid=uid)
 
+
 # This function doesn't do much right now, but it can easily be extended
 # for passing any exceptions with arbitrary parameters (JSON serializable)
 def makeRemoteException(msg, uid=None):
@@ -47,7 +48,7 @@ def makeRemoteException(msg, uid=None):
 
 
 class WorkerRPC(NetstringReceiver):
-    MAX_LENGTH = 2**20  # 1MB should be enough
+    MAX_LENGTH = 2 ** 20  # 1MB should be enough
     DEFAULT_TIMEOUT = 30
 
     def __init__(self, server=False, timeout=DEFAULT_TIMEOUT):
@@ -88,9 +89,12 @@ class WorkerRPC(NetstringReceiver):
                 try:
                     f = getattr(self, 'cmd_' + msg['method'])
                 except AttributeError:
-                    self.sendMsg('error',
-                                    kind='method_not_found', id=msg['id'],
-                                    data=msg['method'])
+                    self.sendMsg(
+                        'error',
+                        kind='method_not_found',
+                        id=msg['id'],
+                        data=msg['method'],
+                    )
                     return
                 d = defer.maybeDeferred(f, *msg['args'])
                 d.addCallback(self._reply, request=msg['id'])
@@ -100,14 +104,14 @@ class WorkerRPC(NetstringReceiver):
                 if d is None:
                     raise ProtocolError("got error for unknown call")
                 del self.pendingCalls[msg['id']]
-                exc = makeRemoteException(msg,
-                        uid=getattr(self, 'uniqueID', None))
+                exc = makeRemoteException(msg, uid=getattr(self, 'uniqueID', None))
                 d[0].errback(exc)
                 d[1].cancel()
         elif self.state == State.connected:
             if not self.isServer:
-                raise ProtocolError("received %s before client hello was sent"
-                                    % str(msg))
+                raise ProtocolError(
+                    "received %s before client hello was sent" % str(msg)
+                )
             else:
                 if msg['type'] == 'hello':
                     log.debug('got hello')
@@ -116,8 +120,7 @@ class WorkerRPC(NetstringReceiver):
                     self.state = State.established
                     self.ready.callback(None)
                 else:
-                    raise ProtocolError("expected client hello, got %s"
-                                        % str(msg))
+                    raise ProtocolError("expected client hello, got %s" % str(msg))
         elif self.state == State.sent_hello:
             if msg['type'] == 'hello_ack':
                 log.debug('got hello_ack')
@@ -150,8 +153,13 @@ class WorkerRPC(NetstringReceiver):
         self.sendMsg('result', id=request, result=value)
 
     def _replyError(self, err, request=None):
-        self.sendMsg('error', id=request, kind='exception', data=repr(err),
-                traceback=err.getTraceback())
+        self.sendMsg(
+            'error',
+            id=request,
+            kind='exception',
+            data=repr(err),
+            traceback=err.getTraceback(),
+        )
         # Don't return here - we would get potentially useless
         # 'unhandled error' messages
 
@@ -181,9 +189,11 @@ class WorkerRPC(NetstringReceiver):
 
         def cb(ignore):
             self.pendingCalls[current_id] = (d, timer)
-            s = json.dumps({'type': 'call', 'id': current_id,
-                'method': cmd, 'args': args})
+            s = json.dumps(
+                {'type': 'call', 'id': current_id, 'method': cmd, 'args': args}
+            )
             self.sendString(s.encode('utf-8'))
+
         if self.state != State.established:
             # wait for connection
             self.ready.addCallback(cb)

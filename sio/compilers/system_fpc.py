@@ -10,10 +10,10 @@ class FPCCompiler(Compiler):
 
     def _make_cmdline(self, executor):
         # Addinational sources are automatically included
-        return ['fpc', tempcwd('a.pas')] + self.options + \
-                list(self.extra_compilation_args)
+        return (
+            ['fpc', tempcwd('a.pas')] + self.options + list(self.extra_compilation_args)
+        )
 
 
 def run(environ):
     return FPCCompiler().compile(environ)
-

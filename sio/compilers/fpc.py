@@ -11,8 +11,7 @@ class FPCCompiler(Compiler):
 
     def _make_cmdline(self, executor):
         # Additional sources are automatically included
-        return ['fpc', 'a.pas'] + self.options + \
-                list(self.extra_compilation_args)
+        return ['fpc', 'a.pas'] + self.options + list(self.extra_compilation_args)
 
     def _run_in_executor(self, executor):
         # Generate FPC configuration

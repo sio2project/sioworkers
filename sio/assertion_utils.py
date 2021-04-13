@@ -18,14 +18,15 @@ def not_eq_(a, b, msg=None):
 
 
 def raises(exception):
-    """ Assert that test is raising an exception
-        Usage:
+    """Assert that test is raising an exception
+    Usage:
 
-        @raises(SomeException)
-        def test_that_should_raise_SomeException(...):
-            # ...
+    @raises(SomeException)
+    def test_that_should_raise_SomeException(...):
+        # ...
 
     """
+
     def decorator(func):
         def wrapper(*args, **kwargs):
             with pytest.raises(exception):
@@ -37,8 +38,8 @@ def raises(exception):
 
 
 def assert_raises(exception, func, *args, **kwargs):
-    """ Assert that function `func` raises `expcetions` when run
-        with `*args_list` and `**kwargs_list`.
+    """Assert that function `func` raises `expcetions` when run
+    with `*args_list` and `**kwargs_list`.
     """
     with pytest.raises(exception):
         func(*args, **kwargs)

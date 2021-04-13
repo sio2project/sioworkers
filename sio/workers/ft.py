@@ -26,8 +26,7 @@ def get_url_hash(filetracker_url):
 
 def get_cache_dir(filetracker_url):
     folder_name = 'ft_cache_' + get_url_hash(filetracker_url)
-    return os.path.expanduser(os.path.join('~',
-                              '.filetracker_cache', folder_name))
+    return os.path.expanduser(os.path.join('~', '.filetracker_cache', folder_name))
 
 
 # This function is called at the beginning of run(environ) to
@@ -37,9 +36,9 @@ def init_instance(filetracker_url):
     url_hash = get_url_hash(filetracker_url)
     lock.acquire()
     if not url_hash in ft_clients:
-        ft_clients[url_hash] = \
-            FiletrackerClient(remote_url=filetracker_url,
-                               cache_dir=get_cache_dir(filetracker_url))
+        ft_clients[url_hash] = FiletrackerClient(
+            remote_url=filetracker_url, cache_dir=get_cache_dir(filetracker_url)
+        )
 
     util.threadlocal_dir.ft_client_instance = ft_clients[url_hash]
     lock.release()
@@ -55,7 +54,7 @@ def instance():
 
 def set_instance(client):
     """Sets the singleton :class:`filetracker.client.Client` to the given
-       object."""
+    object."""
     util.threadlocal_dir.ft_client_instance = client
 
 
@@ -65,32 +64,33 @@ def _use_filetracker(name, environ):
         return name.startswith('/')
     return bool(mode)
 
+
 def download(environ, key, dest=None, skip_if_exists=False, **kwargs):
     """Downloads the file from ``environ[key]`` and saves it to ``dest``.
 
-       ``dest``
-         A filename, directory name or ``None``. In the two latter cases,
-         the file is named the same as in ``environ[key]``.
+    ``dest``
+      A filename, directory name or ``None``. In the two latter cases,
+      the file is named the same as in ``environ[key]``.
 
-       ``skip_if_exists``
-         If ``True`` and ``dest`` points to an existing file (not a directory
-         or ``None``), then the file is not downloaded.
+    ``skip_if_exists``
+      If ``True`` and ``dest`` points to an existing file (not a directory
+      or ``None``), then the file is not downloaded.
 
-       ``**kwargs``
-         Passed directly to :meth:`filetracker.client.Client.get_file`.
+    ``**kwargs``
+      Passed directly to :meth:`filetracker.client.Client.get_file`.
 
-       The value under ``environ['use_filetracker']`` affects downloading
-       in the followins way:
+    The value under ``environ['use_filetracker']`` affects downloading
+    in the followins way:
 
-       * if ``True``, nothing special happens
+    * if ``True``, nothing special happens
 
-       * if ``False``, the file is not downloaded from filetracker, but the
-         passed path is assumed to be a regular filesystem path
+    * if ``False``, the file is not downloaded from filetracker, but the
+      passed path is assumed to be a regular filesystem path
 
-       * if ``'auto'``, the file is assumed to be a local filename only if
-         it is a relative path (this is usually the case when developers play).
+    * if ``'auto'``, the file is assumed to be a local filename only if
+      it is a relative path (this is usually the case when developers play).
 
-       Returns the path to the saved file.
+    Returns the path to the saved file.
     """
 
     if dest and skip_if_exists and os.path.exists(util.tempcwd(dest)):
@@ -114,24 +114,25 @@ def download(environ, key, dest=None, skip_if_exists=False, **kwargs):
         logger.debug(" completed in %.2fs", perf_timer.elapsed)
     return dest
 
+
 def upload(environ, key, source, dest=None, **kwargs):
     """Uploads the file from ``source`` to filetracker under ``environ[key]``
-       name.
+    name.
 
-       ``source``
-         Filename to upload.
+    ``source``
+      Filename to upload.
 
-       ``dest``
-         A filename, directory name or ``None``. In the two latter cases,
-         the file is named the same as in ``environ[key]``.
+    ``dest``
+      A filename, directory name or ``None``. In the two latter cases,
+      the file is named the same as in ``environ[key]``.
 
-       ``**kwargs``
-         Passed directly to :meth:`filetracker.client.Client.put_file`.
+    ``**kwargs``
+      Passed directly to :meth:`filetracker.client.Client.put_file`.
 
-       See the note about ``environ['use_filetracker']`` in
-       :func:`sio.workers.ft.download`.
+    See the note about ``environ['use_filetracker']`` in
+    :func:`sio.workers.ft.download`.
 
-       Returns the filetracker path to the saved file.
+    Returns the filetracker path to the saved file.
     """
 
     if dest is None or key in environ:
@@ -150,6 +151,7 @@ def upload(environ, key, source, dest=None, **kwargs):
     environ[key] = dest
     return dest
 
+
 def _do_launch():
     saved_environ = os.environ.copy()
     try:
@@ -157,22 +159,29 @@ def _do_launch():
         # environment variables set appropriately. We do not want
         # the filetracker server to be killed, hence we unset those
         # temporarily.
-        for var in ('HUDSON_SERVER_COOKIE', 'BUILD_NUMBER', 'BUILD_ID',
-                'BUILD_TAG', 'JOB_NAME'):
+        for var in (
+            'HUDSON_SERVER_COOKIE',
+            'BUILD_NUMBER',
+            'BUILD_ID',
+            'BUILD_TAG',
+            'JOB_NAME',
+        ):
             del os.environ[var]
 
         from filetracker.servers.run import main
+
         main(['-l', '0.0.0.0'])
         time.sleep(5)
     finally:
         os.environ = saved_environ
 
+
 def launch_filetracker_server():
     """Launches the Filetracker server if ``FILETRACKER_PUBLIC_URL`` is present
-       in ``os.environ`` and the server does not appear to be running.
+    in ``os.environ`` and the server does not appear to be running.
 
-       The server is run in the background and the function returns once the
-       server is up and running.
+    The server is run in the background and the function returns once the
+    server is up and running.
     """
 
     if 'FILETRACKER_PUBLIC_URL' not in os.environ:
@@ -184,6 +193,7 @@ def launch_filetracker_server():
     except six.moves.urllib.error.URLError as e:
         logger.info('No Filetracker at %s (%s), launching', public_url, e)
         _do_launch()
+
 
 if __name__ == '__main__':
     launch_filetracker_server()
