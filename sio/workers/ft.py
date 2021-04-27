@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 import os
+import six
 import six.moves.urllib.error
 import six.moves.urllib.parse
 import six.moves.urllib.request
@@ -21,7 +22,7 @@ ft_clients = dict()
 
 
 def get_url_hash(filetracker_url):
-    return hashlib.md5(filetracker_url).hexdigest()
+    return hashlib.md5(six.ensure_binary(filetracker_url)).hexdigest()
 
 
 def get_cache_dir(filetracker_url):
