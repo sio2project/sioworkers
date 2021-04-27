@@ -11,13 +11,13 @@ import json
 import six
 from six import StringIO
 from six.moves import range
-from poster import encode
 import time
 from operator import itemgetter
 from sio.protocol.rpc import RemoteError
 from sio.sioworkersd.utils import get_required_ram_for_job
 from sio.sioworkersd.workermanager import WorkerGone
 from twisted.logger import Logger, LogLevel
+from urllib3 import encode_multipart_formdata
 
 
 try:
@@ -308,12 +308,14 @@ class TaskManager(Service):
         if not tid:
             tid = env['group_id']
 
-        bodygen, hdr = encode.multipart_encode({'data': json.dumps(env)})
-        body = ''.join(bodygen)
+        body, content_type = encode_multipart_formdata({'data': json.dumps(env)})
 
-        headers = Headers({'User-Agent': ['sioworkersd']})
-        for k, v in six.iteritems(hdr):
-            headers.addRawHeader(k, v)
+        headers = Headers(
+            {
+                'User-Agent': ['sioworkersd'],
+                'Content-Type': content_type,
+            }
+        )
 
         def do_return():
             # This looks a bit too complicated for just POSTing a string,
@@ -333,7 +335,7 @@ class TaskManager(Service):
                     log.error(
                         'return error: server responded with status" \
                             "code {r.code}, response body follows...',
-                        r,
+                        r=r,
                     )
                     bodyD = yield client.readBody(r)
                     log.debug(bodyD)

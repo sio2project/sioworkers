@@ -7,7 +7,6 @@ PYTHON_VERSION = version_info[0]
 python2_specific_requirements = [
     'supervisor>=4.0,<4.3',
     'enum34>=1.1,<1.2',
-    'poster==0.8.1',
 ]
 
 python3_specific_requirements = [
@@ -23,6 +22,7 @@ python23_universal_requirements = [
     'pytest>=4.6,<4.7',
     'pytest-runner==5.1',
     'pytest-timeout==1.3.3',
+    'urllib3<2.0',  # urllib3 will drop support for python2 in version 2.0.
 ]
 
 if PYTHON_VERSION == 2:
