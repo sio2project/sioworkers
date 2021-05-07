@@ -9,13 +9,14 @@ from twisted.web.http_headers import Headers
 from collections import namedtuple
 import json
 import six
-from six import StringIO
+from six import BytesIO
 from six.moves import range
 import time
 from operator import itemgetter
 from sio.protocol.rpc import RemoteError
 from sio.sioworkersd.utils import get_required_ram_for_job
 from sio.sioworkersd.workermanager import WorkerGone
+from sio.workers.util import json_dumps
 from twisted.logger import Logger, LogLevel
 from urllib3 import encode_multipart_formdata
 
@@ -86,15 +87,16 @@ class DBWrapper(object):
         return loaded
 
     def update(self, job_id, dict_update, sync=True):
+        job_id = six.ensure_binary(job_id)
         job = json.loads(self.db.get(job_id, '{}'))
         job.update(dict_update)
-        self.db[job_id] = json.dumps(job)
+        self.db[job_id] = json_dumps(job)
         if sync:
             self.db.sync()
 
     def delete(self, job_id, sync=False):
         # Check self.db_sync_task to know why sync is False by default
-        del self.db[job_id]
+        del self.db[six.ensure_binary(job_id)]
         if sync:
             self.db.sync()
 
@@ -308,12 +310,12 @@ class TaskManager(Service):
         if not tid:
             tid = env['group_id']
 
-        body, content_type = encode_multipart_formdata({'data': json.dumps(env)})
+        body, content_type = encode_multipart_formdata({'data': json_dumps(env)})
 
         headers = Headers(
             {
                 'User-Agent': ['sioworkersd'],
-                'Content-Type': content_type,
+                'Content-Type': [content_type],
             }
         )
 
@@ -326,8 +328,8 @@ class TaskManager(Service):
             # there will be a duplicate, so remove it.
             headers.removeHeader('content-length')
 
-            producer = client.FileBodyProducer(StringIO(body))
-            d = self.agent.request('POST', url.encode('utf-8'), headers, producer)
+            producer = client.FileBodyProducer(BytesIO(body))
+            d = self.agent.request(b'POST', url.encode('utf-8'), headers, producer)
 
             @defer.inlineCallbacks
             def _response(r):

@@ -5,6 +5,7 @@ import time
 import logging
 import stat
 import os
+import json
 import tempfile
 import shutil
 import threading
@@ -162,6 +163,19 @@ def replace_invalid_UTF(a_string):
             return a_string.decode('utf-8', 'replace')
         else:
             return a_string.encode('utf-8', 'replace').decode()
+
+
+class CompatibleJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, bytes):
+            return obj.decode("ASCII")
+        return super(CompatibleJSONEncoder, self).default(obj)
+
+
+def json_dumps(obj, **kwargs):
+    """Python 3 and 2 compatible json.dump."""
+    kwargs.setdefault('cls', CompatibleJSONEncoder)
+    return json.dumps(obj, **kwargs)
 
 
 def decode_fields(fields):

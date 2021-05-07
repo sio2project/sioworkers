@@ -6,16 +6,10 @@ import traceback
 import logging
 import platform
 import six
-
-try:
-    import json
-
-    json.dumps
-except (ImportError, AttributeError):
-    import simplejson as json
+import json
 
 from sio.workers import Failure
-from sio.workers.util import first_entry_point, TemporaryCwd
+from sio.workers.util import first_entry_point, TemporaryCwd, json_dumps
 from sio.workers.ft import init_instance
 
 
@@ -42,7 +36,7 @@ def _save_failure(exc, environ):
 
 def _print_environ(environ):
     print('--- BEGIN ENVIRON ---')
-    print(json.dumps(environ))
+    print(json_dumps(environ))
     print('--- END ENVIRON ---')
 
 

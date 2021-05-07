@@ -3,14 +3,7 @@ from __future__ import print_function
 import sys
 import os.path
 
-try:
-    import json
-
-    json.dumps
-except (ImportError, AttributeError):
-    import simplejson as json
-
-from sio.workers.util import first_entry_point
+from sio.workers.util import first_entry_point, json_dumps
 
 
 def run(environ):
@@ -51,4 +44,4 @@ def main():
         environ['compiler'] = compiler
 
     run(environ)
-    print(json.dumps(environ))
+    print(json_dumps(environ))

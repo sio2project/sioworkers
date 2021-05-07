@@ -33,7 +33,7 @@ else:
 
 setup(
     name = "sioworkers",
-    version = '1.4',
+    version = '1.4.1',
     author = "SIO2 Project Team",
     author_email = 'sio2@sio2project.mimuw.edu.pl',
     description = "Programming contest judging infrastructure",

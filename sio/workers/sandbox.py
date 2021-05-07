@@ -352,7 +352,7 @@ class Sandbox(object):
             self._apply_fixups()
 
             hash_file = os.path.join(path, '.hash')
-            open(hash_file, 'wb').write(str(version))
+            open(hash_file, 'wb').write(six.ensure_binary(str(version)))
 
             self._mark_checked()
             logger.info(" done.")

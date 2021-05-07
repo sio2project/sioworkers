@@ -5,6 +5,7 @@ from twisted.internet import protocol, reactor
 import json
 
 from sio.protocol import rpc
+from sio.workers.util import json_dumps
 
 
 class TestClient(rpc.WorkerRPC):
@@ -32,7 +33,7 @@ class TestServerFactory(protocol.Factory):
 
 
 def encode(x):
-    x = json.dumps(x).encode('utf-8')
+    x = json_dumps(x).encode('utf-8')
     return b''.join([str(len(x)).encode('utf-8'), b':', x, b','])
 
 

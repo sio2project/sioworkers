@@ -9,6 +9,8 @@ log = Logger()
 import json
 from enum import Enum
 
+from sio.workers.util import json_dumps
+
 
 State = Enum('State', 'connected sent_hello established')
 
@@ -170,7 +172,7 @@ class WorkerRPC(NetstringReceiver):
 
     def sendMsg(self, msg_type, **kwargs):
         kwargs['type'] = msg_type
-        self.sendString(json.dumps(kwargs).encode('utf-8'))
+        self.sendString(json_dumps(kwargs).encode('utf-8'))
 
     def call(self, cmd, *args, **kwargs):
         """Call a remote function. Raises RemoteError if something goes wrong
@@ -189,7 +191,7 @@ class WorkerRPC(NetstringReceiver):
 
         def cb(ignore):
             self.pendingCalls[current_id] = (d, timer)
-            s = json.dumps(
+            s = json_dumps(
                 {'type': 'call', 'id': current_id, 'method': cmd, 'args': args}
             )
             self.sendString(s.encode('utf-8'))

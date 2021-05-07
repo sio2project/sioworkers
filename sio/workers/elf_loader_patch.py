@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 import os, os.path
 import logging
+import six
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,7 @@ def _patch_elf_loader(path):
         blacklist = set(
             [
                 os.path.join(path, f.strip(os.path.sep))
-                for f in open(blacklist_file, 'rb').read().strip().split('\n')
+                for f in open(blacklist_file, 'r').read().strip().split('\n')
             ]
         )
 
@@ -73,7 +74,7 @@ def _patch_elf_loader(path):
                 continue
 
             with open(p, 'rb') as f:
-                if f.read(4) != '\x7fELF':
+                if f.read(4) != b'\x7fELF':
                     continue
             logger.info("Patching ELF loader of %s", p)
             os.rename(p, pext)
