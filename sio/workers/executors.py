@@ -283,6 +283,9 @@ class BaseExecutor(object):
     def _execute(self, command, **kwargs):
         raise NotImplementedError('BaseExecutor is abstract!')
 
+    def rcwd(self, subpath):
+        return tempcwd(subpath)
+
     def __call__(
             self,
             command,
@@ -804,8 +807,7 @@ class PRootExecutor(BaseExecutor):
         self._bind(tempcwd(), 'tmp', force=True)
 
         # Make absolute `outside paths' visible in sandbox
-        self._bind(self.chroot.path, force=True)
-        self._bind(tempcwd(), force=True)
+        self._pwd(self.rcwd(''))
 
     def _execute(self, command, **kwargs):
         if kwargs['time_limit'] and kwargs['real_time_limit'] is None:
@@ -819,6 +821,9 @@ class PRootExecutor(BaseExecutor):
         )
 
         return self.proot._execute(command, **kwargs)
+
+    def rcwd(self, subpath):
+        return os.path.join(os.sep, 'tmp', subpath)
 
     @property
     def rpath(self):
