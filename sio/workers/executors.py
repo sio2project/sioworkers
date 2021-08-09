@@ -715,6 +715,9 @@ class Sio2JailExecutor(CompoundSandboxExecutor, _SIOSupervisedExecutor):
         for (what, where, mode) in kwargs.pop('binds', []):
             options += ['-b', what + ':' + where + ':' + mode]
 
+        if kwargs.pop('no_bind_binary', False):
+            options += ['-B']
+
         options += ['--memory-limit',
             str(kwargs['mem_limit']) + 'K']
         options += ['--instruction-count-limit',
