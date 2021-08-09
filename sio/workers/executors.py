@@ -709,7 +709,7 @@ class Sio2JailExecutor(CompoundSandboxExecutor, _SIOSupervisedExecutor):
 
     def _execute_supervisor(self, command, **kwargs):
         options = []
-        options += ['-f', '3']
+        options += ['-f', '3', '-s']
         options += ['-b', self.chroot.path + ':/:ro']
 
         for (what, where, mode) in kwargs.pop('binds', []):
