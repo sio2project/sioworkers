@@ -106,6 +106,10 @@ def mkdir(name, permissions=0o700):
             raise
 
 
+def is_exe(path):
+    return os.path.isfile(path) and os.access(path, os.X_OK)
+
+
 threadlocal_dir = threading.local()
 
 
