@@ -360,7 +360,7 @@ def test_untrusted_checkers(checker, callback, sandboxed, exception):
             checker_bin = compile(checker, '/chk.e')['out_file']
         with TemporaryCwd():
             executor = (
-                SupervisedExecutor(use_program_return_code=True)
+                SupervisedExecutor()
                 if sandboxed
                 else DetailedUnprotectedExecutor()
             )
