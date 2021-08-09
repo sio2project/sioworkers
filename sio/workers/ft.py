@@ -102,6 +102,10 @@ def download(environ, key, dest=None, skip_if_exists=False, **kwargs):
     elif dest.endswith(os.sep):
         dest = os.path.join(dest, os.path.split(source)[1])
 
+    destdir = os.path.dirname(dest)
+    if not os.path.exists(destdir):
+        util.mkdir(destdir)
+
     dest = util.tempcwd(dest)
     if not _use_filetracker(source, environ):
         source = os.path.join(_original_cwd, source)

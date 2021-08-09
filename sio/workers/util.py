@@ -9,6 +9,7 @@ import json
 import tempfile
 import shutil
 import threading
+import errno
 import six
 
 logger = logging.getLogger(__name__)
@@ -95,6 +96,14 @@ def rmtree(path):
             fn(path)
 
     shutil.rmtree(path, onerror=remove_readonly)
+
+
+def mkdir(name, permissions=0o700):
+    try:
+        os.makedirs(name, permissions)
+    except OSError as e:
+        if e.errno != errno.EEXIST:
+            raise
 
 
 threadlocal_dir = threading.local()
