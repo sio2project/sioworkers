@@ -16,7 +16,8 @@ logger = logging.getLogger(__name__)
 class PythonCompiler(Compiler):
     lang = 'py'
     output_file = 'a.tar'
-    sandbox = 'python3.4.2-numpy_i386'
+    python = 'python3.7'
+    sandbox = '%s-numpy_amd64' % python
 
     def _make_filename(self):
         source_base = os.path.basename(self.environ['source_file'])
@@ -34,7 +35,7 @@ class PythonCompiler(Compiler):
         res_so = '_%s.so' % basename
 
         cxxflags = ['-std=c++11', '-O3', '-fPIC']
-        includeflag = ['-I/usr/include/python3.4']
+        includeflag = ['-I/usr/include/%s' % self.python]
 
         swig = '/usr/bin/swig2.0'
         gxx = '/usr/bin/g++'
@@ -75,7 +76,7 @@ class PythonCompiler(Compiler):
         return renv
 
     def _run_in_executor(self, executor):
-        python = ['/usr/bin/python3.4']
+        python = ['/usr/bin/%s' % (self.python,)]
 
         source_dir = os.path.dirname(self.source_file)
         self._source_dir = source_dir
@@ -127,3 +128,4 @@ def run(environ):
 
 run_default = run
 run_py_default = run
+run_python_3_7 = run
