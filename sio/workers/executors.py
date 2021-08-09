@@ -711,6 +711,10 @@ class Sio2JailExecutor(CompoundSandboxExecutor, _SIOSupervisedExecutor):
         options = []
         options += ['-f', '3']
         options += ['-b', self.chroot.path + ':/:ro']
+
+        for (what, where, mode) in kwargs.pop('binds', []):
+            options += ['-b', what + ':' + where + ':' + mode]
+
         options += ['--memory-limit',
             str(kwargs['mem_limit']) + 'K']
         options += ['--instruction-count-limit',
@@ -810,6 +814,13 @@ class PRootExecutor(CompoundSandboxExecutor):
         self._proot_options()
 
     def _bind(self, what, where=None, force=False):
+        opts = self._bind_opt(what, where, force)
+        if opts is None:
+            return False
+        self.options += opts
+        return True
+
+    def _bind_opt(self, what, where=None, force=False):
         if where is None:
             where = what
 
@@ -818,9 +829,8 @@ class PRootExecutor(CompoundSandboxExecutor):
             raise RuntimeError("Binding not existing location")
 
         if force or not path.exists(path_join_abs(self.chroot.path, where)):
-            self.options += ['-b', '%s:%s' % (what, where)]
-            return True
-        return False
+            return ['-b', '%s:%s' % (what, where)]
+        return None
 
     def _chroot(self, where):
         self.options += ['-r', where]
@@ -858,7 +868,13 @@ class PRootExecutor(CompoundSandboxExecutor):
         if kwargs['time_limit'] and kwargs['real_time_limit'] is None:
             kwargs['real_time_limit'] = 3 * kwargs['time_limit']
 
-        options = self.options + kwargs.pop('proot_options', [])
+        options = self.options
+
+        for (what, where, mode) in kwargs.pop('binds', []):
+            options += self._bind_opt(what, where, force=True)
+
+        options += kwargs.pop('proot_options', [])
+
         command = (
                 [path.join('proot', 'proot')]
                 + options
