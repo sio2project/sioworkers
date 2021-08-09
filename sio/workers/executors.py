@@ -494,6 +494,12 @@ class _SIOSupervisedExecutor(SandboxExecutor):
         125: 'TLE',
     }
 
+    DEFAULT_MEMORY_LIMIT = 64 * 2**10  # (in KiB)
+    DEFAULT_OUTPUT_LIMIT = 50 * 2**20  # (in B)
+    DEFAULT_TIME_LIMIT = 30000  # (default virtual time limit in ms)
+    REAL_TIME_LIMIT_MULTIPLIER = 64
+    REAL_TIME_LIMIT_ADDEND = 1000  # (in ms)
+
     def __init__(self, sandbox_name):
         super(_SIOSupervisedExecutor, self).__init__(sandbox_name)
 
@@ -507,33 +513,50 @@ class _SIOSupervisedExecutor(SandboxExecutor):
             exit_code = -1
         return result_code, exit_code
 
-    @decode_fields(['result_string'])
-    def _execute(self, command, **kwargs):
+    def _execute_supervisor(self, command, **kwargs):
         env = kwargs.get('env')
         env.update(
             {
-                'MEM_LIMIT': kwargs['mem_limit'] or 64 * 2 ** 10,
-                'TIME_LIMIT': kwargs['time_limit'] or 30000,
-                'OUT_LIMIT': kwargs['output_limit'] or 50 * 2 ** 20,
+                'MEM_LIMIT': kwargs['mem_limit'],
+                'TIME_LIMIT': kwargs['time_limit'],
+                'OUT_LIMIT': kwargs['output_limit'],
             }
         )
 
         if kwargs['real_time_limit']:
-            env['HARD_LIMIT'] = 1 + ceil_ms2s(kwargs['real_time_limit'])
-        elif kwargs['time_limit'] and kwargs['real_time_limit'] is None:
-            env['HARD_LIMIT'] = 1 + ceil_ms2s(64 * kwargs['time_limit'])
+            env['HARD_LIMIT'] = ceil_ms2s(kwargs['real_time_limit'])
 
         if 'HARD_LIMIT' in env:
             # Limiting outside supervisor
             kwargs['real_time_limit'] = 2 * s2ms(env['HARD_LIMIT'])
+
+        kwargs['ignore_errors'] = True
+        return execute_command(command, **kwargs)
+
+
+    @decode_fields(['result_string'])
+    def _execute(self, command, **kwargs):
+        kwargs['mem_limit'] = kwargs['mem_limit'] or self.DEFAULT_MEMORY_LIMIT
+        kwargs['time_limit'] = kwargs['time_limit'] or self.DEFAULT_TIME_LIMIT
+        kwargs['output_limit'] = kwargs['output_limit'] or self.DEFAULT_OUTPUT_LIMIT
+
+        rtlimit = None
+        if kwargs['real_time_limit']:
+            rtlimit = kwargs['real_time_limit']
+        elif kwargs['time_limit'] and kwargs['real_time_limit'] is None:
+            rtlimit = self.REAL_TIME_LIMIT_MULTIPLIER * kwargs['time_limit']
+        # else: there's no time_limit, or real_time_limit == 0, i.e. we're explicitly asked not to set a hard limit
+
+        if rtlimit is not None:
+            rtlimit += self.REAL_TIME_LIMIT_ADDEND
+            kwargs['real_time_limit'] = rtlimit
 
         ignore_errors = kwargs.pop('ignore_errors')
         extra_ignore_errors = kwargs.pop('extra_ignore_errors')
         renv = {}
         try:
             result_file = tempfile.NamedTemporaryFile(dir=tempcwd())
-            kwargs['ignore_errors'] = True
-            renv = execute_command(
+            renv = self._execute_supervisor(
                 command + [noquote('3>'), result_file.name], **kwargs
             )
 
@@ -589,7 +612,7 @@ class _SIOSupervisedExecutor(SandboxExecutor):
         return renv
 
 
-class Sio2JailExecutor(SandboxExecutor):
+class Sio2JailExecutor(_SIOSupervisedExecutor):
     """Runs program in controlled environment while counting CPU instructions
     using Sio2Jail.
 
@@ -605,107 +628,36 @@ class Sio2JailExecutor(SandboxExecutor):
     ``result_string``: string describing ``result_code``
     """
 
-    DEFAULT_MEMORY_LIMIT = 64 * 2 ** 10  # (in KiB)
-    DEFAULT_OUTPUT_LIMIT = 50 * 2 ** 10  # (in KiB)
-    DEFAULT_TIME_LIMIT = 30000  # (default virtual time limit in ms)
     INSTRUCTIONS_PER_VIRTUAL_SECOND = 2 * 10 ** 9
     REAL_TIME_LIMIT_MULTIPLIER = 16
     REAL_TIME_LIMIT_ADDEND = 1000  # (in ms)
 
     def __init__(self):
-        super(Sio2JailExecutor, self).__init__('sio2jail_exec-sandbox')
+        super(Sio2JailExecutor, self).__init__('sio2jail_exec-sandbox-1.3.0')
 
-    def _execute(self, command, **kwargs):
+    def _execute_supervisor(self, command, **kwargs):
         options = []
+        options += ['-f', '3']
         options += ['-b', os.path.join(self.rpath, 'boxes/minimal') + ':/:ro']
-        options += [
-            '--memory-limit',
-            str(kwargs['mem_limit'] or self.DEFAULT_MEMORY_LIMIT) + 'K',
-        ]
-        options += [
-            '--instruction-count-limit',
-            str(
-                (kwargs['time_limit'] or self.DEFAULT_TIME_LIMIT)
-                * self.INSTRUCTIONS_PER_VIRTUAL_SECOND
-                / 1000
-            ),
-        ]
-        options += [
-            '--rtimelimit',
-            str(
-                (kwargs['time_limit'] or self.DEFAULT_TIME_LIMIT)
-                * self.REAL_TIME_LIMIT_MULTIPLIER
-                + self.REAL_TIME_LIMIT_ADDEND
-            )
-            + 'ms',
-        ]
-        options += [
-            '--output-limit',
-            str(kwargs['output_limit'] or self.DEFAULT_OUTPUT_LIMIT) + 'K',
-        ]
-        command = [os.path.join(self.rpath, 'sio2jail')] + options + ['--'] + command
+        options += ['--memory-limit',
+            str(kwargs['mem_limit']) + 'K']
+        options += ['--instruction-count-limit',
+            str(kwargs['time_limit'] *
+            self.INSTRUCTIONS_PER_VIRTUAL_SECOND / 1000)]
 
-        renv = {}
-        try:
-            result_file = tempfile.NamedTemporaryFile(dir=tempcwd())
-            kwargs['ignore_errors'] = True
-            renv = execute_command(
-                command + [noquote('2>'), result_file.name], **kwargs
-            )
+        if kwargs['real_time_limit']:
+            options += ['--rtimelimit',
+                    str(kwargs['real_time_limit']) + 'ms']
+            # Limiting outside supervisor
+            kwargs['real_time_limit'] = 2 * kwargs['real_time_limit']
 
-            if renv['return_code'] != 0:
-                raise ExecError(
-                    'Sio2Jail returned code %s, stderr: %s'
-                    % (renv['return_code'], result_file.read(10240))
-                )
+        options += ['--output-limit',
+            str(kwargs['output_limit'])]
+        command = [os.path.join(self.rpath, 'sio2jail')] + \
+                    options + ['--'] + command
 
-            result_file.seek(0)
-            status_line = result_file.readline().strip().split()[1:]
-            renv['result_string'] = result_file.readline().strip()
-            result_file.close()
-            for num, key in enumerate(
-                    ('result_code', 'time_used', None, 'mem_used', None)
-            ):
-                if key:
-                    renv[key] = int(status_line[num])
-
-            if renv['result_string'] == 'ok':
-                renv['result_code'] = 'OK'
-            elif renv['result_string'] == 'time limit exceeded':
-                renv['result_code'] = 'TLE'
-            elif renv['result_string'] == 'real time limit exceeded':
-                renv['result_code'] = 'TLE'
-            elif renv['result_string'] == 'memory limit exceeded':
-                renv['result_code'] = 'MLE'
-            elif renv['result_string'].startswith('intercepted forbidden syscall'):
-                renv['result_code'] = 'RV'
-            elif renv['result_string'].startswith('process exited due to signal'):
-                renv['result_code'] = 'RE'
-            else:
-                raise ExecError(
-                    'Unrecognized Sio2Jail result string: %s' % renv['result_string']
-                )
-
-        except (EnvironmentError, EOFError, RuntimeError) as e:
-            logger.error('Sio2JailExecutor error: %s', traceback.format_exc())
-            logger.error(
-                'Sio2JailExecutor error dirlist: %s: %s',
-                tempcwd(),
-                str(os.listdir(tempcwd())),
-            )
-
-            renv['result_code'] = 'SE'
-            for i in ('time_used', 'mem_used'):
-                renv.setdefault(i, 0)
-            renv['result_string'] = str(e)
-
-            if not kwargs.get('ignore_errors', False):
-                raise ExecError(
-                    'Failed to execute command: %s. Reason: %s'
-                    % (command, renv['result_string'])
-                )
-
-        return renv
+        kwargs['ignore_errors'] = True
+        return execute_command(command, **kwargs)
 
 
 class SupervisedExecutor(_SIOSupervisedExecutor):
