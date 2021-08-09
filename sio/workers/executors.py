@@ -733,7 +733,7 @@ class PRootExecutor(BaseExecutor):
 
     def __init__(self, sandbox):
         """``sandbox`` has to be a sandbox name."""
-        self.chroot = get_sandbox(sandbox)
+        self.chroot = get_sandbox(sandbox, flavor='pristine')
         self.proot = SandboxExecutor('proot-sandbox')
 
         self.options = []
