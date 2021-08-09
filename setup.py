@@ -93,6 +93,7 @@ setup(
             'default-cpp = sio.compilers.gcc:run_cpp_default',
             'default-pas = sio.compilers.fpc:run_pas_default',
             'default-java = sio.compilers.java:run_java_default',
+            'default-py = sio.compilers.python:run_py_default',
 
             ####################################
             # Deprecated, should be removed after 01.01.2021
@@ -105,6 +106,9 @@ setup(
             'pas = sio.compilers.fpc:run_pas_default',
 
             'java = sio.compilers.java:run_java_default',
+
+            'python = sio.compilers.python:run_py_default',
+            'py = sio.compilers.python:run_py_default',
 
             ####################################
             # Deprecated, should be removed after 01.01.2021
