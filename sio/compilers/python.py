@@ -17,7 +17,7 @@ class PythonCompiler(Compiler):
     lang = 'py'
     output_file = 'a.tar'
     python = 'python3.7'
-    sandbox = '%s-numpy_amd64' % python
+    sandbox = '%s-numpy_i386' % python
 
     def _make_filename(self):
         source_base = os.path.basename(self.environ['source_file'])

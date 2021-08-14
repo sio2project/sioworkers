@@ -169,7 +169,7 @@ class Python3(LanguageModeWrapper):
     python = PythonCompiler.python
 
     def __init__(self, executor, environ):
-        executor = Sio2JailExecutor(PythonCompiler.sandbox)
+        executor = Sio2JailExecutor('compiler-' + PythonCompiler.sandbox)
 
         super(Python3, self).__init__(executor, environ)
         self.exec_info = environ['exec_info']
@@ -187,8 +187,7 @@ class Python3(LanguageModeWrapper):
             tf.extractall(prog_dir)
 
         kwargs['no_bind_binary'] = True
-        kwargs['binds'] = [('/dev/zero', '/dev/urandom', 'ro,dev'),
-                           (prog_dir, inner_dir, 'ro')]
+        kwargs['binds'] = [(prog_dir, inner_dir, 'ro')]
 
         return self.executor(python + [inner_file] + args, **kwargs)
 
