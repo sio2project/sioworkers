@@ -505,6 +505,8 @@ class _SIOSupervisedExecutor(SandboxExecutor):
         125: 'TLE',
     }
 
+    _oiaug_codes = ['OK', 'RV', 'RE', 'TLE', 'MLE', 'OLE']
+
     DEFAULT_MEMORY_LIMIT = 64 * 2**10  # (in KiB)
     DEFAULT_OUTPUT_LIMIT = 50 * 2**20  # (in B)
     DEFAULT_TIME_LIMIT = 30000  # (default virtual time limit in ms)
@@ -578,16 +580,20 @@ class _SIOSupervisedExecutor(SandboxExecutor):
                 raise ExecError('Supervisor returned code %s' % supervisor_return_code)
 
             result_file.seek(0)
-            status_line = result_file.readline().strip().split()[1:]
+            status_line = six.ensure_text(result_file.readline()).strip().split()
             renv['result_string'] = result_file.readline().strip()
             result_file.close()
             for num, key in enumerate(
-                ('result_code', 'time_used', None, 'mem_used', 'num_syscalls')
+                (None, 'result_code', 'time_used', None, 'mem_used', 'num_syscalls')
             ):
                 if key:
                     renv[key] = int(status_line[num])
 
-            result_code, exit_code = self._supervisor_result_to_code(renv['result_code'])
+            if status_line[0] in self._oiaug_codes:
+                result_code = status_line[0]
+                exit_code = renv['result_code']
+            else:
+                result_code, exit_code = self._supervisor_result_to_code(renv['result_code'])
 
         except Exception as e:
             logger.error('SupervisedExecutor error: %s', traceback.format_exc())
