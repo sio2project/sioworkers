@@ -222,6 +222,9 @@ class TaskManager(Service):
     def getQueue(self):
         return self.scheduler.dump()
 
+    def getTasks(self):
+        return {k: t.env for k, t in self.inProgress.iteritems()}
+
     def _addGroup(self, group_env):
         singleTasks = []
         idMap = {}

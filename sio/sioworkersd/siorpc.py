@@ -44,6 +44,9 @@ class SIORPC(XMLRPC):
     def xmlrpc_get_queue(self):
         return self.taskm.getQueue()
 
+    def xmlrpc_get_tasks(self):
+        return self.taskm.getTasks()
+
     def _prepare_group(self, env):
         tasks = env['workers_jobs']
         group_id = 'GROUP_' + uuid4().urn
