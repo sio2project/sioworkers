@@ -5,7 +5,6 @@ from setuptools import setup, find_packages
 PYTHON_VERSION = version_info[0]
 
 python2_specific_requirements = [
-    'supervisor>=4.0,<4.3',
     'enum34>=1.1,<1.2',
 ]
 
@@ -16,6 +15,7 @@ python3_specific_requirements = [
 python23_universal_requirements = [
     'filetracker>=2.1.5,<3.0',
     'simplejson==3.14.0',
+    'supervisor>=4.0,<4.3',
     'Twisted==20.3.0',
     'sortedcontainers==2.1.0',
     'six',
