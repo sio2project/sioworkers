@@ -1,0 +1,23 @@
+#!/bin/bash
+
+export WORKER_USER="$(id -u -n)"
+export WORKER_HOME="/sio2/sioworkers"
+
+export WORKER_LOGCONFIG="${WORKER_HOME}/config/logging.json"
+
+# Cache cleaner config
+export FILETRACKER_CACHE_CLEANER_ENABLED="true"
+export CACHE_SIZE="10G"
+export SCAN_INTERVAL="1h"
+export CLEAN_LEVEL="50" # in percents
+
+# Workers config
+export WORKER_ENABLED="true"
+
+# Set worker concurrency parameters
+MEM_TOTAL=$(cat /sys/fs/cgroup/memory.max | awk '{print int($1 / 1048576)}') # in MiB
+# Set how much memory we should reserve for OS
+OS_MEMORY=128 # in MiB
+
+export WORKER_CONCURRENCY=$(cat /sys/fs/cgroup/cpu.max | awk '{print int($1 / $2)}')
+export WORKER_RAM=$(($MEM_TOTAL - $OS_MEMORY))

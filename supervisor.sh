@@ -11,6 +11,7 @@ Options:
 
 Commands:
   start         starts supervisor
+  startfg       starts supervisor in foreground
   stop          stops supervisor
   restart       restart supervisor
   status        shows status of daemons that supervisor run
@@ -25,7 +26,7 @@ while [ -n "$1" ]; do
             help
             exit 0
             ;;
-        "start"|"stop"|"restart"|"status"|"shell")
+        "start"|"startfg"|"stop"|"restart"|"status"|"shell")
             command="$1"
             ;;
         *)
@@ -54,7 +55,10 @@ if ! [ -e supervisord.conf ] || \
 fi
 
 # Activate venv:
-source ../../venv/bin/activate
+if [ -d "../../venv" ]
+then
+    source ../../venv/bin/activate
+fi
 
 # Set all config variables.
 source supervisord-conf-vars.conf
@@ -72,20 +76,23 @@ mkdir -pv "${WORKER_HOME}"/{logs,pidfiles}
 # And run supervisor.*
 case "$command" in
     "start")
-        supervisord
+        exec supervisord
+        ;;
+    "startfg")
+        exec supervisord -n
         ;;
     "stop")
-        supervisorctl shutdown
+        exec supervisorctl shutdown
         ;;
     "restart")
         supervisorctl shutdown
-        supervisord
+        exec supervisord
         ;;
     "status")
-        supervisorctl status
+        exec supervisorctl status
         ;;
     "shell")
         echo "Caution: In order to reload config, run \`$0 restart\`"
-        supervisorctl
+        exec supervisorctl
         ;;
 esac

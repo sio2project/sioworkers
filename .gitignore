@@ -7,3 +7,4 @@
 twisted/plugins/dropin.cache
 config/supervisord.conf
 config/supervisord-conf-vars.conf
+config/logging.json
