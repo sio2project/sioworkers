@@ -586,7 +586,7 @@ class Sio2JailExecutor(SandboxExecutor):
     ``mem_used``: memory used (in KiB).
 
     ``result_code``: short code reporting result of rule obeying. Is one of
-                     ``OK``, ``RE``, ``TLE``, ``MLE``, ``RV``
+                     ``OK``, ``RE``, ``TLE``, ``MLE``, ``OLE``, ``RV``
 
     ``result_string``: string describing ``result_code``
     """
@@ -663,6 +663,8 @@ class Sio2JailExecutor(SandboxExecutor):
                 renv['result_code'] = 'TLE'
             elif renv['result_string'] == 'memory limit exceeded':
                 renv['result_code'] = 'MLE'
+            elif renv['result_string'] == 'output limit exceeded':
+                renv['result_code'] = 'OLE'
             elif renv['result_string'].startswith('intercepted forbidden syscall'):
                 renv['result_code'] = 'RV'
             elif renv['result_string'].startswith('process exited due to signal'):
