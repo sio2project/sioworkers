@@ -44,7 +44,10 @@ $ docker run --rm \
   --network=sio2-network \
   --cap-add=ALL \
   --privileged \
-  -e "SIOWORKERSD_HOST=oioioi" -e "WORKER_ALLOW_RUN_CPU_EXEC=true" \
+  -e "SIOWORKERSD_HOST=oioioi" \
+  -e "WORKER_ALLOW_RUN_CPU_EXEC=true" \
+  -e "WORKER_CONCURRENCY=1" \
+  -e "WORKER_RAM=1024" \
   --memory="1152m" \
   --cpus=2.0 \
   <TODO: container tag here>
@@ -54,6 +57,7 @@ Notes:
 * `--privileged` is only needed if Sio2Jail is used for judging submissions (ie. `WORKER_ALLOW_RUN_CPU_EXEC` is set to `true`),
 * You can limit the memory/CPUs available to the container how you usually would in the container runtime of your choice,
   the container will determine how many workers it should expose to OIOIOI based on that.
+  * You can also manually override the amount of available workers/memory by specifying the `WORKER_CONCURRENCY` and `WORKER_RAM` (in MiB) environment variables.
 * 128 MiB is reserved for processes in the container other than the submission being judged. That is, if you want
   the maximum memory available to a judged program to be 1024 MiB, limit the container's memory to
   128 MiB + (number of workers) * 1024 MiB.
@@ -78,6 +82,10 @@ worker:
   environment:
     SIOWORKERSD_HOST: 'web'
     WORKER_ALLOW_RUN_CPU_EXEC: 'true'
+    # these *will* override any automatic detection of available
+    # memory/cpu cores based on container limits!
+    WORKER_CONCURRENCY: '1'
+    WORKER_RAM: '1024'
 ```
 
 ## Environment variables

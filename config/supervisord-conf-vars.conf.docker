@@ -16,9 +16,9 @@ export WORKER_ENABLED="true"
 
 # Set worker concurrency parameters
 if [ ! -f /sys/fs/cgroup/cpu.max ] || [ $(cat /sys/fs/cgroup/cpu.max | cut -d \  -f 1) = "max" ] ; then
-    export WORKER_CONCURRENCY=$(($(nproc) * 3/2))
+    WORKERS_TOTAL=$(($(nproc) * 3/2))
 else
-    export WORKER_CONCURRENCY=$(cat /sys/fs/cgroup/cpu.max | awk '{print int($1 / $2)}')
+    WORKERS_TOTAL=$(cat /sys/fs/cgroup/cpu.max | awk '{print int($1 / $2)}')
 fi
 
 if [ ! -f /sys/fs/cgroup/memory.max ] || [ $(cat /sys/fs/cgroup/memory.max) = "max" ]; then
@@ -29,4 +29,10 @@ fi
 # Set how much memory we should reserve for OS
 OS_MEMORY=128 # in MiB
 
-export WORKER_RAM=$(($MEM_TOTAL - $OS_MEMORY))
+if [ -z ${WORKER_RAM+x} ]; then
+    export WORKER_RAM=$(($MEM_TOTAL - $OS_MEMORY))
+fi
+
+if [ -z ${WORKER_CONCURRENCY+x} ]; then
+    export WORKER_CONCURRENCY=${WORKERS_TOTAL}
+fi
