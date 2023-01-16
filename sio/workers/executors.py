@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, division
 import os
 import subprocess
 import tempfile
@@ -613,7 +613,7 @@ class Sio2JailExecutor(SandboxExecutor):
             str(
                 (kwargs['time_limit'] or self.DEFAULT_TIME_LIMIT)
                 * self.INSTRUCTIONS_PER_VIRTUAL_SECOND
-                / 1000
+                // 1000
             ),
         ]
         options += [
@@ -642,12 +642,12 @@ class Sio2JailExecutor(SandboxExecutor):
             if renv['return_code'] != 0:
                 raise ExecError(
                     'Sio2Jail returned code %s, stderr: %s'
-                    % (renv['return_code'], result_file.read(10240))
+                    % (renv['return_code'], six.ensure_text(result_file.read(10240)))
                 )
 
             result_file.seek(0)
-            status_line = result_file.readline().strip().split()[1:]
-            renv['result_string'] = result_file.readline().strip()
+            status_line = six.ensure_text(result_file.readline()).strip().split()[1:]
+            renv['result_string'] = six.ensure_text(result_file.readline()).strip()
             result_file.close()
             for num, key in enumerate(
                 ('result_code', 'time_used', None, 'mem_used', None)
