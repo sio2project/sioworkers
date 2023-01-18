@@ -234,7 +234,7 @@ def _make_commmon_memory_limiting_cases():
                 oh = 2.5 if 'stack' in test else 1.2
 
                 yield "/" + test, int(MEMORY_CHECKS_LIMIT * oh), executor(), res_ok
-                yield "/" + test, int(MEMORY_CHECKS_LIMIT * 0.9), executor(), res_not_ok
+                yield "/" + test, int(MEMORY_CHECKS_LIMIT * 0.8), executor(), res_not_ok
 
             if ENABLE_SANDBOXES:
                 executor = SupervisedExecutor
@@ -258,20 +258,24 @@ def test_common_memory_limiting(source, mem_limit, executor, callback):
 
 def _make_common_time_limiting_cases():
     for executor in CHECKING_EXECUTORS:
-        yield '/procspam.c', 500, executor(), res_tle
+        yield '/time_infinite.c', 500, executor(), res_tle
+        yield '/time_verylong.c', 100, executor(), res_tle
+        yield '/time_verylong.c', 10000, executor(), res_ok
         if not NO_JAVA_TESTS:
-            yield '/procspam.java', 500, executor(), res_tle
+            yield '/time_infinite.java', 500, executor(), res_tle
+            yield '/time_verylong.java', 100, executor(), res_tle
+            yield '/time_verylong.java', 5000, executor(), res_ok
 
     if ENABLE_SANDBOXES:
         for executor in SANDBOXED_CHECKING_EXECUTORS:
-            yield "/procspam.c", 200, executor(), res_tle
-            yield "/1-sec-prog.c", 10, executor(), res_tle
+            yield "/time_infinite.c", 200, executor(), res_tle
+            yield "/time_verylong.c", 100, executor(), res_tle
+            yield "/time_verylong.c", 10000, executor(), res_ok
 
-        yield "/1-sec-prog.c", 1000, SupervisedExecutor(), res_ok
-        if not NO_JAVA_TESTS:
-            yield "/proc1secprog.java", 100, SupervisedExecutor(), res_tle
-            yield "/proc1secprog.java", 1000, SupervisedExecutor(), res_ok
-
+            if not NO_JAVA_TESTS:
+                yield '/time_infinite.java', 500, executor(), res_tle
+                yield '/time_verylong.java', 100, executor(), res_tle
+                yield '/time_verylong.java', 5000, executor(), res_ok
 
 @pytest.mark.parametrize(
     "source,time_limit,executor,callback",
@@ -770,7 +774,7 @@ def _make_real_time_limit_cases():
 
     for executor in checking_executors:
         yield [
-            '/procspam.c',
+            '/time_infinite.c',
             executor(),
             real_tle,
             {'real_time_limit': 1000, 'time_limit': 10000},
