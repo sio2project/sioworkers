@@ -1,45 +1,43 @@
+# sioworkers
+
+`sioworkers` is the task runner used by [SIO2](https://github.com/sio2project/oioioi) - the platform for running algorithmic/competitive programming contests. It handles all kinds of asynchronously run jobs - ranging from compiling submissions, to executing them in a supervised, sandboxed environment.
+
 # Installation
 
-## Python 2
-
 ```
-$ pip install -r requirements.txt
-$ python setup.py install
-```
-
-## Python 3
-
-```
-$ pip install -r requirements_py3.txt
-$ python setup.py install
+$ pip install .      # for production deployments
+$ pip install .[dev] # with development dependencies
 ```
 
 # Tests
 
-All commands are executed in the main directory.
+All tests in this project are being mnanaged with `tox`, which is simply invoked by running:
 
-## All tests
-
-```
+```console
 $ tox
 ```
 
-## Twisted (Python 2)
+in the main directory.
 
-```
-$ trial sio.sioworkersd.twisted_t
-```
+Alternatively you can also invoke the various tests directly.
 
-## Twisted (Python 3)
+## Unit tests
+
+```console
+$ TEST_SANDBOXES=1 NO_JAVA_TESTS=1 pytest -v .
 ```
-$ trial sio/sioworkers/twisted_t
+This allows you to enable/disable sandboxed and Java tests.
+
+## Twisted
+```console
+$ trial sio/sioworkersd/twisted_t
 ```
 
 # Docker
 
 An official Docker image for sioworkers is available at (TODO: update this when the image location is decided).
 
-```
+```console
 $ docker run --rm \
   --network=sio2-network \
   --cap-add=ALL \
