@@ -19,19 +19,15 @@ $ tox
 
 in the main directory.
 
-Alternatively you can also invoke the various tests directly.
-
-## Unit tests
+Alternatively you can also invoke all the tests directly.
 
 ```console
-$ TEST_SANDBOXES=1 NO_JAVA_TESTS=1 pytest -v .
+$ TEST_SANDBOXES=1 NO_JAVA_TESTS=1 NO_SIO2JAIL_TESTS=1 pytest -v .
 ```
-This allows you to enable/disable sandboxed and Java tests.
-
-## Twisted
-```console
-$ trial sio/sioworkersd/twisted_t
-```
+This allows you to enable/disable sandboxed, Java, and Sio2Jail tests respectively.
+Note that Sio2Jail requires the CPU performance counters to be exposed to the system to work.
+This usually isn't the case on VPS servers and on public/free continuous integration services,
+which will cause the tests to fail. It is recommended to skip testing Sio2Jail in those cases.
 
 # Docker
 
