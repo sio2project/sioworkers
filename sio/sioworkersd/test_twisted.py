@@ -122,7 +122,7 @@ class MockTransport(object):
         self.connected = False
 
 
-class TestWorker(server.WorkerServer):
+class _TestWorker(server.WorkerServer):
     def __init__(self, clientInfo=None):
         server.WorkerServer.__init__(self)
         self.wm = None
@@ -172,7 +172,7 @@ class WorkerManagerTest(TestWithDB):
         # We must mock notifying functions to ensure proper deferred handling.
         self.wm.notifyOnNewWorker(self._notify_new_cb)
         self.wm.notifyOnLostWorker(self._notify_lost_cb)
-        self.worker_proto = TestWorker()
+        self.worker_proto = _TestWorker()
         return self.wm.newWorker('unique1', self.worker_proto)
 
     def setUp(self):
@@ -206,7 +206,7 @@ class WorkerManagerTest(TestWithDB):
                 'available_ram_mb': ram,
                 'can_run_cpu_exec': is_any_cpu,
             }
-            self.wm.newWorker(id, TestWorker(clientInfo))
+            self.wm.newWorker(id, _TestWorker(clientInfo))
 
         # Note that setUp() also adds a default worker which has 4 GiB of RAM.
         addWorker('w1', 128, is_any_cpu=True)
@@ -255,24 +255,24 @@ class WorkerManagerTest(TestWithDB):
         return self.assertFailure(d, workermanager.WorkerGone)
 
     def test_duplicate(self):
-        w2 = TestWorker()
+        w2 = _TestWorker()
         d = self.wm.newWorker('unique2', w2)
         self.assertFalse(w2.transport.connected)
         return self.assertFailure(d, server.DuplicateWorker)
 
     def test_rejected(self):
-        w2 = TestWorker()
+        w2 = _TestWorker()
         w2.running = ['asdf']
         w2.name = 'name2'
         d = self.wm.newWorker('unique2', w2)
         return self.assertFailure(d, server.WorkerRejected)
 
     def test_reject_incomplete_worker(self):
-        w3 = TestWorker({'name': 'no_concurrency'})
+        w3 = _TestWorker({'name': 'no_concurrency'})
         d = self.wm.newWorker('no_concurrency', w3)
         self.assertFailure(d, server.WorkerRejected)
 
-        w4 = TestWorker(
+        w4 = _TestWorker(
             {
                 'name': 'unique4',
                 'concurrency': 'not a number',
@@ -283,7 +283,7 @@ class WorkerManagerTest(TestWithDB):
         d = self.wm.newWorker('unique4', w4)
         self.assertFailure(d, server.WorkerRejected)
 
-        w5 = TestWorker(
+        w5 = _TestWorker(
             {
                 'name': 'unique5',
                 'concurrency': 2,
@@ -294,11 +294,11 @@ class WorkerManagerTest(TestWithDB):
         d = self.wm.newWorker('unique5', w5)
         self.assertFailure(d, server.WorkerRejected)
 
-        w6 = TestWorker({'name': 'no_ram', 'concurrency': 2, 'can_run_cpu_exec': True})
+        w6 = _TestWorker({'name': 'no_ram', 'concurrency': 2, 'can_run_cpu_exec': True})
         d = self.wm.newWorker('no_ram', w6)
         self.assertFailure(d, server.WorkerRejected)
 
-        w7 = TestWorker(
+        w7 = _TestWorker(
             {
                 'name': 'unique7',
                 'concurrency': 2,
@@ -310,7 +310,7 @@ class WorkerManagerTest(TestWithDB):
         self.assertFailure(d, server.WorkerRejected)
 
 
-class TestClient(rpc.WorkerRPC):
+class _TestClient(rpc.WorkerRPC):
     def __init__(self, running, can_run_cpu_exec=True, name='test'):
         rpc.WorkerRPC.__init__(self, server=False)
         self.running = running
@@ -368,7 +368,7 @@ class IntegrationTest(TestWithDB):
         return d
 
     def _wrap_test(self, callback, callback_args, *client_args):
-        creator = protocol.ClientCreator(reactor, TestClient, *client_args)
+        creator = protocol.ClientCreator(reactor, _TestClient, *client_args)
 
         def cb(client):
             self.addCleanup(client.transport.loseConnection)
