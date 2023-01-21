@@ -1,0 +1,34 @@
+name: Build and publish Docker image
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  test:
+    uses: ./.github/workflows/tests-reusable.yml
+    with:
+      python-version: '3.7'
+
+  build:
+    name: Build image
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Login to container registry
+        uses: docker/login-action@v2
+        with:
+          registry: '' # TODO: decide on registry
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build and publish image
+        uses: docker/build-push-action@v3
+        with:
+          platforms: linux/amd64
+          push: false
+          tags: | # TODO: update once registry is decided on
+            docker.io/sio2project/sioworkers:${{ github.ref_name }}
+            docker.io/sio2project/sioworkers:latest
