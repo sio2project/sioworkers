@@ -11,7 +11,7 @@ $ pip install .[dev] # with development dependencies
 
 # Tests
 
-All tests in this project are being mnanaged with `tox`, which is simply invoked by running:
+All tests in this project are being managed with `tox`, which is simply invoked by running:
 
 ```console
 $ tox
