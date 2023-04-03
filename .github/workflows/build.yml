@@ -20,7 +20,6 @@ jobs:
       - name: Login to container registry
         uses: docker/login-action@v2
         with:
-          registry: '' # TODO: decide on registry
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
@@ -28,7 +27,7 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           platforms: linux/amd64
-          push: false
-          tags: | # TODO: update once registry is decided on
-            docker.io/sio2project/sioworkers:${{ github.ref_name }}
-            docker.io/sio2project/sioworkers:latest
+          push: true
+          tags: |
+            sio2project/sioworkers:${{ github.ref_name }}
+            sio2project/sioworkers:latest
