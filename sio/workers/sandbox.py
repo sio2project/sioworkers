@@ -3,6 +3,7 @@ from __future__ import print_function
 import fcntl
 import os.path
 from hashlib import sha1
+from threading import Lock
 import time
 import tarfile
 import shutil
@@ -154,24 +155,28 @@ class Sandbox(object):
 
         self.path = os.path.join(SANDBOXES_BASEDIR, name)
         _mkdir(SANDBOXES_BASEDIR)
-
+        # This is needed for safe operation with multiple threads,
+        # as file locking is useless for this.
+        self.local_lock = Lock()
         self._in_context = 0
 
     def __enter__(self):
-        self._in_context += 1
-        if self._in_context == 1:
-            try:
-                self.lock = _FileLock(self.path + '.lock')
-                self._get()
-            except:
-                self._in_context -= 1
-                raise
+        with self.local_lock:
+            self._in_context += 1
+            if self._in_context == 1:
+                try:
+                    self.file_lock = _FileLock(self.path + '.lock')
+                    self._get()
+                except:
+                    self._in_context -= 1
+                    raise
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self._in_context -= 1
-        if self._in_context == 0:
-            self.lock.unlock()
+        with self.local_lock:
+            self._in_context -= 1
+            if self._in_context == 0:
+                self.file_lock.unlock()
 
     def __str__(self):
         return "<Sandbox: %s at %s>" % (
@@ -291,18 +296,18 @@ class Sandbox(object):
 
         logger.debug("Sandbox '%s' requested", name)
 
-        self.lock.lock_shared()
+        self.file_lock.lock_shared()
 
         if not self._should_install_sandbox():
-            # Sandbox is ready, so we return and *maintain* the lock
+            # Sandbox is ready, so we return and *maintain* the file lock
             # for the lifetime of this object.
             return
 
-        self.lock.unlock()
-        self.lock.lock_exclusive()
+        self.file_lock.unlock()
+        self.file_lock.lock_exclusive()
 
         if not self._should_install_sandbox():
-            self.lock.lock_shared()
+            self.file_lock.lock_shared()
             return
 
         try:
@@ -358,10 +363,10 @@ class Sandbox(object):
             logger.info(" done.")
 
         except:
-            self.lock.unlock()
+            self.file_lock.unlock()
             raise
 
-        self.lock.lock_shared()
+        self.file_lock.lock_shared()
 
 
 def get_sandbox(name):
