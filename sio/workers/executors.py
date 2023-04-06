@@ -79,6 +79,7 @@ def execute_command(
     real_time_limit=None,
     ignore_errors=False,
     extra_ignore_errors=(),
+    pass_fds=(),
     **kwargs
 ):
     """Utility function to run arbitrary command.
@@ -111,6 +112,9 @@ def execute_command(
 
     ``stdout``
       Only when ``capture_output=True``: output of the command
+
+    ``pass_fds``
+      Extra file descriptors to pass to the command.
     """
     # Using temporary file is way faster than using subproces.PIPE
     # and it prevents deadlocks.
@@ -141,6 +145,7 @@ def execute_command(
         env=env,
         cwd=tempcwd(),
         preexec_fn=os.setpgrp,
+        pass_fds=pass_fds,
     )
 
     kill_timer = None
