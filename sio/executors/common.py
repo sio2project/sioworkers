@@ -83,27 +83,29 @@ def _run(environ, executor, use_sandboxes):
             except Exception as e:
                 raise Exception("Failed to open archive: " + six.text_type(e))
 
-        with file_executor as fe:
-            with open(input_name, 'rb') as inf:
+        return _run_core(environ, file_executor, input_name, tempcwd('out'), tempcwd(exe_filename),
+                         'exec_', use_sandboxes)
+
+    finally:
+        rmtree(zipdir)
+
+
+def _run_core(environ, file_executor, input_name, output_name, exe_filename, environ_prefix, use_sandboxes):
+    with file_executor as fe:
+        with open(input_name, 'rb') as inf:
                 # Open output file in append mode to allow appending
                 # only to the end of the output file. Otherwise,
                 # a contestant's program could modify the middle of the file.
-                with open(tempcwd('out'), 'ab') as outf:
-                    renv = fe(
+                with open(output_name, 'ab') as outf:
+                    return fe(
                         tempcwd(exe_filename),
                         [],
                         stdin=inf,
                         stdout=outf,
                         ignore_errors=True,
                         environ=environ,
-                        environ_prefix='exec_',
+                        environ_prefix=environ_prefix,
                     )
-
-    finally:
-        rmtree(zipdir)
-
-    return renv
-
 
 def _fake_run_as_exe_is_output_file(environ):
     # later code expects 'out' file to be present after compilation
