@@ -23,8 +23,6 @@ RUN . /sio2/venv/bin/activate \
 
 FROM python:3.7 AS production
 
-LABEL org.opencontainers.image.source=https://github.com/sio2project/sioworkers
-
 ENV PYTHONUNBUFFERED 1
 
 RUN useradd -m oioioi \

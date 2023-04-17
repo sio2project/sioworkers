@@ -15,19 +15,28 @@ jobs:
     name: Build image
     runs-on: ubuntu-latest
     needs: test
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Login to container registry
         uses: docker/login-action@v2
         with:
-          username: ${{ secrets.REGISTRY_USERNAME }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Docker
+        id: metadata
+        uses: docker/metadata-action@v4
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/sioworkers
 
       - name: Build and publish image
         uses: docker/build-push-action@v3
         with:
           platforms: linux/amd64
           push: true
-          tags: |
-            sio2project/sioworkers:${{ github.ref_name }}
-            sio2project/sioworkers:latest
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
