@@ -31,7 +31,7 @@ which will cause the tests to fail. It is recommended to skip testing Sio2Jail i
 
 # Docker
 
-An official Docker image for sioworkers is available at https://hub.docker.com/r/sio2project/sioworkers.
+An [official Docker image](https://github.com/sio2project/sioworkers/pkgs/container/sioworkers) for sioworkers is available on the GitHub Container Registry.
 
 ```console
 $ docker run --rm \
@@ -44,7 +44,7 @@ $ docker run --rm \
   -e "WORKER_RAM=1024" \
   --memory="1152m" \
   --cpus=2.0 \
-  sio2project/sioworkers:latest
+  ghcr.io/sio2project/sioworkers:latest
 ```
 
 Notes:
@@ -65,7 +65,7 @@ version: '3.8'
 ...
 
 worker:
-  image: sio2project/sioworkers:latest
+  image: ghcr.io/sio2project/sioworkers:latest
   deploy:
     resources:
       limits:
