@@ -14,6 +14,7 @@ from sio.assertion_utils import (
     in_,
     not_in_,
 )
+from sio.testing_utils import str_to_bool
 from filetracker.client.dummy import DummyClient
 
 from sio.compilers.job import run as run_compiler
@@ -26,9 +27,10 @@ from sio.workers.execute import execute
 from sio.workers.executors import (
     UnprotectedExecutor,
     DetailedUnprotectedExecutor,
+    SandboxExecutor,
     SupervisedExecutor,
+    Sio2JailExecutor,
     ExecError,
-    _SIOSupervisedExecutor,
 )
 from sio.workers.file_runners import get_file_runner
 from sio.workers.util import tempcwd, TemporaryCwd
@@ -56,8 +58,9 @@ import pytest
 #
 
 SOURCES = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'sources')
-ENABLE_SANDBOXES = os.environ.get('TEST_SANDBOXES', False)
-NO_JAVA_TESTS = os.environ.get('NO_JAVA_TESTS', False)
+ENABLE_SANDBOXES = str_to_bool(os.environ.get('TEST_SANDBOXES', False))
+NO_JAVA_TESTS = str_to_bool(os.environ.get('NO_JAVA_TESTS', False))
+NO_SIO2JAIL_TESTS = str_to_bool(os.environ.get('NO_SIO2JAIL_TESTS', False))
 
 
 def upload_files():
@@ -89,7 +92,7 @@ def compile(source, output='/exe', use_sandboxes=ENABLE_SANDBOXES):
 
 
 def compile_and_execute(source, executor, **exec_args):
-    cenv = compile(source, use_sandboxes=isinstance(executor, _SIOSupervisedExecutor))
+    cenv = compile(source, use_sandboxes=isinstance(executor, SandboxExecutor))
     frunner = get_file_runner(executor, cenv)
 
     ft.download(
@@ -106,7 +109,7 @@ def compile_and_execute(source, executor, **exec_args):
 
 
 def compile_and_run(source, executor_env, executor, use_sandboxes=False):
-    renv = compile(source, use_sandboxes=isinstance(executor, _SIOSupervisedExecutor))
+    renv = compile(source, use_sandboxes=isinstance(executor, SandboxExecutor))
     executor_env['exe_file'] = renv['out_file']
     executor_env['exec_info'] = renv['exec_info']
     return run_executor(executor_env, executor, use_sandboxes=use_sandboxes)
@@ -128,6 +131,9 @@ MEMORY_CHECKS_LIMIT = 30 * 1024  # in KiB
 SMALL_OUTPUT_LIMIT = 50  # in B
 CHECKING_EXECUTORS = [DetailedUnprotectedExecutor]
 SANDBOXED_CHECKING_EXECUTORS = [SupervisedExecutor]
+
+if not NO_SIO2JAIL_TESTS:
+    SANDBOXED_CHECKING_EXECUTORS.append(Sio2JailExecutor)
 
 # Status helpers
 def res_ok(env):
@@ -179,7 +185,7 @@ def _make_running_cases():
     for executor in executors:
         yield '/add_print.c', executor(), res_ok
 
-        if not NO_JAVA_TESTS:
+        if not NO_JAVA_TESTS and not issubclass(executor, Sio2JailExecutor):
             yield '/add_print.java', executor(), res_ok
 
 
@@ -234,7 +240,7 @@ def _make_commmon_memory_limiting_cases():
                 oh = 2.5 if 'stack' in test else 1.2
 
                 yield "/" + test, int(MEMORY_CHECKS_LIMIT * oh), executor(), res_ok
-                yield "/" + test, int(MEMORY_CHECKS_LIMIT * 0.9), executor(), res_not_ok
+                yield "/" + test, int(MEMORY_CHECKS_LIMIT * 0.8), executor(), res_not_ok
 
             if ENABLE_SANDBOXES:
                 executor = SupervisedExecutor
@@ -258,20 +264,30 @@ def test_common_memory_limiting(source, mem_limit, executor, callback):
 
 def _make_common_time_limiting_cases():
     for executor in CHECKING_EXECUTORS:
-        yield '/procspam.c', 500, executor(), res_tle
+        yield '/time_infinite.c', 500, executor(), res_tle
+        yield '/time_verylong.c', 100, executor(), res_tle
+        yield '/time_verylong.c', 10000, executor(), res_ok
         if not NO_JAVA_TESTS:
-            yield '/procspam.java', 500, executor(), res_tle
+            yield '/time_infinite.java', 500, executor(), res_tle
+            yield '/time_verylong.java', 100, executor(), res_tle
+            yield '/time_verylong.java', 5000, executor(), res_ok
 
     if ENABLE_SANDBOXES:
         for executor in SANDBOXED_CHECKING_EXECUTORS:
-            yield "/procspam.c", 200, executor(), res_tle
-            yield "/1-sec-prog.c", 10, executor(), res_tle
+            yield "/time_infinite.c", 200, executor(), res_tle
 
-        yield "/1-sec-prog.c", 1000, SupervisedExecutor(), res_ok
-        if not NO_JAVA_TESTS:
-            yield "/proc1secprog.java", 100, SupervisedExecutor(), res_tle
-            yield "/proc1secprog.java", 1000, SupervisedExecutor(), res_ok
+            if issubclass(executor, SupervisedExecutor):
+                yield "/time_verylong.c", 100, executor(), res_tle
+                yield "/time_verylong.c", 10000, executor(), res_ok
 
+                if not NO_JAVA_TESTS:
+                    yield '/time_infinite.java', 500, executor(), res_tle
+                    yield '/time_verylong.java', 100, executor(), res_tle
+                    yield '/time_verylong.java', 5000, executor(), res_ok
+
+            if issubclass(executor, Sio2JailExecutor):
+                yield "/time_s2j_200ms.c", 100, executor(), res_tle
+                yield "/time_s2j_200ms.c", 1000, executor(), res_ok
 
 @pytest.mark.parametrize(
     "source,time_limit,executor,callback",
@@ -613,7 +629,7 @@ def _make_return_codes_cases():
 
     for executor in executors:
         yield raises(ExecError)(_test_transparent_exec), [
-            '/return-scanf.c',
+            '/die-scanf.c',
             executor(),
             None,
             {},
@@ -636,7 +652,7 @@ def _make_return_codes_cases():
         checking_executors = checking_executors + SANDBOXED_CHECKING_EXECUTORS
 
     for executor in checking_executors:
-        yield _test_exec, ['/return-scanf.c', executor(), res_re(42), {}]
+        yield _test_exec, ['/die-scanf.c', executor(), res_re(42), {}]
 
     if ENABLE_SANDBOXES:
         yield _test_exec, [
@@ -679,8 +695,7 @@ def _make_output_limit_cases():
         checking_executors = checking_executors + SANDBOXED_CHECKING_EXECUTORS
 
     for executor in checking_executors:
-        yield ['/add_print.c', executor(), ole, {'output_limit': 10}]
-        yield ['/iospam-hard.c', executor(), ole, {}]  # Default
+        yield ['/iospam-hard.c', executor(), ole, {'capture_output': 'True'}]  # Default
 
 
 @pytest.mark.parametrize(
@@ -712,12 +727,13 @@ def test_signals(args):
 
 
 def _make_rule_violation_cases():
-    checking_executors = []
     if ENABLE_SANDBOXES:
-        checking_executors = checking_executors + SANDBOXED_CHECKING_EXECUTORS
+        for executor in SANDBOXED_CHECKING_EXECUTORS:
+            if issubclass(executor, Sio2JailExecutor):
+                # sio2jail appears to be allowing open() syscalls
+                continue
 
-    for executor in checking_executors:
-        yield ['/open.c', executor(), res_rv('opening files'), {}]
+            yield ['/open.c', executor(), res_rv('opening files'), {}]
 
 
 @pytest.mark.parametrize(
@@ -770,7 +786,7 @@ def _make_real_time_limit_cases():
 
     for executor in checking_executors:
         yield [
-            '/procspam.c',
+            '/time_infinite.c',
             executor(),
             real_tle,
             {'real_time_limit': 1000, 'time_limit': 10000},

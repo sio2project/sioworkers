@@ -6,6 +6,7 @@ import sys
 
 import pytest
 from sio.assertion_utils import ok_, eq_, timed
+from sio.testing_utils import str_to_bool
 
 from sio.compilers.job import run
 from sio.executors.common import run as run_from_executors
@@ -40,8 +41,8 @@ from sio.workers.util import TemporaryCwd, tempcwd
 #
 
 SOURCES = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'sources')
-ENABLE_SANDBOXED_COMPILERS = os.environ.get('TEST_SANDBOXES', False)
-NO_JAVA_TESTS = os.environ.get('NO_JAVA_TESTS', False)
+ENABLE_SANDBOXED_COMPILERS = str_to_bool(os.environ.get('TEST_SANDBOXES', False))
+NO_JAVA_TESTS = str_to_bool(os.environ.get('NO_JAVA_TESTS', False))
 
 
 def in_(a, b, msg=None):

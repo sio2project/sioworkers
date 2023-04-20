@@ -1,35 +1,4 @@
-from __future__ import absolute_import
-from sys import version_info
 from setuptools import setup, find_packages
-
-PYTHON_VERSION = version_info[0]
-
-python2_specific_requirements = [
-    'enum34>=1.1,<1.2',
-]
-
-python3_specific_requirements = [
-    'bsddb3==6.2.7',
-]
-
-python23_universal_requirements = [
-    'filetracker>=2.1.5,<3.0',
-    'simplejson==3.14.0',
-    'supervisor>=4.0,<4.3',
-    'Twisted==20.3.0',
-    'sortedcontainers==2.1.0',
-    'six',
-    'pytest>=4.6,<4.7',
-    'pytest-runner==5.1',
-    'pytest-timeout==1.3.3',
-    'urllib3<2.0',  # urllib3 will drop support for python2 in version 2.0.
-]
-
-if PYTHON_VERSION == 2:
-    final_requirements = python23_universal_requirements + python2_specific_requirements
-else:
-    final_requirements = python23_universal_requirements + python3_specific_requirements
-
 
 setup(
     name = "sioworkers",
@@ -44,16 +13,24 @@ setup(
     packages = find_packages() + ['twisted.plugins'],
     namespace_packages = ['sio', 'sio.compilers', 'sio.executors'],
 
-    install_requires=final_requirements,
-
-    setup_requires = [
-        'pytest-runner',
+    install_requires = [
+        'filetracker>=2.1.5,<3.0',
+        'bsddb3==6.2.7',
+        'simplejson==3.14.0',
+        'supervisor>=4.0,<4.3',
+        'Twisted==20.3.0',
+        'sortedcontainers==2.1.0',
+        'six',
+        'urllib3>=1.26.14,<2.0',
     ],
 
-    tests_require = [
-        'pytest',
-        'pytest-timeout'
-    ],
+    extras_require = {
+        'dev' : [
+            'pytest>=7.2.1,<8.0',
+            'pytest-timeout==2.1.0',
+            'tox',
+        ]
+    },
 
     entry_points = {
         'sio.jobs': [

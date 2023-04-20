@@ -1,4 +1,4 @@
-public class procspam {
+public class time_infinite {
     static public void main(String[] args) {
         int n = 7348;
         int m = 43;

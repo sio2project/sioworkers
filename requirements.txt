@@ -1,8 +1,0 @@
-# Some dependencies have ill-pinned dependencies these packages are installed to fix those.
-pyparsing==2.4.4
-zipp==1.2.0
-idna==2.10
-PyHamcrest==1.9.0
-
-# Testing utility
-tox
