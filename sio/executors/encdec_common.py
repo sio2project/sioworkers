@@ -1,19 +1,15 @@
 from __future__ import absolute_import
 import os
 import logging
-from shutil import rmtree
+from shutil import copy2, rmtree
 import tempfile
 from zipfile import ZipFile, is_zipfile
 from sio.executors.checker import _limit_length
 from sio.executors.common import _run_core
 from sio.workers import ft
 from sio.workers.executors import ExecError, PRootExecutor, UnprotectedExecutor
-from sio.workers.util import decode_fields, replace_invalid_UTF, tempcwd
+from sio.workers.util import decode_fields, replace_invalid_UTF, tempcwd, TemporaryCwd
 from sio.workers.file_runners import get_file_runner
-
-# TODO XXX FIXME
-# Hide the files like enc_in or hint from the contestants
-# Would not be nice if someone just sideloaded enc_in in decoder
 
 import six
 
@@ -214,6 +210,23 @@ def _run_checker(environ, use_sandboxes=False):
         return False
 
 
+def _run_decoder_hide_files(environ, file_executor, exe_filename, use_sandboxes, orig_dir):
+    # We now have quite a lot of interes
+    # be nice if some decoder read them.
+    with TemporaryCwd() as new_dir:
+        # Copy the executable and input
+        for f in 'dec_in', exe_filename:
+            copy2(os.path.join(orig_dir, f), tempcwd(f))
+
+        renv = _run_decoder(environ, file_executor, exe_filename, use_sandboxes)
+
+        # Copy the output
+        for f in 'dec_out',:
+            copy2(tempcwd(f), os.path.join(orig_dir, f))
+
+    return renv
+
+
 def run(environ, executor, use_sandboxes=True):
     """
     Common code for executors.
@@ -244,7 +257,7 @@ def run(environ, executor, use_sandboxes=True):
     if not _run_channel(environ, use_sandboxes):
         return environ
 
-    renv = _run_decoder(environ, file_executor, exe_filename, use_sandboxes)
+    renv = _run_decoder_hide_files(environ, file_executor, exe_filename, use_sandboxes, tempcwd())
     _populate_environ(renv, environ, "decoder_")
 
     if renv["result_code"] != "OK":
