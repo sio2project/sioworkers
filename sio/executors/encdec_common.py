@@ -11,8 +11,6 @@ from sio.workers.executors import ExecError, PRootExecutor, UnprotectedExecutor
 from sio.workers.util import decode_fields, replace_invalid_UTF, tempcwd, TemporaryCwd
 from sio.workers.file_runners import get_file_runner
 
-import six
-
 logger = logging.getLogger(__name__)
 
 
@@ -126,9 +124,9 @@ def _run_channel(environ, use_sandboxes=False):
         raise SystemError(e)
 
     while len(output) < 3:
-        output.append("")
+        output.append(b"")
 
-    if six.ensure_binary(output[0]) == b"OK":
+    if output[0] == b"OK":
         environ["channel_result_code"] = "OK"
         if output[1]:
             environ["channel_result_string"] = _limit_length(output[1]).decode("utf-8")
@@ -194,9 +192,9 @@ def _run_checker(environ, use_sandboxes=False):
         raise SystemError(e)
 
     while len(output) < 3:
-        output.append("")
+        output.append(b"")
 
-    if six.ensure_binary(output[0]) == b"OK":
+    if output[0] == b"OK":
         environ["checker_result_code"] = "OK"
         if output[1]:
             environ["checker_result_string"] = _limit_length(output[1]).decode("utf-8")
