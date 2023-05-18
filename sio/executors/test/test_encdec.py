@@ -4,7 +4,7 @@ import os.path
 from filetracker.client.dummy import DummyClient
 from sio.assertion_utils import ok_, eq_
 from sio.compilers.job import run as run_compiler
-from sio.executors.sio2jail_exec import encdec_run
+from sio.executors.unsafe_exec import encdec_run
 from sio.workers import ft
 from sio.workers.util import TemporaryCwd, tempcwd
 
