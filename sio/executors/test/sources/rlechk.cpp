@@ -25,6 +25,7 @@ int main(int argc, char **argv) {
 			return 0;
 		}
 	}
+	if (fgetc(in) != EOF) puts("WA\nZły wynik\n0");
 
 	puts("OK\nBardzo dobrze\n100");
 

@@ -29,6 +29,7 @@ int main(int argc, char **argv) {
 
 		assert(fputc(ch, result) != EOF);
 	}
+	if (fgetc(hint) != EOF) puts("WA\nZły wynik\n0");
 
 	assert(fputs("OK\n", checker) != EOF);
 
