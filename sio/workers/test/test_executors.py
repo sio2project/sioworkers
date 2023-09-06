@@ -436,6 +436,8 @@ def _make_inwer_cases():
         yield '/inwer_big_output.c', '/inwer_ok', use_sandboxes, check_inwer_big_output(
             use_sandboxes
         )
+        yield '/inwer_argument.c', '/inwer_ok', use_sandboxes, check_inwer_ok
+        yield '/inwer_argument.c', '/inwer_wrong', use_sandboxes, check_inwer_wrong
 
 
 @pytest.mark.parametrize(
