@@ -436,6 +436,8 @@ def _make_inwer_cases():
         yield '/inwer_big_output.c', '/inwer_ok', use_sandboxes, check_inwer_big_output(
             use_sandboxes
         )
+        yield '/inwer_argument.c', '/inwer_ok', use_sandboxes, check_inwer_ok
+        yield '/inwer_argument.c', '/inwer_wrong', use_sandboxes, check_inwer_wrong
 
 
 @pytest.mark.parametrize(
@@ -449,6 +451,7 @@ def test_inwer(inwer, in_file, use_sandboxes, callback):
     with TemporaryCwd():
         env = {
             'in_file': in_file,
+            'in_file_name': os.path.basename(in_file),
             'exe_file': inwer_bin,
             'use_sandboxes': use_sandboxes,
             'inwer_output_limit': SMALL_OUTPUT_LIMIT,
