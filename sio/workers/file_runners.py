@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+from sio.workers import ft
 from sio.workers.executors import (
     UnprotectedExecutor,
     DetailedUnprotectedExecutor,
@@ -10,7 +11,7 @@ from sio.workers.executors import (
 )
 from sio.workers.util import RegisteredSubclassesBase
 import os.path
-
+import six
 
 class LanguageModeWrapper(RegisteredSubclassesBase):
     """Language mode wrapper runs compiled file within ``executor``.
@@ -73,6 +74,14 @@ class LanguageModeWrapper(RegisteredSubclassesBase):
     def preferred_filename(self):
         """Returns filename to which the file should be downloaded."""
         raise NotImplementedError
+    
+    def _download_extra_execution_files(self, environ, dest):
+        tmp_environ = environ.copy()
+        for file_name, file_path in six.iteritems(environ.get('extra_execution_files', {})):
+            tmp_environ['extra_execution_file'] = file_path
+            ft.download(tmp_environ, 'extra_execution_file',
+                        dest=os.path.join(dest, file_name),
+                        add_to_cache=True)
 
 
 class NoOp(LanguageModeWrapper):
@@ -82,6 +91,7 @@ class NoOp(LanguageModeWrapper):
     handled_executors = ()
 
     def __call__(self, file, args, **kwargs):
+        self._download_extra_execution_files(kwargs.get('environ', os.environ.copy()), '.')
         return self.executor([file] + args, **kwargs)
 
     def preferred_filename(self):
@@ -106,6 +116,7 @@ class Executable(LanguageModeWrapper):
             cmd = file
         else:
             cmd = './%s' % file
+        self._download_extra_execution_files(kwargs.get('environ', os.environ.copy()), '.')
         return self.executor([cmd] + args, **kwargs)
 
     def preferred_filename(self):
@@ -157,6 +168,7 @@ class Java(_BaseJava):
             cmd = ['java'] + options + ['-classpath', file_sandboxed_path, entry_point]
         else:
             cmd = ['java'] + options + ['-jar', file_sandboxed_path]
+        self._download_extra_execution_files(kwargs.get('environ', os.environ.copy()), '.')
         return self.executor(cmd + args, **kwargs)
 
 
@@ -165,6 +177,7 @@ class JavaSIO(_BaseJava):
     handled_executors = (SupervisedExecutor,)
 
     def __call__(self, file, args, **kwargs):
+        self._download_extra_execution_files(kwargs.get('environ', os.environ.copy()), '.')
         return self.executor([file] + args, java_sandbox='compiler-java.1_8', **kwargs)
 
 
