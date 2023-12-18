@@ -28,13 +28,13 @@ class CStyleCompiler(Compiler):
 class CCompiler(CStyleCompiler):
     compiler = 'gcc'
     # Without -static as there is no static compilation on Mac
-    options = ['-O2', '-s', '-lm']
+    options = ['-static', '-O2', '-s', '-lm']
 
 
 class CPPCompiler(CStyleCompiler):
     lang = 'cpp'
     compiler = 'g++'
-    options = ['-std=gnu++0x', '-O2', '-s', '-lm']
+    options = ['-std=gnu++0x', '-static', '-O2', '-s', '-lm']
 
 
 def run_gcc(environ):
