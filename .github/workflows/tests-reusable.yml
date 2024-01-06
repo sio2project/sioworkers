@@ -52,7 +52,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           pip install --user virtualenv
-          pip -m virtualenv venv
+          python -m virtualenv venv
           . venv/bin/activate
           pip install -e .[dev]
 
