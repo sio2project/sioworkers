@@ -34,7 +34,7 @@ jobs:
       - name: Install apt dependencies
         run: |
           apt-get update
-          apt-get install libdb-dev fp-compiler fp-units-base fp-units-math
+          apt-get install -y libdb-dev fp-compiler fp-units-base fp-units-math
 
       - name: Cache Python dependencies
         uses: actions/cache@v3
