@@ -12,7 +12,7 @@ jobs:
     name: Run tests
     runs-on: self-hosted
     container:
-      image: debian:latest
+      image: ubuntu:latest
       options:
         --privileged
 
