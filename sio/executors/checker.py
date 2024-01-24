@@ -3,6 +3,7 @@ import os.path
 import logging
 import tempfile
 import six
+import re
 
 from sio.workers import ft
 from sio.workers.executors import (
@@ -129,9 +130,35 @@ def run(environ, use_sandboxes=True):
         environ['result_code'] = 'OK'
         if output[1]:
             environ['result_string'] = _limit_length(output[1])
-        environ['result_percentage'] = float(output[2] or 100)
+        environ['result_percentage'] = output_to_fraction(output[2])
     else:
         environ['result_code'] = 'WA'
         environ['result_string'] = _limit_length(output[1])
-        environ['result_percentage'] = 0
+        environ['result_percentage'] = (0, 1)
     return environ
+
+
+def output_to_fraction(output_str):
+    if not output_str:
+        return 100, 1
+    output_is_float = float_pattern.match(r"[0-9]+\.[0-9]*", output_str)
+    output_is_percent = percent_pattern.match(r"[0-9]+", output_str)
+    output_is_fraction = fraction_pattern.match(r"[0-9]+\ [0-9]+", output_str)
+    if output_is_float:
+        return float_to_fraction(output_str)
+    elif output_is_percent:
+        return int(output_str), 1
+    elif output_is_fraction:
+        return tuple(output_str.split(" "))
+    else:
+        raise CheckerError(
+            'Invalid checker output, expected float, percent or fraction, got "%s"'
+            % output_str
+        )
+
+
+def float_to_fraction(float_str):
+    nominator = int(''.join(filter(str.isdigit, float_str)))
+    denominator = 10 ** (len(float_str) - float_str.find('.') - 1)
+    return nominator, denominator
+

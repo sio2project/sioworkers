@@ -350,7 +350,7 @@ def test_truncating_output():
 def _make_untrusted_checkers_cases():
     def ok_42(env):
         res_ok(env)
-        eq_(42, int(env['result_percentage']))
+        eq_(42, int(env['result_percentage'][0] / env['result_percentage'][1]))
 
     # Test if unprotected execution allows for return code 1
     yield '/chk-rtn1.c', None, False, None
