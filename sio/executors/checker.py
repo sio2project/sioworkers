@@ -130,7 +130,14 @@ def run(environ, use_sandboxes=True):
         environ['result_code'] = 'OK'
         if output[1]:
             environ['result_string'] = _limit_length(output[1])
-        environ['result_percentage'] = output_to_fraction(output[2])
+        if isinstance(output[2], bytes):
+            output[2] = output[2].decode('utf-8')
+        environ['result_percentage'] = output_to_fraction(output[2].strip())
+        if environ['result_percentage'][1] == 0:
+            raise CheckerError(
+                'Checker returned 0 as denominator. Checker stdout: "%s". Checker environ dump: %s'
+                % (output[2], environ)
+            )
     else:
         environ['result_code'] = 'WA'
         environ['result_string'] = _limit_length(output[1])
@@ -141,15 +148,16 @@ def run(environ, use_sandboxes=True):
 def output_to_fraction(output_str):
     if not output_str:
         return 100, 1
-    output_is_float = re.match(r"[0-9]+\.[0-9]*", output_str)
-    output_is_percent = re.match(r"[0-9]+", output_str)
-    output_is_fraction = re.match(r"[0-9]+ [0-9]+", output_str)
+    output_is_float = re.match(r"^[0-9]+\.[0-9]*$", output_str)
+    output_is_percent = re.match(r"^[0-9]+$", output_str)
+    output_is_fraction = re.match(r"^[0-9]+ [0-9]+$", output_str)
     if output_is_float:
         return float_to_fraction(output_str)
     elif output_is_percent:
         return int(output_str), 1
     elif output_is_fraction:
-        return tuple(output_str.split(" "))
+        split = output_str.split(' ')
+        return int(split[0]), int(split[1])
     else:
         raise CheckerError(
             'Invalid checker output, expected float, percent or fraction, got "%s"'
