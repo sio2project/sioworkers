@@ -363,6 +363,10 @@ def _make_untrusted_checkers_cases():
         yield '/open2.c', res_wa, True, None
         # Wrong model solution
         yield '/chk-rtn2.c', None, True, SystemError
+        # Checker with float result percentage
+        yield '/chk-float.c', ok_42, True, None
+        # Checker with fraction result percentage
+        yield '/chk-fraction.c', ok_42, True, None
 
 
 @pytest.mark.parametrize(
