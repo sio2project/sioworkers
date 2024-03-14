@@ -141,24 +141,11 @@ def run(environ, use_sandboxes=True):
 def output_to_fraction(output_str):
     if not output_str:
         return 100, 1
-    output_is_float = float_pattern.match(r"[0-9]+\.[0-9]*", output_str)
-    output_is_percent = percent_pattern.match(r"[0-9]+", output_str)
-    output_is_fraction = fraction_pattern.match(r"[0-9]+\ [0-9]+", output_str)
-    if output_is_float:
-        return float_to_fraction(output_str)
-    elif output_is_percent:
-        return int(output_str), 1
-    elif output_is_fraction:
-        return tuple(output_str.split(" "))
-    else:
+    try:
+        frac = Fraction(output_str)
+        return frac.numerator, frac.denominator
+    except ValueError:
         raise CheckerError(
             'Invalid checker output, expected float, percent or fraction, got "%s"'
             % output_str
         )
-
-
-def float_to_fraction(float_str):
-    nominator = int(''.join(filter(str.isdigit, float_str)))
-    denominator = 10 ** (len(float_str) - float_str.find('.') - 1)
-    return nominator, denominator
-
