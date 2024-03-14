@@ -9,7 +9,7 @@ int main(int argc, char **argv) {
     fscanf(fdh, "%s", buf);
     fscanf(fdo, "%s", buf2);
     if (strcmp(buf, buf2) == 0)
-        puts("OK\nOK\n84 2");
+        puts("OK\nOK\n84/2");
     else
         puts("WRONG");
     return 0;

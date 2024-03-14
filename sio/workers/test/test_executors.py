@@ -844,6 +844,7 @@ def test_checker_percentage_parsing():
     eq_(output_to_fraction('007'), (7, 1))
     eq_(output_to_fraction('007/0042'), (1, 6))
     eq_(output_to_fraction('1e5'), (100000, 1))
+    eq_(output_to_fraction(''), (100, 1))
 
     with pytest.raises(CheckerError):
         output_to_fraction('42 2')
@@ -855,8 +856,7 @@ def test_checker_percentage_parsing():
         output_to_fraction('42/2/1')
     with pytest.raises(CheckerError):
         output_to_fraction('42/2.1')
-    with pytest.raises(CheckerError):
-        output_to_fraction('')
+
     with pytest.raises(CheckerError):
         output_to_fraction('42/')
     with pytest.raises(CheckerError):
