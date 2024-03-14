@@ -21,7 +21,11 @@ from sio.compilers.job import run as run_compiler
 from sio.executors.common import run as run_executor
 from sio.executors.ingen import run as run_ingen
 from sio.executors.inwer import run as run_inwer
-from sio.executors.checker import RESULT_STRING_LENGTH_LIMIT
+from sio.executors.checker import (
+    RESULT_STRING_LENGTH_LIMIT,
+    output_to_fraction,
+    CheckerError,
+)
 from sio.workers import ft
 from sio.workers.execute import execute
 from sio.workers.executors import (
@@ -363,6 +367,10 @@ def _make_untrusted_checkers_cases():
         yield '/open2.c', res_wa, True, None
         # Wrong model solution
         yield '/chk-rtn2.c', None, True, SystemError
+        # Checker with float result percentage
+        yield '/chk-float.c', ok_42, True, None
+        # Checker with fraction result percentage
+        yield '/chk-fraction.c', ok_42, True, None
 
 
 @pytest.mark.parametrize(
@@ -826,3 +834,16 @@ def test_execute():
         eq_(rc, 0)
         rc, out = execute(['ls', tempcwd()])
         in_(b'spam', out)
+
+
+def test_checker_percentage_parsing():
+    eq_(output_to_fraction('42'), (42, 1))
+    eq_(output_to_fraction('42.123'), (42123, 1000))
+    eq_(output_to_fraction('42 21'), (42, 21))
+
+    with pytest.raises(CheckerError):
+        output_to_fraction('42  2')
+    with pytest.raises(CheckerError):
+        output_to_fraction('42,2')
+    with pytest.raises(CheckerError):
+        output_to_fraction('42 2 1')
