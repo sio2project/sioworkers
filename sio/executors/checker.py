@@ -149,3 +149,5 @@ def output_to_fraction(output_str):
             'Invalid checker output, expected float, percent or fraction, got "%s"'
             % output_str
         )
+    except ZeroDivisionError:
+        raise CheckerError('Zero division in checker output "%s"' % output_str)
