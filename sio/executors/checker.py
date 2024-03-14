@@ -142,6 +142,8 @@ def run(environ, use_sandboxes=True):
 def output_to_fraction(output_str):
     if not output_str:
         return 100, 1
+    if isinstance(output_str, bytes):
+        output_str = output_str.decode('utf-8')
     try:
         frac = Fraction(output_str)
         return frac.numerator, frac.denominator
@@ -152,3 +154,5 @@ def output_to_fraction(output_str):
         )
     except ZeroDivisionError:
         raise CheckerError('Zero division in checker output "%s"' % output_str)
+    except TypeError:
+        raise CheckerError('Invalid checker output "%s"' % output_str)
