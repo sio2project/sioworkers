@@ -4,6 +4,7 @@ import logging
 import tempfile
 import six
 import re
+from fractions import Fraction
 
 from sio.workers import ft
 from sio.workers.executors import (
