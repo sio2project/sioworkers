@@ -3,6 +3,8 @@ import os.path
 import logging
 import tempfile
 import six
+import re
+from fractions import Fraction
 
 from sio.workers import ft
 from sio.workers.executors import (
@@ -129,9 +131,28 @@ def run(environ, use_sandboxes=True):
         environ['result_code'] = 'OK'
         if output[1]:
             environ['result_string'] = _limit_length(output[1])
-        environ['result_percentage'] = float(output[2] or 100)
+        environ['result_percentage'] = output_to_fraction(output[2])
     else:
         environ['result_code'] = 'WA'
         environ['result_string'] = _limit_length(output[1])
-        environ['result_percentage'] = 0
+        environ['result_percentage'] = (0, 1)
     return environ
+
+
+def output_to_fraction(output_str):
+    if not output_str:
+        return 100, 1
+    if isinstance(output_str, bytes):
+        output_str = output_str.decode('utf-8')
+    try:
+        frac = Fraction(output_str)
+        return frac.numerator, frac.denominator
+    except ValueError:
+        raise CheckerError(
+            'Invalid checker output, expected float, percent or fraction, got "%s"'
+            % output_str
+        )
+    except ZeroDivisionError:
+        raise CheckerError('Zero division in checker output "%s"' % output_str)
+    except TypeError:
+        raise CheckerError('Invalid checker output "%s"' % output_str)
