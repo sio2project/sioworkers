@@ -74,7 +74,6 @@ def _run(environ, executor, use_sandboxes):
     ft.download(environ, 'interactor_file', interactor_filename, add_to_cache=True)
     os.chmod(tempcwd(interactor_filename), 0o700)
     ft.download(environ, 'in_file', input_name, add_to_cache=True)
-    ft.download(environ, 'out_file', 'out', skip_if_exists=True)
     ft.download(environ, 'hint_file', 'hint', add_to_cache=True)
 
     zipdir = tempcwd('in_dir')
@@ -102,7 +101,7 @@ def _run(environ, executor, use_sandboxes):
 
         irenv = {}
         renv = {}
-        interactor_command = [tempcwd(interactor_filename), input_name, 'out', 'hint']
+        interactor_command = [tempcwd(interactor_filename), input_name, 'in', 'hint']
         with interactor_executor as ie:
             with open(tempcwd('out'), 'ab') as outf:
                 interactor = Thread(

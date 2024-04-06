@@ -6,5 +6,5 @@ from sio.workers.executors import DetailedUnprotectedExecutor
 def run(environ):
     return common.run(environ, DetailedUnprotectedExecutor(), use_sandboxes=False)
 
-def run_interactive(environ):
+def interactive_run(environ):
     return interactive_common.run(environ, DetailedUnprotectedExecutor(), use_sandboxes=False)
