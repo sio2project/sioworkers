@@ -4,11 +4,15 @@ from shutil import rmtree
 from threading import Thread
 from zipfile import ZipFile, is_zipfile
 from sio.workers import ft
-from sio.workers.util import decode_fields, replace_invalid_UTF, tempcwd
+from sio.workers.util import decode_fields, replace_invalid_UTF, tempcwd, TemporaryCwd
 from sio.workers.file_runners import get_file_runner
 
 import signal
 import six
+import traceback
+
+import logging
+logger = logging.getLogger(__name__)
 
 RESULT_STRING_LENGTH_LIMIT = 1024  # in bytes
 
@@ -106,56 +110,113 @@ def _run(environ, executor, use_sandboxes):
         os.set_inheritable(r2, True)
         os.set_inheritable(w2, True)
 
-        irenv = {}
-        renv = {}
-        interactor_command = [tempcwd(interactor_filename), input_name, 'in']
+        interactor_res = []
+        sol_res = []
+        interactor_args = [input_name]
+        logger.info(str(interactor_executor))
+        logger.info(str(file_executor))
+
+        def thread_wrapper(result, executor, *args, **kwargs):
+            logger.info("thread_wrapper: " + str(result) + " " + str(executor) + " " + str(args) + " " + str(kwargs))
+            try:
+                with TemporaryCwd():
+                    res = executor(*args, **kwargs)
+                    logger.info("result: " + str(res))
+                    result.append(res)
+            except Exception as e:
+                logger.error(traceback.format_exc())
+                logger.error("Exception in thread_wrapper: " + str(e))
+
         with interactor_executor as ie:
-            with open(tempcwd('out'), 'ab') as outf:
+            logger.info(tempcwd('out'))
+            with open(tempcwd('out'), 'wb') as outf:
                 interactor = Thread(
-                    target=ie,
+                    target=thread_wrapper,
                     args=(
-                        interactor_command,
+                        interactor_res,
+                        ie,
+                        tempcwd(interactor_filename),
+                        interactor_args,
                     ),
-                    kwargs=dict(
+                    kwargs = dict(
                         stdin=r2,
                         stdout=w1,
                         stderr=outf,
-                        ignore_errors=True,
+                        ignore_errors=False,
+                        forward_stderr=True,
                         environ=environ,
                         environ_prefix='exec_',
                         pass_fds=(r2, w1),
-                        ret_env=irenv,
                     )
                 )
+                # interactor = Thread(
+                #     target=ie,
+                #     args=(
+                #         interactor_command,
+                #     ),
+                #     kwargs=dict(
+                #         stdin=r2,
+                #         stdout=w1,
+                #         stderr=outf,
+                #         ignore_errors=False,
+                #         environ=environ,
+                #         environ_prefix='exec_',
+                #         pass_fds=(r2, w1),
+                #     )
+                # )
 
         with file_executor as fe:
             exe = Thread(
-                target=fe,
+                target=thread_wrapper,
                 args=(
+                    sol_res,
+                    fe,
                     tempcwd(exe_filename),
+                    [],
                 ),
                 kwargs=dict(
                     stdin=r1,
                     stdout=w2,
-                    ignore_errors=True,
+                    ignore_errors=False,
                     environ=environ,
                     environ_prefix='exec_',
                     pass_fds=(r1, w2),
-                    ret_env=renv,
                 )
             )
+            # exe = Thread(
+            #     target=fe,
+            #     args=(
+            #         tempcwd(exe_filename),
+            #     ),
+            #     kwargs=dict(
+            #         stdin=r1,
+            #         stdout=w2,
+            #         ignore_errors=False,
+            #         environ=environ,
+            #         environ_prefix='exec_',
+            #         pass_fds=(r1, w2),
+            #         ret_env=renv,
+            #     )
+            # )
 
+        exe.start()
+        interactor.start()
         os.close(r1)
         os.close(w1)
         os.close(r2)
         os.close(w2)
-        exe.start()
-        interactor.start()
         exe.join()
         interactor.join()
+        irenv = interactor_res[0]
+        renv = sol_res[0]
 
-        with open(tempcwd('out'), 'ab') as outf:
+        logger.info(tempcwd('out'))
+        with open(tempcwd('out'), 'rb') as outf:
             interactor_out = outf.readlines()
+
+        logger.info(str(interactor_out))
+        logger.info("irenv: " + str(irenv))
+        logger.info("renv: " + str(renv))
 
         sol_sig = renv.get('exit_signal', None)
         inter_sig = irenv.get('exit_signal', None)
@@ -163,21 +224,21 @@ def _run(environ, executor, use_sandboxes):
 
         if sol_sig == sigpipe:
             renv['result_code'] = 'SE'
-            renv['result_string'] = 'Checker exited prematurely. ' 
+            renv['result_string'] = 'Checker exited prematurely. '
         elif inter_sig == sigpipe:
             renv['result_code'] = 'SE'
             renv['result_string'] = 'Solution exited prematurely'
         else:
             if six.ensure_binary(interactor_out[0]) == b'OK':
-                environ['result_code'] = 'OK'
+                renv['result_code'] = 'OK'
                 if interactor_out[1]:
-                    environ['result_string'] = _limit_length(interactor_out[1])
-                environ['result_percentage'] = float(interactor_out[2] or 100)
+                    renv['result_string'] = _limit_length(interactor_out[1])
+                renv['result_percentage'] = float(interactor_out[2] or 100)
             else:
-                environ['result_code'] = 'WA'
+                renv['result_code'] = 'WA'
                 if interactor_out[1]:
-                    environ['result_string'] = _limit_length(interactor_out[1])
-                environ['result_percentage'] = 0
+                    renv['result_string'] = _limit_length(interactor_out[1])
+                renv['result_percentage'] = 0
     finally:
         rmtree(zipdir)
 

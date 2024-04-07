@@ -131,6 +131,7 @@ def execute_command(
             env[key] = str(value)
 
     perf_timer = util.PerfTimer()
+    logger.info("stderr")
     p = subprocess.Popen(
         command,
         stdin=stdin,
