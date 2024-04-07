@@ -176,6 +176,7 @@ def _run(environ, executor, use_sandboxes):
                     stdin=r2,
                     stdout=w1,
                     ignore_errors=False,
+                    extra_ignore_errors=(141,),     # SIGPIPE
                     environ=environ,
                     environ_prefix='exec_',
                     pass_fds=(r2, w1),
@@ -198,6 +199,7 @@ def _run(environ, executor, use_sandboxes):
                     stdin=r1,
                     stdout=w2,
                     ignore_errors=False,
+                    extra_ignore_errors=(141,),     # SIGPIPE
                     environ=environ,
                     environ_prefix='exec_',
                     pass_fds=(r1, w2),
@@ -234,8 +236,8 @@ def _run(environ, executor, use_sandboxes):
         renv = sol_res.get_result()
 
         logger.info(tempcwd('out'))
-        with open(tempcwd('out'), 'rb') as outf:
-            interactor_out = outf.readlines()
+        with open(tempcwd('out'), 'rb') as result_file:
+            interactor_out = [line.rstrip() for line in result_file.readlines()]
 
         # logger.info(str(interactor_out))
         # logger.info("irenv: " + str(irenv))
@@ -245,12 +247,12 @@ def _run(environ, executor, use_sandboxes):
         inter_sig = irenv.get('exit_signal', None)
         sigpipe = signal.SIGPIPE.value
 
-        if sol_sig == sigpipe:
+        if sol_sig == sigpipe and not interactor_out:
             renv['result_code'] = 'SE'
-            renv['result_string'] = 'Checker exited prematurely. '
+            renv['result_string'] = 'checker exited prematurely'
         elif inter_sig == sigpipe:
-            renv['result_code'] = 'SE'
-            renv['result_string'] = 'Solution exited prematurely'
+            renv['result_code'] = 'WA'
+            renv['result_string'] = 'solution exited prematurely'
         else:
             if six.ensure_binary(interactor_out[0]) == b'OK':
                 renv['result_code'] = 'OK'
