@@ -80,7 +80,10 @@ def execute_command(
     ignore_errors=False,
     extra_ignore_errors=(),
     ret_env=None,
-    **kwargs
+    pass_fds=(),
+    cwd=None,
+    process_status=None,
+    **kwargs,
 ):
     """Utility function to run arbitrary command.
     ``stdin``
@@ -124,6 +127,7 @@ def execute_command(
     devnull = open(os.devnull, 'wb')
     stdout = stdout or devnull
     stderr = stderr or devnull
+    cwd = cwd or tempcwd()
 
     ret_env = ret_env or {}
     if env is not None:
@@ -131,19 +135,27 @@ def execute_command(
             env[key] = str(value)
 
     perf_timer = util.PerfTimer()
-    logger.info("stderr")
+    logger.info("stderr: " + str(forward_stderr) + " " + str(subprocess.STDOUT) + " " + str(stderr) + " " + str(forward_stderr and subprocess.STDOUT or stderr) + "\n" + \
+                "stdout: " + str(stdout) + "\n" + \
+                "stdin: " + str(stdin) + "\n" )
+    logger.info("pass fds: " + str(pass_fds))
+    logger.info("cwd: " + cwd)
+    logger.info(str(os.listdir(cwd)))
     p = subprocess.Popen(
         command,
         stdin=stdin,
         stdout=stdout,
         stderr=forward_stderr and subprocess.STDOUT or stderr,
+        pass_fds=pass_fds,
         shell=True,
         close_fds=True,
         universal_newlines=True,
         env=env,
-        cwd=tempcwd(),
+        cwd=cwd,
         preexec_fn=os.setpgrp,
     )
+    if process_status:
+        process_status.set_started()
 
     kill_timer = None
     if real_time_limit:

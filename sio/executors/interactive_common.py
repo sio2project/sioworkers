@@ -105,65 +105,85 @@ def _run(environ, executor, use_sandboxes):
 
         r1, w1 = os.pipe()
         r2, w2 = os.pipe()
-        os.set_inheritable(r1, True)
-        os.set_inheritable(w1, True)
-        os.set_inheritable(r2, True)
-        os.set_inheritable(w2, True)
+        for fd in (r1, w1, r2, w2):
+            os.set_inheritable(fd, True)
 
-        interactor_res = []
-        sol_res = []
-        interactor_args = [input_name]
+        interactor_args = [input_name, tempcwd('out')]
         logger.info(str(interactor_executor))
         logger.info(str(file_executor))
 
+        class InteractiveTaskError(Exception):
+            def __init__(self, exception, *args, **kwargs):
+                self.msg = "Interactive task failed: " + str(exception) + "\n" + \
+                           "args: " + str(args) + "\n" + \
+                            "kwargs: " + str(kwargs) + "\n" + \
+                            traceback.format_exc()
+
+        class WrapperResult:
+            def __init__(self):
+                self.res = None
+                self.args = None
+                self.kwargs = None
+                self.exception = None
+                self.process_started = False
+
+            def entry(self, *args, **kwargs):
+                self.args = args
+                self.kwargs = kwargs
+
+            def set_result(self, res):
+                self.res = res
+
+            def get_result(self):
+                return self.res
+
+            def set_exception(self, e):
+                self.exception = InteractiveTaskError(e, self.args, self.kwargs)
+
+            def has_exception(self):
+                return self.exception is not None
+
+            def get_exception(self):
+                return self.exception
+
+            def set_started(self):
+                self.process_started = True
+
+        interactor_res = WrapperResult()
+        sol_res = WrapperResult()
+
         def thread_wrapper(result, executor, *args, **kwargs):
-            logger.info("thread_wrapper: " + str(result) + " " + str(executor) + " " + str(args) + " " + str(kwargs))
+            result.entry(*args, **kwargs)
             try:
-                with TemporaryCwd():
-                    res = executor(*args, **kwargs)
-                    logger.info("result: " + str(res))
-                    result.append(res)
+                logger.info("thread_wrapper: " + str(kwargs['in_file']) + " " + str(executor) + " " + str(args) + " " + str(kwargs))
+                res = executor(*args, **kwargs)
+                result.set_result(res)
             except Exception as e:
-                logger.error(traceback.format_exc())
-                logger.error("Exception in thread_wrapper: " + str(e))
+                result.set_exception(e)
+                logger.error("gaming " + str(kwargs['in_file']) + "\t" +InteractiveTaskError(e, *args, **kwargs).msg)
 
         with interactor_executor as ie:
             logger.info(tempcwd('out'))
-            with open(tempcwd('out'), 'wb') as outf:
-                interactor = Thread(
-                    target=thread_wrapper,
-                    args=(
-                        interactor_res,
-                        ie,
-                        tempcwd(interactor_filename),
-                        interactor_args,
-                    ),
-                    kwargs = dict(
-                        stdin=r2,
-                        stdout=w1,
-                        stderr=outf,
-                        ignore_errors=False,
-                        forward_stderr=True,
-                        environ=environ,
-                        environ_prefix='exec_',
-                        pass_fds=(r2, w1),
-                    )
+            interactor = Thread(
+                target=thread_wrapper,
+                args=(
+                    interactor_res,
+                    ie,
+                    tempcwd(interactor_filename),
+                    interactor_args,
+                ),
+                kwargs = dict(
+                    stdin=r2,
+                    stdout=w1,
+                    ignore_errors=False,
+                    environ=environ,
+                    environ_prefix='exec_',
+                    pass_fds=(r2, w1),
+                    cwd=tempcwd(),
+                    process_status=interactor_res,
+                    in_file=environ['in_file'],
                 )
-                # interactor = Thread(
-                #     target=ie,
-                #     args=(
-                #         interactor_command,
-                #     ),
-                #     kwargs=dict(
-                #         stdin=r2,
-                #         stdout=w1,
-                #         stderr=outf,
-                #         ignore_errors=False,
-                #         environ=environ,
-                #         environ_prefix='exec_',
-                #         pass_fds=(r2, w1),
-                #     )
-                # )
+            )
 
         with file_executor as fe:
             exe = Thread(
@@ -181,42 +201,45 @@ def _run(environ, executor, use_sandboxes):
                     environ=environ,
                     environ_prefix='exec_',
                     pass_fds=(r1, w2),
+                    cwd=tempcwd(),
+                    process_status=sol_res,
+                    in_file=environ['in_file'],
                 )
             )
-            # exe = Thread(
-            #     target=fe,
-            #     args=(
-            #         tempcwd(exe_filename),
-            #     ),
-            #     kwargs=dict(
-            #         stdin=r1,
-            #         stdout=w2,
-            #         ignore_errors=False,
-            #         environ=environ,
-            #         environ_prefix='exec_',
-            #         pass_fds=(r1, w2),
-            #         ret_env=renv,
-            #     )
-            # )
 
+        logger.info("Starting threads " + environ['in_file'])
         exe.start()
+        logger.info("Started exe " + environ['in_file'])
         interactor.start()
-        os.close(r1)
-        os.close(w1)
-        os.close(r2)
-        os.close(w2)
+        logger.info("Started interactor " + environ['in_file'])
+
+        # Very beautiful hack
+        while not interactor_res.process_started or not sol_res.process_started:
+            pass
+        for fd in (r1, w1, r2, w2):
+            os.close(fd)
+        logger.info("Closed fds " + environ['in_file'])
+
         exe.join()
+        logger.info("exe joined " + environ['in_file'])
         interactor.join()
-        irenv = interactor_res[0]
-        renv = sol_res[0]
+        logger.info("interactor joined " + environ['in_file'])
+
+        if interactor_res.has_exception():
+            raise interactor_res.get_exception()
+        if sol_res.has_exception():
+            raise sol_res.get_exception()
+
+        irenv = interactor_res.get_result()
+        renv = sol_res.get_result()
 
         logger.info(tempcwd('out'))
         with open(tempcwd('out'), 'rb') as outf:
             interactor_out = outf.readlines()
 
-        logger.info(str(interactor_out))
-        logger.info("irenv: " + str(irenv))
-        logger.info("renv: " + str(renv))
+        # logger.info(str(interactor_out))
+        # logger.info("irenv: " + str(irenv))
+        # logger.info("renv: " + str(renv))
 
         sol_sig = renv.get('exit_signal', None)
         inter_sig = irenv.get('exit_signal', None)
