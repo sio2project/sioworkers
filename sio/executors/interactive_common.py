@@ -7,9 +7,10 @@ from sio.workers import ft
 from sio.workers.util import decode_fields, replace_invalid_UTF, tempcwd
 from sio.workers.file_runners import get_file_runner
 
-from sio.executors import checker
 import signal
 import six
+
+RESULT_STRING_LENGTH_LIMIT = 1024  # in bytes
 
 
 def _populate_environ(renv, environ):
@@ -20,6 +21,13 @@ def _populate_environ(renv, environ):
         environ[key] = renv.get(key, '')
     if 'out_file' in renv:
         environ['out_file'] = renv['out_file']
+
+
+def _limit_length(s):
+    if len(s) > RESULT_STRING_LENGTH_LIMIT:
+        suffix = b'[...]'
+        return s[: max(0, RESULT_STRING_LENGTH_LIMIT - len(suffix))] + suffix
+    return s
 
 
 @decode_fields(['result_string'])
@@ -42,8 +50,8 @@ def run(environ, executor, use_sandboxes=True):
 
     _populate_environ(renv, environ)
 
-    if environ['result_code'] == 'OK' and environ.get('check_output'):
-        environ = checker.run(environ, use_sandboxes=use_sandboxes)
+    # if environ['result_code'] == 'OK' and environ.get('check_output'):
+    #     environ = checker.run(environ, use_sandboxes=use_sandboxes)
 
     for key in ('result_code', 'result_string'):
         environ[key] = replace_invalid_UTF(environ[key])
@@ -74,7 +82,6 @@ def _run(environ, executor, use_sandboxes):
     ft.download(environ, 'interactor_file', interactor_filename, add_to_cache=True)
     os.chmod(tempcwd(interactor_filename), 0o700)
     ft.download(environ, 'in_file', input_name, add_to_cache=True)
-    ft.download(environ, 'hint_file', 'hint', add_to_cache=True)
 
     zipdir = tempcwd('in_dir')
     os.mkdir(zipdir)
@@ -101,14 +108,13 @@ def _run(environ, executor, use_sandboxes):
 
         irenv = {}
         renv = {}
-        interactor_command = [tempcwd(interactor_filename), input_name, 'in', 'hint']
+        interactor_command = [tempcwd(interactor_filename), input_name, 'in']
         with interactor_executor as ie:
             with open(tempcwd('out'), 'ab') as outf:
                 interactor = Thread(
                     target=ie,
                     args=(
                         interactor_command,
-                        [],
                     ),
                     kwargs=dict(
                         stdin=r2,
@@ -118,7 +124,6 @@ def _run(environ, executor, use_sandboxes):
                         environ=environ,
                         environ_prefix='exec_',
                         pass_fds=(r2, w1),
-                        wait=False,
                         ret_env=irenv,
                     )
                 )
@@ -128,7 +133,6 @@ def _run(environ, executor, use_sandboxes):
                 target=fe,
                 args=(
                     tempcwd(exe_filename),
-                    [],
                 ),
                 kwargs=dict(
                     stdin=r1,
@@ -149,17 +153,31 @@ def _run(environ, executor, use_sandboxes):
         interactor.start()
         exe.join()
         interactor.join()
-        
+
+        with open(tempcwd('out'), 'ab') as outf:
+            interactor_out = outf.readlines()
+
         sol_sig = renv.get('exit_signal', None)
         inter_sig = irenv.get('exit_signal', None)
         sigpipe = signal.SIGPIPE.value
-        
+
         if sol_sig == sigpipe:
             renv['result_code'] = 'SE'
             renv['result_string'] = 'Checker exited prematurely. ' 
         elif inter_sig == sigpipe:
             renv['result_code'] = 'SE'
             renv['result_string'] = 'Solution exited prematurely'
+        else:
+            if six.ensure_binary(interactor_out[0]) == b'OK':
+                environ['result_code'] = 'OK'
+                if interactor_out[1]:
+                    environ['result_string'] = _limit_length(interactor_out[1])
+                environ['result_percentage'] = float(interactor_out[2] or 100)
+            else:
+                environ['result_code'] = 'WA'
+                if interactor_out[1]:
+                    environ['result_string'] = _limit_length(interactor_out[1])
+                environ['result_percentage'] = 0
     finally:
         rmtree(zipdir)
 
