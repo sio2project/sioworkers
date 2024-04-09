@@ -41,10 +41,7 @@ def run(environ, executor, use_sandboxes=True):
                        See `sio.executors.checkers`. True by default.
     """
 
-    if environ.get('exec_info', {}).get('mode') == 'output-only':
-        renv = _fake_run_as_exe_is_output_file(environ)
-    else:
-        renv = _run(environ, executor, use_sandboxes)
+    renv = _run(environ, executor, use_sandboxes)
 
     _populate_environ(renv, environ)
 
