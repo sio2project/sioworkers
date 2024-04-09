@@ -3,6 +3,8 @@ import os
 from shutil import rmtree
 from threading import Thread
 from zipfile import ZipFile, is_zipfile
+
+from sio.executors.common import _extract_input_if_zipfile, _populate_environ
 from sio.workers import ft
 from sio.workers.util import decode_fields, replace_invalid_UTF, tempcwd, TemporaryCwd
 from sio.workers.file_runners import get_file_runner
@@ -14,17 +16,9 @@ import traceback
 import logging
 logger = logging.getLogger(__name__)
 
+DEFAULT_INTERACTOR_TIME_LIMIT = 30000  # in ms
+DEFAULT_INTERACTOR_MEM_LIMIT = 256 * 2 ** 10  # in KiB
 RESULT_STRING_LENGTH_LIMIT = 1024  # in bytes
-
-
-def _populate_environ(renv, environ):
-    """Takes interesting fields from renv into environ"""
-    for key in ('time_used', 'mem_used', 'num_syscalls'):
-        environ[key] = renv.get(key, 0)
-    for key in ('result_code', 'result_string'):
-        environ[key] = renv.get(key, '')
-    if 'out_file' in renv:
-        environ['out_file'] = renv['out_file']
 
 
 def _limit_length(s):
@@ -54,9 +48,6 @@ def run(environ, executor, use_sandboxes=True):
 
     _populate_environ(renv, environ)
 
-    # if environ['result_code'] == 'OK' and environ.get('check_output'):
-    #     environ = checker.run(environ, use_sandboxes=use_sandboxes)
-
     for key in ('result_code', 'result_string'):
         environ[key] = replace_invalid_UTF(environ[key])
 
@@ -81,7 +72,6 @@ def _fill_result(renv, irenv, interactor_out):
 
     if irenv['result_code'] != 'OK' and inter_sig != sigpipe:
         renv['result_code'] = 'SE'
-        # renv['result_string'] = 'checker exited prematurely'
     elif renv['result_code'] != 'OK' and sol_sig != sigpipe:
         return
     elif len(interactor_out) == 0:
@@ -123,18 +113,7 @@ def _run(environ, executor, use_sandboxes):
     zipdir = tempcwd('in_dir')
     os.mkdir(zipdir)
     try:
-        if is_zipfile(input_name):
-            try:
-                # If not a zip file, will pass it directly to exe
-                with ZipFile(tempcwd('in'), 'r') as f:
-                    if len(f.namelist()) != 1:
-                        raise Exception("Archive should have only one file.")
-
-                    f.extract(f.namelist()[0], zipdir)
-                    input_name = os.path.join(zipdir, f.namelist()[0])
-            # zipfile throws some undocumented exceptions
-            except Exception as e:
-                raise Exception("Failed to open archive: " + six.text_type(e))
+        input_name = _extract_input_if_zipfile(input_name, zipdir)
 
         r1, w1 = os.pipe()
         r2, w2 = os.pipe()
@@ -161,7 +140,9 @@ def _run(environ, executor, use_sandboxes):
                     stdout=w1,
                     ignore_errors=True,
                     environ=environ,
-                    environ_prefix='exec_',
+                    environ_prefix='interactor_',
+                    mem_limit=DEFAULT_INTERACTOR_MEM_LIMIT,
+                    time_limit=DEFAULT_INTERACTOR_TIME_LIMIT,
                     pass_fds=(r2, w1),
                     close_passed_fd=True,
                     cwd=tempcwd(),
@@ -201,7 +182,7 @@ def _run(environ, executor, use_sandboxes):
             interactor_out = [line.rstrip() for line in result_file.readlines()]
 
         while len(interactor_out) < 3:
-            interactor_out.append('')
+            interactor_out.append(b'')
 
         _fill_result(renv, irenv, interactor_out)
     finally:

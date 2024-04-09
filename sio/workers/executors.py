@@ -131,17 +131,12 @@ def execute_command(
 
     if ret_env is None:
         ret_env = {}
+
     if env is not None:
         for key, value in six.iteritems(env):
             env[key] = str(value)
 
     perf_timer = util.PerfTimer()
-    logger.info("stderr: " + str(forward_stderr) + " " + str(subprocess.STDOUT) + " " + str(stderr) + " " + str(forward_stderr and subprocess.STDOUT or stderr) + "\n" + \
-                "stdout: " + str(stdout) + "\n" + \
-                "stdin: " + str(stdin) + "\n" )
-    logger.info("pass fds: " + str(pass_fds))
-    logger.info("cwd: " + cwd)
-    logger.info(str(os.listdir(cwd)))
     p = subprocess.Popen(
         command,
         stdin=stdin,
@@ -155,7 +150,7 @@ def execute_command(
         cwd=cwd,
         preexec_fn=os.setpgrp,
     )
-    
+
     if close_passed_fd:
         for fd in pass_fds:
             os.close(fd)
@@ -197,9 +192,6 @@ def execute_command(
         raise ExecError(
             'Failed to execute command: %s. Returned with code %s\n' % (command, rc)
         )
-
-    logger.info(ret_env)
-
     return ret_env
 
 
