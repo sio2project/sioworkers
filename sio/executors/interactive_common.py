@@ -71,6 +71,39 @@ def run(environ, executor, use_sandboxes=True):
     return environ
 
 
+def _fill_result(renv, irenv, interactor_out):
+    sol_sig = renv.get('exit_signal', None)
+    inter_sig = irenv.get('exit_signal', None)
+    sigpipe = signal.SIGPIPE.value
+
+    logger.info(renv)
+    logger.info(irenv)
+
+    if irenv['result_code'] != 'OK' and inter_sig != sigpipe:
+        renv['result_code'] = 'SE'
+        # renv['result_string'] = 'checker exited prematurely'
+    elif renv['result_code'] != 'OK' and sol_sig != sigpipe:
+        return
+    elif len(interactor_out) == 0:
+        renv['result_code'] = 'SE'
+        renv['result_string'] = 'invalid interactor output'
+    elif inter_sig == sigpipe:
+        renv['result_code'] = 'WA'
+        renv['result_string'] = 'solution exited prematurely'
+    else:
+        renv['result_string'] = ''
+        if six.ensure_binary(interactor_out[0]) == b'OK':
+            renv['result_code'] = 'OK'
+            if interactor_out[1]:
+                renv['result_string'] = _limit_length(interactor_out[1])
+            renv['result_percentage'] = float(interactor_out[2] or 100)
+        else:
+            renv['result_code'] = 'WA'
+            if interactor_out[1]:
+                renv['result_string'] = _limit_length(interactor_out[1])
+            renv['result_percentage'] = 0
+
+
 def _run(environ, executor, use_sandboxes):
     input_name = tempcwd('in')
 
@@ -112,158 +145,65 @@ def _run(environ, executor, use_sandboxes):
         logger.info(str(interactor_executor))
         logger.info(str(file_executor))
 
-        class InteractiveTaskError(Exception):
-            def __init__(self, exception, *args, **kwargs):
-                self.msg = "Interactive task failed: " + str(exception) + "\n" + \
-                           "args: " + str(args) + "\n" + \
-                            "kwargs: " + str(kwargs) + "\n" + \
-                            traceback.format_exc()
-
-        class WrapperResult:
-            def __init__(self):
-                self.res = None
-                self.args = None
-                self.kwargs = None
-                self.exception = None
-                self.process_started = False
-
-            def entry(self, *args, **kwargs):
-                self.args = args
-                self.kwargs = kwargs
-
-            def set_result(self, res):
-                self.res = res
-
-            def get_result(self):
-                return self.res
-
-            def set_exception(self, e):
-                self.exception = InteractiveTaskError(e, self.args, self.kwargs)
-
-            def has_exception(self):
-                return self.exception is not None
-
-            def get_exception(self):
-                return self.exception
-
-            def set_started(self):
-                self.process_started = True
-
-        interactor_res = WrapperResult()
-        sol_res = WrapperResult()
-
-        def thread_wrapper(result, executor, *args, **kwargs):
-            result.entry(*args, **kwargs)
-            try:
-                logger.info("thread_wrapper: " + str(kwargs['in_file']) + " " + str(executor) + " " + str(args) + " " + str(kwargs))
-                res = executor(*args, **kwargs)
-                result.set_result(res)
-            except Exception as e:
-                result.set_exception(e)
-                logger.error("gaming " + str(kwargs['in_file']) + "\t" +InteractiveTaskError(e, *args, **kwargs).msg)
+        irenv = {}
+        renv = {}
 
         with interactor_executor as ie:
             logger.info(tempcwd('out'))
             interactor = Thread(
-                target=thread_wrapper,
+                target=ie,
                 args=(
-                    interactor_res,
-                    ie,
                     tempcwd(interactor_filename),
                     interactor_args,
                 ),
                 kwargs = dict(
                     stdin=r2,
                     stdout=w1,
-                    ignore_errors=False,
-                    extra_ignore_errors=(141,),     # SIGPIPE
+                    ignore_errors=True,
                     environ=environ,
                     environ_prefix='exec_',
                     pass_fds=(r2, w1),
+                    close_passed_fd=True,
                     cwd=tempcwd(),
-                    process_status=interactor_res,
                     in_file=environ['in_file'],
+                    ret_env=irenv,
                 )
             )
 
         with file_executor as fe:
             exe = Thread(
-                target=thread_wrapper,
+                target=fe,
                 args=(
-                    sol_res,
-                    fe,
                     tempcwd(exe_filename),
                     [],
                 ),
                 kwargs=dict(
                     stdin=r1,
                     stdout=w2,
-                    ignore_errors=False,
-                    extra_ignore_errors=(141,),     # SIGPIPE
+                    ignore_errors=True,
                     environ=environ,
                     environ_prefix='exec_',
                     pass_fds=(r1, w2),
+                    close_passed_fd=True,
                     cwd=tempcwd(),
-                    process_status=sol_res,
                     in_file=environ['in_file'],
+                    ret_env=renv,
                 )
             )
 
-        logger.info("Starting threads " + environ['in_file'])
         exe.start()
-        logger.info("Started exe " + environ['in_file'])
         interactor.start()
-        logger.info("Started interactor " + environ['in_file'])
-
-        # Very beautiful hack
-        while not interactor_res.process_started or not sol_res.process_started:
-            pass
-        for fd in (r1, w1, r2, w2):
-            os.close(fd)
-        logger.info("Closed fds " + environ['in_file'])
 
         exe.join()
-        logger.info("exe joined " + environ['in_file'])
         interactor.join()
-        logger.info("interactor joined " + environ['in_file'])
 
-        if interactor_res.has_exception():
-            raise interactor_res.get_exception()
-        if sol_res.has_exception():
-            raise sol_res.get_exception()
-
-        irenv = interactor_res.get_result()
-        renv = sol_res.get_result()
-
-        logger.info(tempcwd('out'))
         with open(tempcwd('out'), 'rb') as result_file:
             interactor_out = [line.rstrip() for line in result_file.readlines()]
 
-        # logger.info(str(interactor_out))
-        # logger.info("irenv: " + str(irenv))
-        # logger.info("renv: " + str(renv))
+        while len(interactor_out) < 3:
+            interactor_out.append('')
 
-        sol_sig = renv.get('exit_signal', None)
-        inter_sig = irenv.get('exit_signal', None)
-        sigpipe = signal.SIGPIPE.value
-
-        if sol_sig == sigpipe and not interactor_out:
-            renv['result_code'] = 'SE'
-            renv['result_string'] = 'checker exited prematurely'
-        elif inter_sig == sigpipe:
-            renv['result_code'] = 'WA'
-            renv['result_string'] = 'solution exited prematurely'
-        else:
-            if six.ensure_binary(interactor_out[0]) == b'OK':
-                renv['result_code'] = 'OK'
-                if interactor_out[1]:
-                    renv['result_string'] = _limit_length(interactor_out[1])
-                renv['result_percentage'] = float(interactor_out[2] or 100)
-            else:
-                renv['result_code'] = 'WA'
-                if interactor_out[1]:
-                    renv['result_string'] = _limit_length(interactor_out[1])
-                renv['result_percentage'] = 0
+        _fill_result(renv, irenv, interactor_out)
     finally:
         rmtree(zipdir)
 
