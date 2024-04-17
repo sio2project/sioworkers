@@ -2,23 +2,32 @@ from __future__ import absolute_import
 import os
 from shutil import rmtree
 from threading import Thread
-from zipfile import ZipFile, is_zipfile
 
 from sio.executors.common import _extract_input_if_zipfile, _populate_environ
 from sio.workers import ft
-from sio.workers.util import decode_fields, replace_invalid_UTF, tempcwd, TemporaryCwd
+from sio.workers.executors import DetailedUnprotectedExecutor, PRootExecutor
+from sio.workers.util import TemporaryCwd, decode_fields, replace_invalid_UTF, tempcwd
 from sio.workers.file_runners import get_file_runner
 
+import traceback
 import signal
 import six
-import traceback
-
 import logging
 logger = logging.getLogger(__name__)
 
-DEFAULT_INTERACTOR_TIME_LIMIT = 30000  # in ms
 DEFAULT_INTERACTOR_MEM_LIMIT = 256 * 2 ** 10  # in KiB
 RESULT_STRING_LENGTH_LIMIT = 1024  # in bytes
+
+
+class InteractorError(Exception):
+    def __init__(self, message, interactor_out, env, renv, irenv):
+        super().__init__(
+            f'{message}\n'
+            f'Interactor out: {interactor_out}\n'
+            f'Interactor environ dump: {irenv}\n'
+            f'Solution environ dump: {renv}\n'
+            f'Environ dump: {env}'
+        )
 
 
 def _limit_length(s):
@@ -59,7 +68,7 @@ def run(environ, executor, use_sandboxes=True):
     return environ
 
 
-def _fill_result(renv, irenv, interactor_out):
+def _fill_result(env, renv, irenv, interactor_out):
     sol_sig = renv.get('exit_signal', None)
     inter_sig = irenv.get('exit_signal', None)
     sigpipe = signal.SIGPIPE.value
@@ -69,11 +78,12 @@ def _fill_result(renv, irenv, interactor_out):
 
     if irenv['result_code'] != 'OK' and inter_sig != sigpipe:
         renv['result_code'] = 'SE'
+        raise InteractorError(f'Interactor got {irenv["result_code"]}.', interactor_out, env, renv, irenv)
     elif renv['result_code'] != 'OK' and sol_sig != sigpipe:
         return
     elif len(interactor_out) == 0:
         renv['result_code'] = 'SE'
-        renv['result_string'] = 'invalid interactor output'
+        raise InteractorError(f'Empty interactor out.', interactor_out, env, renv, irenv)
     elif inter_sig == sigpipe:
         renv['result_code'] = 'WA'
         renv['result_string'] = 'solution exited prematurely'
@@ -95,9 +105,7 @@ def _run(environ, executor, use_sandboxes):
     input_name = tempcwd('in')
 
     file_executor = get_file_runner(executor, environ)
-    interactor_env = environ.copy()
-    interactor_env['exe_file'] = interactor_env['interactor_file']
-    interactor_executor = get_file_runner(executor, interactor_env)
+    interactor_executor = DetailedUnprotectedExecutor()
     exe_filename = file_executor.preferred_filename()
     interactor_filename = 'soc'
 
@@ -117,56 +125,62 @@ def _run(environ, executor, use_sandboxes):
         for fd in (r1, w1, r2, w2):
             os.set_inheritable(fd, True)
 
-        interactor_args = [input_name, tempcwd('out')]
-        logger.info(str(interactor_executor))
-        logger.info(str(file_executor))
+        interactor_args = [os.path.basename(input_name), 'out']
 
-        irenv = {}
-        renv = {}
+        interactor_time_limit = 2 * environ['exec_time_limit']
+
+        class ExecutionWrapper(Thread):
+            def __init__(self, executor, *args, **kwargs):
+                super(ExecutionWrapper, self).__init__()
+                self.executor = executor
+                self.args = args
+                self.kwargs = kwargs
+                self.value = None
+            
+            def run(self):
+                with TemporaryCwd():
+                    logger.info("run" + str(self.args) + str(self.kwargs))
+                    try:
+                        self.value = self.executor(*self.args, **self.kwargs)
+                    except Exception as e:
+                        logger.info(traceback.format_exc())
+                        logger.info(str(self.args) + str(e))
+                        pass
+                    logger.info(str(self.args) + self.value)
 
         with interactor_executor as ie:
-            logger.info(tempcwd('out'))
-            interactor = Thread(
-                target=ie,
-                args=(
-                    tempcwd(interactor_filename),
-                    interactor_args,
-                ),
-                kwargs = dict(
-                    stdin=r2,
-                    stdout=w1,
-                    ignore_errors=True,
-                    environ=environ,
-                    environ_prefix='interactor_',
-                    mem_limit=DEFAULT_INTERACTOR_MEM_LIMIT,
-                    time_limit=DEFAULT_INTERACTOR_TIME_LIMIT,
-                    pass_fds=(r2, w1),
-                    close_passed_fd=True,
-                    cwd=tempcwd(),
-                    in_file=environ['in_file'],
-                    ret_env=irenv,
-                )
+            interactor = ExecutionWrapper(
+                ie,
+                [tempcwd(interactor_filename)] + interactor_args,
+                stdin=r2,
+                stdout=w1,
+                ignore_errors=True,
+                environ=environ,
+                environ_prefix='interactor_',
+                mem_limit=DEFAULT_INTERACTOR_MEM_LIMIT,
+                time_limit=interactor_time_limit,
+                pass_fds=(r2, w1),
+                close_passed_fd=True,
+                cwd=tempcwd(),
+                in_file=environ['in_file'],
+                # binds=[(input_name, '/', 'ro'), (tempcwd('out'), '/', 'rw')],
+                # allow_local_open=True,
             )
 
         with file_executor as fe:
-            exe = Thread(
-                target=fe,
-                args=(
-                    tempcwd(exe_filename),
-                    [],
-                ),
-                kwargs=dict(
-                    stdin=r1,
-                    stdout=w2,
-                    ignore_errors=True,
-                    environ=environ,
-                    environ_prefix='exec_',
-                    pass_fds=(r1, w2),
-                    close_passed_fd=True,
-                    cwd=tempcwd(),
-                    in_file=environ['in_file'],
-                    ret_env=renv,
-                )
+            exe = ExecutionWrapper(
+                fe,
+                tempcwd(exe_filename),
+                [],
+                stdin=r1,
+                stdout=w2,
+                ignore_errors=True,
+                environ=environ,
+                environ_prefix='exec_',
+                pass_fds=(r1, w2),
+                close_passed_fd=True,
+                cwd=tempcwd(),
+                in_file=environ['in_file'],
             )
 
         exe.start()
@@ -175,27 +189,19 @@ def _run(environ, executor, use_sandboxes):
         exe.join()
         interactor.join()
 
-        with open(tempcwd('out'), 'rb') as result_file:
-            interactor_out = [line.rstrip() for line in result_file.readlines()]
+        renv = exe.value
+        irenv = interactor.value
 
-        while len(interactor_out) < 3:
-            interactor_out.append(b'')
+        try:
+            with open(tempcwd('out'), 'rb') as result_file:
+                interactor_out = [line.rstrip() for line in result_file.readlines()]
+            while len(interactor_out) < 3:
+                interactor_out.append(b'')
+        except FileNotFoundError:
+            interactor_out = []
 
-        _fill_result(renv, irenv, interactor_out)
+        _fill_result(environ, renv, irenv, interactor_out)
     finally:
         rmtree(zipdir)
 
     return renv
-
-
-def _fake_run_as_exe_is_output_file(environ):
-    # later code expects 'out' file to be present after compilation
-    ft.download(environ, 'exe_file', tempcwd('out'))
-    return {
-        # copy filetracker id of 'exe_file' as 'out_file' (thanks to that checker will grab it)
-        'out_file': environ['exe_file'],
-        # 'result_code' is left by executor, as executor is not used
-        # this variable has to be set manually
-        'result_code': 'OK',
-        'result_string': 'ok',
-    }

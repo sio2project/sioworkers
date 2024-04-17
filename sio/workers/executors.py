@@ -120,6 +120,8 @@ def execute_command(
     # and it prevents deadlocks.
     command = shellquote(command)
 
+    logger.info(command)
+
     logger.debug('Executing: %s', command)
 
     stdout = capture_output and tempfile.TemporaryFile() or stdout
@@ -396,11 +398,14 @@ class DetailedUnprotectedExecutor(UnprotectedExecutor):
     """
 
     def _execute(self, command, **kwargs):
+        logger.info("DUE")
         command = ['bash', '-c', [noquote('time')] + command]
         stderr = tempfile.TemporaryFile()
         kwargs['stderr'] = stderr
         kwargs['forward_stderr'] = False
+        logger.info("AAAAA")
         renv = super(DetailedUnprotectedExecutor, self)._execute(command, **kwargs)
+        logger.info("BBBBB")
         stderr.seek(0)
         output = stderr.read()
         stderr.close()
@@ -639,6 +644,9 @@ class Sio2JailExecutor(SandboxExecutor):
             '--output-limit',
             str(kwargs['output_limit'] or self.DEFAULT_OUTPUT_LIMIT) + 'K',
         ]
+        # for (what, where, mode) in kwargs.pop('binds', []):
+        #     logger.info((what, where, mode))
+        #     options += ['-b', what + ':' + where + ':' + mode]
         command = [os.path.join(self.rpath, 'sio2jail')] + options + ['--'] + command
 
         renv = {}
