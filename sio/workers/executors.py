@@ -396,14 +396,11 @@ class DetailedUnprotectedExecutor(UnprotectedExecutor):
     """
 
     def _execute(self, command, **kwargs):
-        logger.info("DUE")
         command = ['bash', '-c', [noquote('time')] + command]
         stderr = tempfile.TemporaryFile()
         kwargs['stderr'] = stderr
         kwargs['forward_stderr'] = False
-        logger.info("AAAAA")
         renv = super(DetailedUnprotectedExecutor, self)._execute(command, **kwargs)
-        logger.info("BBBBB")
         stderr.seek(0)
         output = stderr.read()
         stderr.close()
