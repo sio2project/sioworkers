@@ -120,8 +120,6 @@ def execute_command(
     # and it prevents deadlocks.
     command = shellquote(command)
 
-    logger.info(command)
-
     logger.debug('Executing: %s', command)
 
     stdout = capture_output and tempfile.TemporaryFile() or stdout
@@ -144,7 +142,7 @@ def execute_command(
         stdin=stdin,
         stdout=stdout,
         stderr=forward_stderr and subprocess.STDOUT or stderr,
-        pass_fds=pass_fds,
+        # pass_fds=pass_fds,
         shell=True,
         close_fds=True,
         universal_newlines=True,
@@ -644,9 +642,6 @@ class Sio2JailExecutor(SandboxExecutor):
             '--output-limit',
             str(kwargs['output_limit'] or self.DEFAULT_OUTPUT_LIMIT) + 'K',
         ]
-        # for (what, where, mode) in kwargs.pop('binds', []):
-        #     logger.info((what, where, mode))
-        #     options += ['-b', what + ':' + where + ':' + mode]
         command = [os.path.join(self.rpath, 'sio2jail')] + options + ['--'] + command
 
         renv = {}

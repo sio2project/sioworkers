@@ -5,15 +5,12 @@ from threading import Thread
 
 from sio.executors.common import _extract_input_if_zipfile, _populate_environ
 from sio.workers import ft
-from sio.workers.executors import DetailedUnprotectedExecutor, PRootExecutor
+from sio.workers.executors import DetailedUnprotectedExecutor
 from sio.workers.util import TemporaryCwd, decode_fields, replace_invalid_UTF, tempcwd
 from sio.workers.file_runners import get_file_runner
 
-import traceback
 import signal
 import six
-import logging
-logger = logging.getLogger(__name__)
 
 DEFAULT_INTERACTOR_MEM_LIMIT = 256 * 2 ** 10  # in KiB
 RESULT_STRING_LENGTH_LIMIT = 1024  # in bytes
@@ -72,9 +69,6 @@ def _fill_result(env, renv, irenv, interactor_out):
     sol_sig = renv.get('exit_signal', None)
     inter_sig = irenv.get('exit_signal', None)
     sigpipe = signal.SIGPIPE.value
-
-    logger.info(renv)
-    logger.info(irenv)
 
     if irenv['result_code'] != 'OK' and inter_sig != sigpipe:
         renv['result_code'] = 'SE'
@@ -139,14 +133,10 @@ def _run(environ, executor, use_sandboxes):
             
             def run(self):
                 with TemporaryCwd():
-                    logger.info("run" + str(self.args) + str(self.kwargs))
                     try:
                         self.value = self.executor(*self.args, **self.kwargs)
                     except Exception as e:
-                        logger.info(traceback.format_exc())
-                        logger.info(str(self.args) + str(e))
                         pass
-                    logger.info(str(self.args) + self.value)
 
         with interactor_executor as ie:
             interactor = ExecutionWrapper(
@@ -163,8 +153,6 @@ def _run(environ, executor, use_sandboxes):
                 close_passed_fd=True,
                 cwd=tempcwd(),
                 in_file=environ['in_file'],
-                # binds=[(input_name, '/', 'ro'), (tempcwd('out'), '/', 'rw')],
-                # allow_local_open=True,
             )
 
         with file_executor as fe:
