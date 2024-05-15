@@ -3,6 +3,7 @@ import os
 from shutil import rmtree
 from threading import Thread
 
+from sio.executors.checker import output_to_fraction
 from sio.executors.common import _extract_input_if_zipfile, _populate_environ
 from sio.workers import ft
 from sio.workers.executors import DetailedUnprotectedExecutor
@@ -87,12 +88,12 @@ def _fill_result(env, renv, irenv, interactor_out):
             renv['result_code'] = 'OK'
             if interactor_out[1]:
                 renv['result_string'] = _limit_length(interactor_out[1])
-            renv['result_percentage'] = float(interactor_out[2] or 100)
+            renv['result_percentage'] = output_to_fraction(interactor_out[2])
         else:
             renv['result_code'] = 'WA'
             if interactor_out[1]:
                 renv['result_string'] = _limit_length(interactor_out[1])
-            renv['result_percentage'] = 0
+            renv['result_percentage'] = (0, 1)
 
 
 def _run(environ, executor, use_sandboxes):
