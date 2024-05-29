@@ -79,6 +79,7 @@ def execute_command(
     real_time_limit=None,
     ignore_errors=False,
     extra_ignore_errors=(),
+    pass_fds=(),
     **kwargs
 ):
     """Utility function to run arbitrary command.
@@ -111,6 +112,9 @@ def execute_command(
 
     ``stdout``
       Only when ``capture_output=True``: output of the command
+
+    ``pass_fds``
+      Extra file descriptors to pass to the command.
     """
     # Using temporary file is way faster than using subproces.PIPE
     # and it prevents deadlocks.
@@ -141,6 +145,7 @@ def execute_command(
         env=env,
         cwd=tempcwd(),
         preexec_fn=os.setpgrp,
+        pass_fds=pass_fds,
     )
 
     kill_timer = None
@@ -599,7 +604,7 @@ class Sio2JailExecutor(SandboxExecutor):
     REAL_TIME_LIMIT_ADDEND = 1000  # (in ms)
 
     def __init__(self):
-        super(Sio2JailExecutor, self).__init__('sio2jail_exec-sandbox')
+        super(Sio2JailExecutor, self).__init__('sio2jail_exec-sandbox-1.4.4')
 
     def _execute(self, command, **kwargs):
         options = []
@@ -635,6 +640,7 @@ class Sio2JailExecutor(SandboxExecutor):
         try:
             result_file = tempfile.NamedTemporaryFile(dir=tempcwd())
             kwargs['ignore_errors'] = True
+            print(command)
             renv = execute_command(
                 command + [noquote('2>'), result_file.name], **kwargs
             )
@@ -776,7 +782,7 @@ class PRootExecutor(BaseExecutor):
     def __init__(self, sandbox):
         """``sandbox`` has to be a sandbox name."""
         self.chroot = get_sandbox(sandbox)
-        self.proot = SandboxExecutor('proot-sandbox')
+        self.proot = SandboxExecutor('proot-sandbox_amd64')
 
         self.options = []
         with self.chroot:
