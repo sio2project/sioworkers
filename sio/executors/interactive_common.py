@@ -1,4 +1,3 @@
-from __future__ import absolute_import
 import os
 from shutil import rmtree
 from threading import Thread
@@ -131,13 +130,14 @@ def _run(environ, executor, use_sandboxes):
                 self.args = args
                 self.kwargs = kwargs
                 self.value = None
+                self.exception = None
             
             def run(self):
                 with TemporaryCwd():
                     try:
                         self.value = self.executor(*self.args, **self.kwargs)
                     except Exception as e:
-                        pass
+                        self.exception = e
 
         with interactor_executor as ie:
             interactor = ExecutionWrapper(
@@ -177,6 +177,10 @@ def _run(environ, executor, use_sandboxes):
 
         exe.join()
         interactor.join()
+
+        for ew in (exe, interactor):
+            if ew.exception is not None:
+                raise ew.exception
 
         renv = exe.value
         irenv = interactor.value

@@ -79,10 +79,8 @@ def execute_command(
     real_time_limit=None,
     ignore_errors=False,
     extra_ignore_errors=(),
-    ret_env=None,
-    pass_fds=(),
-    close_passed_fd=False,
     cwd=None,
+    fds_to_close=(),
     **kwargs,
 ):
     """Utility function to run arbitrary command.
@@ -128,9 +126,7 @@ def execute_command(
     stdout = stdout or devnull
     stderr = stderr or devnull
     cwd = cwd or tempcwd()
-
-    if ret_env is None:
-        ret_env = {}
+    ret_env = {}
 
     if env is not None:
         for key, value in six.iteritems(env):
@@ -142,7 +138,6 @@ def execute_command(
         stdin=stdin,
         stdout=stdout,
         stderr=forward_stderr and subprocess.STDOUT or stderr,
-        # pass_fds=pass_fds,
         shell=True,
         close_fds=True,
         universal_newlines=True,
@@ -151,9 +146,8 @@ def execute_command(
         preexec_fn=os.setpgrp,
     )
 
-    if close_passed_fd:
-        for fd in pass_fds:
-            os.close(fd)
+    for fd in fds_to_close:
+        os.close(fd)
 
     kill_timer = None
     if real_time_limit:
