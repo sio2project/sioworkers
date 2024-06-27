@@ -79,7 +79,9 @@ def execute_command(
     real_time_limit=None,
     ignore_errors=False,
     extra_ignore_errors=(),
-    **kwargs
+    cwd=None,
+    fds_to_close=(),
+    **kwargs,
 ):
     """Utility function to run arbitrary command.
     ``stdin``
@@ -123,8 +125,9 @@ def execute_command(
     devnull = open(os.devnull, 'wb')
     stdout = stdout or devnull
     stderr = stderr or devnull
-
+    cwd = cwd or tempcwd()
     ret_env = {}
+
     if env is not None:
         for key, value in six.iteritems(env):
             env[key] = str(value)
@@ -139,9 +142,12 @@ def execute_command(
         close_fds=True,
         universal_newlines=True,
         env=env,
-        cwd=tempcwd(),
+        cwd=cwd,
         preexec_fn=os.setpgrp,
     )
+
+    for fd in fds_to_close:
+        os.close(fd)
 
     kill_timer = None
     if real_time_limit:
@@ -180,7 +186,6 @@ def execute_command(
         raise ExecError(
             'Failed to execute command: %s. Returned with code %s\n' % (command, rc)
         )
-
     return ret_env
 
 
@@ -417,9 +422,8 @@ class DetailedUnprotectedExecutor(UnprotectedExecutor):
             renv['result_string'] = 'ok'
             renv['result_code'] = 'OK'
         elif renv['return_code'] > 128:  # os.WIFSIGNALED(1) returns True
-            renv['result_string'] = 'program exited due to signal %d' % os.WTERMSIG(
-                renv['return_code']
-            )
+            renv['exit_signal'] = os.WTERMSIG(renv['return_code'])
+            renv['result_string'] = 'program exited due to signal %d' % renv['exit_signal']
             renv['result_code'] = 'RE'
         else:
             renv['result_string'] = 'program exited with code %d' % renv['return_code']
@@ -669,6 +673,9 @@ class Sio2JailExecutor(SandboxExecutor):
                 renv['result_code'] = 'RV'
             elif renv['result_string'].startswith('process exited due to signal'):
                 renv['result_code'] = 'RE'
+                renv['exit_signal'] = int(
+                    renv['result_string'][len('process exited due to signal '):]
+                )
             else:
                 raise ExecError(
                     'Unrecognized Sio2Jail result string: %s' % renv['result_string']

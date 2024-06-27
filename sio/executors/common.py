@@ -20,6 +20,23 @@ def _populate_environ(renv, environ):
         environ['out_file'] = renv['out_file']
 
 
+def _extract_input_if_zipfile(input_name, zipdir):
+    if is_zipfile(input_name):
+        try:
+            # If not a zip file, will pass it directly to exe
+            with ZipFile(tempcwd('in'), 'r') as f:
+                if len(f.namelist()) != 1:
+                    raise Exception("Archive should have only one file.")
+
+                f.extract(f.namelist()[0], zipdir)
+                input_name = os.path.join(zipdir, f.namelist()[0])
+        # zipfile throws some undocumented exceptions
+        except Exception as e:
+            raise Exception("Failed to open archive: " + six.text_type(e))
+
+    return input_name
+
+
 @decode_fields(['result_string'])
 def run(environ, executor, use_sandboxes=True):
     """
@@ -70,18 +87,7 @@ def _run(environ, executor, use_sandboxes):
     zipdir = tempcwd('in_dir')
     os.mkdir(zipdir)
     try:
-        if is_zipfile(input_name):
-            try:
-                # If not a zip file, will pass it directly to exe
-                with ZipFile(tempcwd('in'), 'r') as f:
-                    if len(f.namelist()) != 1:
-                        raise Exception("Archive should have only one file.")
-
-                    f.extract(f.namelist()[0], zipdir)
-                    input_name = os.path.join(zipdir, f.namelist()[0])
-            # zipfile throws some undocumented exceptions
-            except Exception as e:
-                raise Exception("Failed to open archive: " + six.text_type(e))
+        input_name = _extract_input_if_zipfile(input_name, zipdir)
 
         with file_executor as fe:
             with open(input_name, 'rb') as inf:
