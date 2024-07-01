@@ -118,9 +118,9 @@ def _run(environ, executor, use_sandboxes):
 def _fake_run_as_exe_is_output_file(environ):
     try:
         ft.download(environ, 'exe_file', tempcwd('outs_archive'))
+        archive = Archive.get(tempcwd('outs_archive'))
         problem_short_name = environ['problem_short_name']
         test_name = f'{problem_short_name}{environ["name"]}.out'
-        archive = Archive.get(tempcwd('outs_archive'))
         logger.info('Archive with outs provided')
         if test_name in archive.filenames():
             archive.extract(test_name, to_path=tempcwd())
