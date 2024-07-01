@@ -116,15 +116,12 @@ def _run(environ, executor, use_sandboxes):
 
 
 def _fake_run_as_exe_is_output_file(environ):
-    logger.info('Environ in fake run: ' + str(environ))
     try:
         ft.download(environ, 'exe_file', tempcwd('outs_archive'))
         problem_short_name = environ['problem_short_name']
         test_name = f'{problem_short_name}{environ["name"]}.out'
-        logger.info(tempcwd('outs_archive'))
         archive = Archive(tempcwd('outs_archive'))
         logger.info('Archive with outs provided')
-        logger.info('Files in archive:' + str(archive.filenames()))
         if test_name in archive.filenames():
             archive.extract(test_name, to_path=tempcwd())
             os.rename(os.path.join(tempcwd(), test_name), tempcwd('out'))
@@ -136,14 +133,12 @@ def _fake_run_as_exe_is_output_file(environ):
             }
     except UnrecognizedArchiveFormat as e:
         # regular text file
-        # later code expects 'out' file to be present after compilation
         logger.info('Text out provided')
+        # later code expects 'out' file to be present after compilation
         ft.download(environ, 'exe_file', tempcwd('out'))
     except UnsafeArchive as e:
         logger.warning(six.text_type(e))
     return {
-        # copy filetracker id of 'exe_file' as 'out_file' (thanks to that checker will grab it)
-        # 'out_file': environ['exe_file'],
         # 'result_code' is left by executor, as executor is not used
         # this variable has to be set manually
         'result_code': 'OK',
