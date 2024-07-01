@@ -2,6 +2,7 @@ from __future__ import absolute_import
 import os
 from shutil import rmtree
 from zipfile import ZipFile, is_zipfile
+from sio.archive_utils import Archive, UnrecognizedArchiveFormat, UnsafeArchive
 from sio.workers import ft
 from sio.workers.util import decode_fields, replace_invalid_UTF, tempcwd
 from sio.workers.file_runners import get_file_runner
@@ -9,6 +10,9 @@ from sio.workers.file_runners import get_file_runner
 from sio.executors import checker
 import six
 
+
+import logging
+logger = logging.getLogger(__name__)
 
 def _populate_environ(renv, environ):
     """Takes interesting fields from renv into environ"""
@@ -112,13 +116,37 @@ def _run(environ, executor, use_sandboxes):
 
 
 def _fake_run_as_exe_is_output_file(environ):
-    # later code expects 'out' file to be present after compilation
-    ft.download(environ, 'exe_file', tempcwd('out'))
+    logger.info('Environ in fake run: ' + str(environ))
+    try:
+        ft.download(environ, 'exe_file', tempcwd('outs_archive'))
+        problem_short_name = environ['problem_short_name']
+        test_name = f'{problem_short_name}{environ["name"]}.out'
+        logger.info(tempcwd('outs_archive'))
+        archive = Archive(tempcwd('outs_archive'))
+        logger.info('Archive with outs provided')
+        logger.info('Files in archive:' + str(archive.filenames()))
+        if test_name in archive.filenames():
+            archive.extract(test_name, to_path=tempcwd())
+            os.rename(os.path.join(tempcwd(), test_name), tempcwd('out'))
+        else:
+            logger.info(f'Output {test_name} not found in archive')
+            return {
+                'result_code': 'WA',
+                'result_string': 'output not provided',
+            }
+    except UnrecognizedArchiveFormat as e:
+        # regular text file
+        # later code expects 'out' file to be present after compilation
+        logger.info('Text out provided')
+        ft.download(environ, 'exe_file', tempcwd('out'))
+    except UnsafeArchive as e:
+        logger.warning(six.text_type(e))
     return {
         # copy filetracker id of 'exe_file' as 'out_file' (thanks to that checker will grab it)
-        'out_file': environ['exe_file'],
+        # 'out_file': environ['exe_file'],
         # 'result_code' is left by executor, as executor is not used
         # this variable has to be set manually
         'result_code': 'OK',
         'result_string': 'ok',
     }
+
