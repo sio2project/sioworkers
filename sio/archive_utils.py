@@ -26,6 +26,8 @@ import os
 import tarfile
 import zipfile
 
+from sio.workers.util import RegisteredSubclassesBase
+
 
 class ArchiveException(Exception):
     """Base exception class for all archive errors."""
@@ -50,23 +52,24 @@ def extract(path, member, to_path='', ext='', **kwargs):
     Archive(path, ext=ext).extract(member, to_path, **kwargs)
 
 
-class Archive(object):
+class Archive(RegisteredSubclassesBase):
     """
     The external API class that encapsulates an archive implementation.
     """
 
-    def __init__(self, file, ext=''):
-        """
-        Arguments:
-        * 'file' can be a string path to a file or a file-like object.
-        * Optional 'ext' argument can be given to override the file-type
-          guess that is normally performed using the file extension of the
-          given 'file'.  Should start with a dot, e.g. '.tar.gz'.
-        """
-        self._archive = self._archive_cls(file, ext=ext)(file)
+    @classmethod
+    def __classinit__(cls):
+        this_cls = globals().get('Archive', cls)
+        super(this_cls, cls).__classinit__()
+        cls.handled_archives = set()
 
-    @staticmethod
-    def _archive_cls(file, ext=''):
+    @classmethod
+    def register_subclass(cls, subcls):
+        if cls is not subcls:
+            cls.handled_archives.add(subcls)
+
+    @classmethod
+    def get(cls, file):
         """
         Return the proper Archive implementation class, based on the file type.
         """
@@ -79,10 +82,10 @@ class Archive(object):
             except AttributeError:
                 raise UnrecognizedArchiveFormat(
                     "File object not a recognized archive format.")
-        for cls in HANDLED_ARCHIVES:
-            if cls.is_archive(filename):
-                return cls
-    
+        for subcls in cls.handled_archives:
+            if subcls.is_archive(filename):
+                return subcls(filename)
+            
         raise UnrecognizedArchiveFormat(
             "Path not a recognized archive format: %s" % filename)
 
@@ -96,10 +99,12 @@ class Archive(object):
         return self._archive.filenames()
 
 
-class BaseArchive(object):
+class BaseArchive(Archive):
     """
     Base Archive class.  Implementations should inherit this class.
     """
+    abstract = True
+
     def __del__(self):
         if hasattr(self, "_archive"):
             self._archive.close()
@@ -187,5 +192,3 @@ class ZipArchive(BaseArchive):
     @staticmethod
     def is_archive(filename):
         return zipfile.is_zipfile(filename)
-
-HANDLED_ARCHIVES = (ZipArchive, TarArchive)
