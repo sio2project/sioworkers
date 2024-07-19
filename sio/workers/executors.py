@@ -80,6 +80,7 @@ def execute_command(
     ignore_errors=False,
     extra_ignore_errors=(),
     cwd=None,
+    pass_fds=(),
     fds_to_close=(),
     **kwargs,
 ):
@@ -140,6 +141,7 @@ def execute_command(
         stderr=forward_stderr and subprocess.STDOUT or stderr,
         shell=True,
         close_fds=True,
+        pass_fds=pass_fds,
         universal_newlines=True,
         env=env,
         cwd=cwd,
