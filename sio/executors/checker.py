@@ -88,11 +88,11 @@ def _run_checker(env, use_sandboxes=False):
 
 
 def _run_compare(env):
-    e = SandboxExecutor('exec-sandbox')
+    e = SandboxExecutor('oicompare-sandbox-v1.0.2')
     renv = _run_in_executor(
-        env, [os.path.join('bin', 'compare'), 'hint', 'out'], e, ignore_errors=True
+        env, [os.path.join('bin', 'oicompare'), 'hint', 'out', 'english_abbreviated'], e, ignore_errors=True
     )
-    return renv['stdout']
+    return renv
 
 
 def _limit_length(s):
@@ -116,7 +116,21 @@ def run(environ, use_sandboxes=True):
 
             output = _run_checker(environ, use_sandboxes)
         elif use_sandboxes:
-            output = _run_compare(environ)
+            renv = _run_compare(environ)
+            if renv['return_code'] == 0:
+                environ['result_code'] = 'OK'
+                environ['result_percentage'] = (100, 1)
+            elif renv['return_code'] == 1:
+                environ['result_code'] = 'WA'
+                environ['result_percentage'] = (0, 1)
+                # Should be redundant because we are using oicompare with abbreviated output,
+                # but just in case.
+                environ['result_string'] = _limit_length(renv['stdout'][0])
+            else:
+                raise CheckerError(
+                    'oicompare returned code(%d). Checker renv: %s' % (renv['return_code'], renv)
+                )
+            return environ
         else:
             output = _run_diff(environ)
     except (CheckerError, ExecError) as e:
