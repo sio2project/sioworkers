@@ -87,10 +87,10 @@ def _run_checker(env, use_sandboxes=False):
     return renv['stdout']
 
 
-def _run_compare(env, language):
+def _run_compare(env, format):
     e = SandboxExecutor('oicompare-sandbox-v1.0.2')
     renv = _run_in_executor(
-        env, [os.path.join('bin', 'oicompare'), 'hint', 'out', f'{language}_abbreviated'], e, ignore_errors=True
+        env, [os.path.join('bin', 'oicompare'), 'hint', 'out', format], e, ignore_errors=True
     )
     return renv
 
@@ -116,7 +116,7 @@ def run(environ, use_sandboxes=True):
 
             output = _run_checker(environ, use_sandboxes)
         elif use_sandboxes:
-            renv = _run_compare(environ, environ.get('checker_language', 'polish'))
+            renv = _run_compare(environ, environ.get('checker_format', 'english_abbreviated'))
             if renv['return_code'] == 0:
                 environ['result_code'] = 'OK'
                 environ['result_percentage'] = (100, 1)
