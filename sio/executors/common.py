@@ -18,6 +18,7 @@ def _populate_environ(renv, environ):
         environ[key] = renv.get(key, '')
     if 'out_file' in renv:
         environ['out_file'] = renv['out_file']
+    environ['result_percentage'] = renv.get('result_percentage', (0, 1))
 
 
 def _extract_input_if_zipfile(input_name, zipdir):
