@@ -18,7 +18,7 @@ setup(
         'bsddb3==6.2.7',
         'simplejson==3.14.0',
         'supervisor>=4.0,<4.3',
-        'Twisted==20.3.0',
+        'Twisted==22.10.0',
         'sortedcontainers==2.1.0',
         'six',
         'urllib3>=1.26.14,<2.0',
