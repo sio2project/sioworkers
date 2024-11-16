@@ -175,10 +175,48 @@ def test_output_compilation_and_running(source):
         )
         eq_(post_run_env['result_code'], 'OK')
 
-        ft.download(post_run_env, 'out_file', tempcwd('out.txt'))
         ft.download({'source_file': source}, 'source_file', tempcwd('source.txt'))
-        with open(tempcwd('out.txt'), 'r') as outfile:
+        with open(tempcwd('out'), 'r') as outfile:
             with open(tempcwd('source.txt'), 'r') as sourcefile:
+                eq_(outfile.read(), sourcefile.read())
+
+
+@pytest.mark.parametrize("source", [('/simple.zip')])
+def test_output_archive_compilation_and_running(source):
+    with TemporaryCwd():
+        upload_files()
+        result_env = run(
+            {
+                'source_file': source,
+                'compiler': 'output-only',
+            }
+        )
+        eq_(result_env['result_code'], 'OK')
+        eq_(result_env['exec_info'], {'mode': 'output-only'})
+
+        ft.download(result_env, 'out_file', tempcwd('out.zip'))
+        ft.download({'source_file': source}, 'source_file', tempcwd('source.zip'))
+        with open(tempcwd('out.zip'), 'rb') as outfile:
+            with open(tempcwd('source.zip'), 'rb') as sourcefile:
+                eq_(outfile.read(), sourcefile.read())
+
+        # abc0.out in simple.zip is the same as simple.txt
+        post_run_env = run_from_executors(
+            {
+                'exec_info': result_env['exec_info'],
+                'exe_file': result_env['out_file'],
+                'check_output': True,
+                'hint_file': '/simple.txt', 
+                'name': '0',
+                'problem_short_name': 'abc',
+            },
+            executor=None,
+        )
+        eq_(post_run_env['result_code'], 'OK')
+
+        ft.download({'source_file': '/simple.txt'}, 'source_file', tempcwd('simple.txt'))
+        with open(tempcwd('out'), 'r') as outfile:
+            with open(tempcwd('simple.txt'), 'r') as sourcefile:
                 eq_(outfile.read(), sourcefile.read())
 
 
