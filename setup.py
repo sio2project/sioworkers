@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name = "sioworkers",
-    version = '1.5.3',
+    version = '1.5.4',
     author = "SIO2 Project Team",
     author_email = 'sio2@sio2project.mimuw.edu.pl',
     description = "Programming contest judging infrastructure",
@@ -14,12 +14,12 @@ setup(
     namespace_packages = ['sio', 'sio.compilers', 'sio.executors'],
 
     install_requires = [
-        'filetracker>=2.1.5,<3.0',
+        'filetracker[server]>=2.2.0,<3.0',
         'bsddb3==6.2.7',
         'simplejson==3.14.0',
         'supervisor>=4.0,<4.3',
-        'Twisted==20.3.0',
-        'sortedcontainers==2.1.0',
+        'Twisted==23.8.0',
+        'sortedcontainers==2.4.0',
         'six',
         'urllib3>=1.26.14,<2.0',
     ],
