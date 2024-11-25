@@ -14,7 +14,7 @@ setup(
     namespace_packages = ['sio', 'sio.compilers', 'sio.executors'],
 
     install_requires = [
-        'filetracker[server]==2.2.0',
+        'filetracker[server]>=2.2.0,<3.0',
         'bsddb3==6.2.7',
         'simplejson==3.14.0',
         'supervisor>=4.0,<4.3',
