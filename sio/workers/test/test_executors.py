@@ -34,6 +34,7 @@ from sio.workers.executors import (
     SandboxExecutor,
     SupervisedExecutor,
     Sio2JailExecutor,
+    RealTimeSio2JailExecutor,
     ExecError,
 )
 from sio.workers.file_runners import get_file_runner
@@ -137,7 +138,10 @@ CHECKING_EXECUTORS = [DetailedUnprotectedExecutor]
 SANDBOXED_CHECKING_EXECUTORS = [SupervisedExecutor]
 
 if not NO_SIO2JAIL_TESTS:
-    SANDBOXED_CHECKING_EXECUTORS.append(Sio2JailExecutor)
+    SANDBOXED_CHECKING_EXECUTORS += (
+        Sio2JailExecutor,
+        RealTimeSio2JailExecutor,
+    )
 
 # Status helpers
 def res_ok(env):
@@ -290,8 +294,12 @@ def _make_common_time_limiting_cases():
                     yield '/time_verylong.java', 5000, executor(), res_ok
 
             if issubclass(executor, Sio2JailExecutor):
-                yield "/time_s2j_200ms.c", 100, executor(), res_tle
-                yield "/time_s2j_200ms.c", 1000, executor(), res_ok
+                if issubclass(executor, RealTimeSio2JailExecutor):
+                    yield "/time_verylong.c", 100, executor(), res_tle
+                    yield "/time_verylong.c", 10000, executor(), res_ok
+                else:
+                    yield "/time_s2j_200ms.c", 100, executor(), res_tle
+                    yield "/time_s2j_200ms.c", 1000, executor(), res_ok
 
 @pytest.mark.parametrize(
     "source,time_limit,executor,callback",
@@ -794,22 +802,17 @@ def _make_real_time_limit_cases():
         in_('syscalls', env['result_string'])
 
     checking_executors = CHECKING_EXECUTORS
+    if ENABLE_SANDBOXES and not NO_SIO2JAIL_TESTS:
+        checking_executors.append(RealTimeSio2JailExecutor)
 
     for executor in checking_executors:
-        yield [
-            '/time_infinite.c',
-            executor(),
-            real_tle,
-            {'real_time_limit': 1000, 'time_limit': 10000},
-        ]
-
-    for executor in CHECKING_EXECUTORS:
-        yield [
-            '/iospam.c',
-            executor(),
-            real_tle,
-            {'real_time_limit': 1000, 'time_limit': 10000},
-        ]
+        for file in ('/time_infinite.c', '/iospam.c'):
+            yield [
+                file,
+                executor(),
+                real_tle,
+                {'real_time_limit': 1000, 'time_limit': 10000},
+            ]
 
 
 @pytest.mark.parametrize(

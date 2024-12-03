@@ -3,6 +3,7 @@ from sio.workers.executors import (
     UnprotectedExecutor,
     DetailedUnprotectedExecutor,
     Sio2JailExecutor,
+    RealTimeSio2JailExecutor,
     SupervisedExecutor,
     PRootExecutor,
 )
@@ -95,6 +96,7 @@ class Executable(LanguageModeWrapper):
         DetailedUnprotectedExecutor,
         PRootExecutor,
         Sio2JailExecutor,
+        RealTimeSio2JailExecutor,
         SupervisedExecutor,
     )
 
