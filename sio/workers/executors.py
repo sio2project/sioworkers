@@ -604,8 +604,9 @@ class Sio2JailExecutor(SandboxExecutor):
     REAL_TIME_LIMIT_MULTIPLIER = 16
     REAL_TIME_LIMIT_ADDEND = 1000  # (in ms)
 
-    def __init__(self):
+    def __init__(self, measure_real_time=False):
         super(Sio2JailExecutor, self).__init__('sio2jail_exec-sandbox-1.4.4')
+        self.measure_real_time = measure_real_time
 
     def _execute(self, command, **kwargs):
         options = []
@@ -614,23 +615,30 @@ class Sio2JailExecutor(SandboxExecutor):
             '--memory-limit',
             str(kwargs['mem_limit'] or self.DEFAULT_MEMORY_LIMIT) + 'K',
         ]
-        options += [
-            '--instruction-count-limit',
-            str(
-                (kwargs['time_limit'] or self.DEFAULT_TIME_LIMIT)
-                * self.INSTRUCTIONS_PER_VIRTUAL_SECOND
-                // 1000
-            ),
-        ]
-        options += [
-            '--rtimelimit',
-            str(
-                (kwargs['time_limit'] or self.DEFAULT_TIME_LIMIT)
-                * self.REAL_TIME_LIMIT_MULTIPLIER
-                + self.REAL_TIME_LIMIT_ADDEND
-            )
-            + 'ms',
-        ]
+        if self.measure_real_time:
+            options += [
+                '--rtimelimit',
+                str(kwargs['time_limit'] or self.DEFAULT_TIME_LIMIT) + 'ms',
+            ]
+            options += ['-o', 'oireal']
+        else:
+            options += [
+                '--instruction-count-limit',
+                str(
+                    (kwargs['time_limit'] or self.DEFAULT_TIME_LIMIT)
+                    * self.INSTRUCTIONS_PER_VIRTUAL_SECOND
+                    // 1000
+                ),
+            ]
+            options += [
+                '--rtimelimit',
+                str(
+                    (kwargs['time_limit'] or self.DEFAULT_TIME_LIMIT)
+                    * self.REAL_TIME_LIMIT_MULTIPLIER
+                    + self.REAL_TIME_LIMIT_ADDEND
+                )
+                + 'ms',
+            ]
         options += [
             '--output-limit',
             str(kwargs['output_limit'] or self.DEFAULT_OUTPUT_LIMIT) + 'K',
@@ -703,6 +711,13 @@ class Sio2JailExecutor(SandboxExecutor):
                 )
 
         return renv
+
+class RealTimeSio2JailExecutor(Sio2JailExecutor):
+    """ Similiar to Sio2JailExecutor, with the exception of measuring real time
+        instead of the number of instructions executed.
+    """
+    def __init__(self):
+        super(RealTimeSio2JailExecutor, self).__init__(measure_real_time=True)
 
 
 class SupervisedExecutor(_SIOSupervisedExecutor):
