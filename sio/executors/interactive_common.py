@@ -6,6 +6,7 @@ from sio.executors.checker import output_to_fraction
 from sio.executors.common import _extract_input_if_zipfile, _populate_environ
 from sio.workers import ft
 from sio.workers.executors import DetailedUnprotectedExecutor
+from sio.workers.ft import init_instance
 from sio.workers.util import TemporaryCwd, decode_fields, replace_invalid_UTF, tempcwd
 from sio.workers.file_runners import get_file_runner
 
@@ -94,7 +95,6 @@ def _fill_result(env, renv, irenv, interactor_out):
     sigpipe = signal.SIGPIPE.value
 
     if six.ensure_binary(interactor_out[0]) != b'':
-        renv['result_string'] = ''
         if six.ensure_binary(interactor_out[0]) == b'OK':
             renv['result_code'] = 'OK'
             if interactor_out[1]:
@@ -155,18 +155,22 @@ def _run(environ, executor, use_sandboxes):
         interactor_time_limit = 2 * environ['exec_time_limit']
 
         class ExecutionWrapper(Thread):
-            def __init__(self, executor, *args, **kwargs):
+            def __init__(self, executor, environ, *args, **kwargs):
                 super(ExecutionWrapper, self).__init__()
                 self.executor = executor
+                self.environ = environ
                 self.args = args
                 self.kwargs = kwargs
                 self.value = None
                 self.exception = None
             
             def run(self):
+                # Because this is another thread, we need to initialize filetracker client.
+                if self.environ.get('filetracker_url', None):
+                    init_instance(self.environ['filetracker_url'])
                 with TemporaryCwd():
                     try:
-                        self.value = self.executor(*self.args, **self.kwargs)
+                        self.value = self.executor(*self.args, environ=self.environ, **self.kwargs)
                     except Exception as e:
                         self.exception = e
 
@@ -179,11 +183,11 @@ def _run(environ, executor, use_sandboxes):
             with interactor_executor as ie:
                 interactor = ExecutionWrapper(
                     ie,
+                    environ,
                     [tempcwd(interactor_filename)] + interactor_args,
                     stdin=infile,
                     stdout=outfile,
                     ignore_errors=True,
-                    environ=environ,
                     environ_prefix='interactor_',
                     mem_limit=DEFAULT_INTERACTOR_MEM_LIMIT,
                     time_limit=interactor_time_limit,
@@ -197,12 +201,12 @@ def _run(environ, executor, use_sandboxes):
                 with file_executor as fe:
                     exe = ExecutionWrapper(
                         fe,
+                        environ,
                         tempcwd(exe_filename),
                         [str(i)],
                         stdin=pipes.r_solution,
                         stdout=pipes.w_solution,
                         ignore_errors=True,
-                        environ=environ,
                         environ_prefix='exec_',
                         fds_to_close=[pipes.r_solution, pipes.w_solution],
                         cwd=tempcwd(),
