@@ -34,7 +34,7 @@ class CCompiler(CStyleCompiler):
 class CPPCompiler(CStyleCompiler):
     lang = 'cpp'
     compiler = 'g++'
-    options = ['-std=gnu++0x', '-O2', '-s', '-lm']
+    options = ['-std=c++20', '-O2', '-s', '-lm']
 
 
 def run_gcc(environ):
