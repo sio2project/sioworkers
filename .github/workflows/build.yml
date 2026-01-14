@@ -9,7 +9,7 @@ jobs:
   test:
     uses: ./.github/workflows/tests-reusable.yml
     with:
-      python-version: '3.7'
+      python-version: '3.13'
 
   build:
     name: Build image
