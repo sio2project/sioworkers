@@ -22,6 +22,7 @@ setup(
         'sortedcontainers==2.4.0',
         'six',
         'urllib3>=1.26.14,<2.0',
+        'legacy-cgi'
     ],
 
     extras_require = {
