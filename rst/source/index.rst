@@ -83,7 +83,7 @@ Creating jobs ist überleicht.
 
 You just need to define a function with one argument... the ``environ``, returning one
 thing... the ``environ``. You may define it in any module, provided that
-it is registered with ``pkg_resources`` aka ``setuptools`` as an entry point,
+it is registered with ``pkgutil`` as an entry point,
 under the key ``sio.jobs``.
 
 The function may use the current directory in any way --- it will be run
@@ -264,7 +264,7 @@ Filters are boring. There are no filters at the moment.
 
 Filters are functions with one argument... the ``environ``, returning one
 thing... the ``environ``. They may be defined in any modules, provided that
-they are registered with ``pkg_resources`` aka ``setuptools`` as entry points,
+they are registered with ``pkgutil`` as entry points,
 under the key ``sio.workers.filters``.
 
 For example, the following ``setup.py`` defines a module with a filter::
