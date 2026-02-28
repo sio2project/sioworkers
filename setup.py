@@ -11,7 +11,6 @@ setup(
 
     # we need twisted.plugins in packages to install the sio twisted command
     packages = find_packages() + ['twisted.plugins'],
-    namespace_packages = ['sio', 'sio.compilers', 'sio.executors'],
 
     install_requires = [
         'filetracker[server]>=2.2.0,<3.0',
