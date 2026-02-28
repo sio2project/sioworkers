@@ -15,7 +15,9 @@ logger = logging.getLogger(__name__)
 
 
 def first_entry_point(group, name=None):
-    for ep in importlib.metadata.entry_points(group=group, name=name):
+    for ep in importlib.metadata.entry_points().get(group, []):
+        if name is None or ep.name != name:
+            continue
         try:
             return ep.load()
         except ImportError as e:
