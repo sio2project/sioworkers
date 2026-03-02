@@ -643,6 +643,11 @@ class Sio2JailExecutor(SandboxExecutor):
             '--output-limit',
             str(kwargs['output_limit'] or self.DEFAULT_OUTPUT_LIMIT) + 'K',
         ]
+
+        environ = kwargs.get('environ', {})
+        if environ.get('randomize_time', False):
+            options += ['--randomize-time']
+
         command = [os.path.join(self.rpath, 'sio2jail')] + options + ['--'] + command
 
         renv = {}
