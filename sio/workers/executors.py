@@ -649,9 +649,10 @@ class Sio2JailExecutor(_SIOSupervisedExecutor):
         options += ['-f', '3']
         options += ['-b', os.path.join(self.rpath, 'boxes/minimal') + ':/:ro']
         options += ['--memory-limit', str(kwargs['mem_limit']) + 'K']
+        real_time_limit = kwargs['real_time_limit']
         if self.measure_real_time:
-            options += ['--rtimelimit', str(kwargs['time_limit']) + 'ms']
             options += ['-o', 'oireal']
+            real_time_limit = kwargs['time_limit']
         else:
             options += [
                 '--instruction-count-limit',
@@ -661,10 +662,11 @@ class Sio2JailExecutor(_SIOSupervisedExecutor):
                     // 1000
                 ),
             ]
-            if kwargs['real_time_limit']:
-                options += ['--rtimelimit', str(kwargs['real_time_limit']) + 'ms']
-                # Limiting outside supervisor
-                kwargs['real_time_limit'] = 2 * kwargs['real_time_limit']
+        if real_time_limit:
+            options += ['--rtimelimit', str(real_time_limit) + 'ms']
+            # Limiting outside supervisor
+            kwargs['real_time_limit'] = 2 * real_time_limit
+
         options += ['--output-limit', str(kwargs['output_limit']) + 'K']
 
         environ = kwargs.get('environ', {})
