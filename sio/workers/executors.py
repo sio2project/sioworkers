@@ -850,7 +850,7 @@ class PRootExecutor(CompoundSandboxExecutor):
       ``proot_options`` Options passed to *proot* binary after those
                         automatically generated.
     """
-    tool_sandbox = 'proot-sandbox'
+    tool_sandbox = 'proot-sandbox_amd64-v2.1'
     get_sandbox_extra_args = {'flavor': 'pristine'}
 
     def _tool_init(self):
