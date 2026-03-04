@@ -4,6 +4,7 @@ import os.path
 import glob
 
 from sio.compilers.common import Compiler
+from sio.workers.util import tempcwd
 
 
 class JavaCompiler(Compiler):
@@ -32,7 +33,7 @@ class JavaCompiler(Compiler):
         if renv['return_code']:
             return renv
 
-        classes = [os.path.basename(x) for x in glob.glob(self.rcwd() + '/*.class')]
+        classes = [os.path.basename(x) for x in glob.glob(tempcwd() + '/*.class')]
         jar = ['jar', 'cf', self.output_file] + classes
         renv2 = self._execute(executor, jar)
         renv2['stdout'] = renv['stdout'] + renv2['stdout']
