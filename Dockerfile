@@ -1,4 +1,4 @@
-FROM python:3.7 as build
+FROM python:3.13 as build
 
 ENV PYTHONUNBUFFERED 1
 
@@ -10,7 +10,7 @@ USER oioioi
 WORKDIR /sio2
 
 RUN pip install --user virtualenv \
-    && /home/oioioi/.local/bin/virtualenv -p python3.7 venv
+    && /home/oioioi/.local/bin/virtualenv -p python3.13 venv
 
 COPY --chown=oioioi:oioioi setup.py setup.cfg /sio2/sioworkers/
 COPY --chown=oioioi:oioioi sio /sio2/sioworkers/sio
@@ -21,7 +21,7 @@ WORKDIR /sio2/sioworkers
 RUN . /sio2/venv/bin/activate \
     && pip install .
 
-FROM python:3.7 AS production
+FROM python:3.13 AS production
 
 ENV PYTHONUNBUFFERED 1
 
