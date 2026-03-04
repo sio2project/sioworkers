@@ -16,7 +16,7 @@ setup(
         'filetracker[server]>=2.2.0,<3.0',
         'bsddb3==6.2.7',
         'simplejson==3.14.0',
-        'supervisor>=4.0,<4.3',
+        'supervisor==4.3.0',
         'Twisted>=25.0.0,<26.0.0',
         'sortedcontainers==2.4.0',
         'six',
