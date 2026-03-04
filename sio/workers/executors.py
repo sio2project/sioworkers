@@ -645,8 +645,10 @@ class Sio2JailExecutor(SandboxExecutor):
         ]
 
         environ = kwargs.get('environ', {})
-        if environ.get('randomize_time', False):
-            options += ['--randomize-time']
+        fake_time = environ.get('fake_time', 'off')
+        if fake_time != 'off':
+            options += ['--fake-time', fake_time]
+
 
         command = [os.path.join(self.rpath, 'sio2jail')] + options + ['--'] + command
 
