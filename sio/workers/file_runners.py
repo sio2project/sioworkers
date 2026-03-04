@@ -145,10 +145,12 @@ class Java(_BaseJava):
         if not entry_point and self.exec_info.get('main_class'):
             entry_point = self.exec_info['main_class']
 
+        file_sandboxed_path = self.executor.tempcwd_to_rcwd(file)
+
         if entry_point:
-            cmd = ['java'] + options + ['-classpath', file, entry_point]
+            cmd = ['java'] + options + ['-classpath', file_sandboxed_path, entry_point]
         else:
-            cmd = ['java'] + options + ['-jar', file]
+            cmd = ['java'] + options + ['-jar', file_sandboxed_path]
         return self.executor(cmd + args, **kwargs)
 
 

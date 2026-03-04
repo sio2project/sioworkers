@@ -295,6 +295,14 @@ class BaseExecutor(object):
     def rcwd(self, subpath=''):
         return tempcwd(subpath)
 
+    def tempcwd_to_rcwd(self, path):
+        if os.path.commonpath([path, tempcwd()]) != tempcwd():
+            raise RuntimeError(
+                "tempcwd_to_rcwd() used on path %s, " +
+                "which is outside of tempcwd().".format(path, tempcwd())
+            )
+        return self.rcwd(os.path.relpath(path, tempcwd()))
+
     def __call__(
         self,
         command,
