@@ -15,7 +15,12 @@ logger = logging.getLogger(__name__)
 
 
 def first_entry_point(group, name=None):
-    for ep in importlib.metadata.entry_points().get(group, []):
+    all_entry_points = importlib.metadata.entry_points()
+    if hasattr(all_entry_points, "get"):  # Python <= 3.11
+        sel_entry_points = all_entry_points.get(group, [])
+    else: # for Python >= 3.12
+        sel_entry_points = importlib.metadata.entry_points(group=group, name=name)
+    for ep in sel_entry_points:
         if name is None or ep.name != name:
             continue
         try:
