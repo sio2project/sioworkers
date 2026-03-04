@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name = "sioworkers",
-    version = '1.5.5',
+    version = '1.5.6',
     author = "SIO2 Project Team",
     author_email = 'sio2@sio2project.mimuw.edu.pl',
     description = "Programming contest judging infrastructure",
@@ -17,7 +17,7 @@ setup(
         'bsddb3==6.2.7',
         'simplejson==3.14.0',
         'supervisor>=4.0,<4.3',
-        'Twisted==23.8.0',
+        'Twisted>=25.0.0,<26.0.0',
         'sortedcontainers==2.4.0',
         'six',
         'urllib3>=1.26.14,<2.0',
