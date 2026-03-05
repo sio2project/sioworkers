@@ -23,10 +23,10 @@ class JavaCompiler(Compiler):
         javac = (
             ['javac', '-J-Xss32M']
             + list(self.extra_compilation_args)
-            + [tempcwd(self.source_file)]
+            + [self.rcwd(self.source_file)]
         )
         javac.extend(
-            tempcwd(os.path.basename(source)) for source in self.additional_sources
+            self.rcwd(os.path.basename(source)) for source in self.additional_sources
         )
 
         renv = self._execute(executor, javac)

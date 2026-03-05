@@ -68,6 +68,12 @@ class Compiler(object):
         else:
             self.executor = PRootExecutor('compiler-' + self.sandbox)
 
+    def rcwd(self, subpath=''):
+        return self.executor.rcwd(subpath)
+
+    def tempcwd_to_rcwd(self, path):
+        return self.executor.tempcwd_to_rcwd(path)
+
     def compile(self, environ):
         """
         Compile the file specified in the `environ` dictionary.

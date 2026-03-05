@@ -49,11 +49,11 @@ def _run_in_executor(environ, command, executor, **kwargs):
 
 
 def _run_ingen(environ, use_sandboxes=False):
-    command = [tempcwd('ingen')]
     if use_sandboxes:
         executor = PRootExecutor('null-sandbox')
     else:
         executor = UnprotectedExecutor()
+    command = [executor.rcwd('ingen')]
     return _run_in_executor(environ, command, executor, ignore_errors=True)
 
 
