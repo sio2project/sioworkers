@@ -1,6 +1,6 @@
 from __future__ import absolute_import
 from contextlib import contextmanager
-import importlib
+import importlib.metadata
 import time
 import logging
 import stat
