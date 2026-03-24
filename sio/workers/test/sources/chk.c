@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 /* Simple unsafe checker with buffer overflow */
 
 int main(int argc, char **argv) {
