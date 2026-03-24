@@ -48,6 +48,21 @@ SOURCES = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'sources')
 ENABLE_SANDBOXED_COMPILERS = str_to_bool(os.environ.get('TEST_SANDBOXES', False))
 NO_JAVA_TESTS = str_to_bool(os.environ.get('NO_JAVA_TESTS', False))
 
+C_SANDBOXED_COMPILERS = [
+    'gcc4_8_2_c99',
+    'gcc12_2_0_c17',
+    'gcc14_2_0_c17',
+]
+
+CPP_SANDBOXED_COMPILERS = [
+    'g++4_8_2_cpp11',
+    'g++6_3_cpp14',
+    'g++8_3_cpp17',
+    'g++8_3_cpp17_amd64',
+    'g++10_2_cpp17_amd64',
+    'g++12_2_cpp20_amd64',
+    'g++14_2_cpp23_amd64',
+]
 
 def in_(a, b, msg=None):
     """Shorthand for 'assert a in b, "%r not in %r" % (a, b)"""
@@ -112,23 +127,32 @@ def compile_and_run(compiler_env, expected_output, program_args=None):
 
 def _make_compilation_cases():
     compilers = ['system-']
+    c_compilers = ['system-gcc']
+    cpp_compilers = ['system-g++']
     if ENABLE_SANDBOXED_COMPILERS:
         compilers += ['default-']
+        c_compilers += C_SANDBOXED_COMPILERS
+        cpp_compilers += CPP_SANDBOXED_COMPILERS
 
+    for compiler in c_compilers:
+        yield 'Hello World from c', compiler, '/simple.c', None
+        yield '6.907167, 31.613478, 1.569796', compiler, '/libm.c', ['999.412']
+    for compiler in cpp_compilers:
+        yield 'Hello World from cpp', compiler, '/simple.cpp', None
+        yield 'Hello World from cc', compiler, '/simple.cc', None
+        yield '3\n5\n5\n7\n9\n10', compiler, '/libstdc++.cpp', None
     for compiler in compilers:
-        yield 'Hello World from c', compiler + 'c', '/simple.c', None
-        yield '6.907167, 31.613478, 1.569796', compiler + 'c', '/libm.c', ['999.412']
-        yield 'Hello World from cpp', compiler + 'cpp', '/simple.cpp', None
-        yield 'Hello World from cc', compiler + 'cc', '/simple.cc', None
-        yield '3\n5\n5\n7\n9\n10', compiler + 'cpp', '/libstdc++.cpp', None
         yield 'Hello World from pas', compiler + 'pas', '/simple.pas', None
         if not NO_JAVA_TESTS:
             yield 'Hello World from java', compiler + 'java', '/simple.java', None
         # Note that "output-only" compiler is tested in test_output_compilation_and_running
 
     if ENABLE_SANDBOXED_COMPILERS:
-        yield '12903', 'default-cpp', '/cpp11.cpp', None
-        yield 'Hello World from GNU99', 'default-c', '/gnu99.c', None
+        # TODO: NOTE: dodać testy na nowe standardy.
+        for compiler in cpp_compilers[1:]:
+            yield '12903', compiler, '/cpp11.cpp', None
+        for compiler in c_compilers[1:]:
+            yield 'Hello World from GNU99', compiler, '/gnu99.c', None
 
 
 @pytest.mark.parametrize(
@@ -188,12 +212,18 @@ def test_output_compilation_and_running(source):
 
 def _make_compilation_with_additional_library_cases():
     compilers = ['system-']
+    c_compilers = ['system-gcc']
+    cpp_compilers = ['system-g++']
     if ENABLE_SANDBOXED_COMPILERS:
         compilers += ['default-']
+        c_compilers += C_SANDBOXED_COMPILERS
+        cpp_compilers += CPP_SANDBOXED_COMPILERS
 
+    for compiler in c_compilers:
+        yield 'Hello World from c-lib', compiler, '/simple-lib.c', '/library.c', '/library.h'
+    for compiler in cpp_compilers:
+        yield 'Hello World from cpp-lib', compiler, '/simple-lib.cpp', '/library.cpp', '/library.h'
     for compiler in compilers:
-        yield 'Hello World from c-lib', compiler + 'c', '/simple-lib.c', '/library.c', '/library.h'
-        yield 'Hello World from cpp-lib', compiler + 'cpp', '/simple-lib.cpp', '/library.cpp', '/library.h'
         yield 'Hello World from pas-lib', compiler + 'pas', '/simple-lib.pas', '/pas_library.pas', {}
         if not NO_JAVA_TESTS:
             yield 'Hello World from java-lib', compiler + 'java', '/simple_lib.java', '/library.java', {}
@@ -223,11 +253,16 @@ def test_compilation_with_additional_library(
 
 def _make_compilation_with_additional_library_and_directory_params_cases():
     compilers = ['system-']
+    c_compilers = ['system-gcc']
+    cpp_compilers = ['system-g++']
     if ENABLE_SANDBOXED_COMPILERS:
         compilers += ['default-']
+        c_compilers += C_SANDBOXED_COMPILERS
+        cpp_compilers += CPP_SANDBOXED_COMPILERS
 
+    for compiler in c_compilers:
+        yield 'Hello World from c-lib', compiler, '/simple-lib.c'
     for compiler in compilers:
-        yield 'Hello World from c-lib', compiler + 'c', '/simple-lib.c'
         yield 'Hello World from cpp-lib', compiler + 'cpp', '/simple-lib.cpp'
         yield 'Hello World from pas-lib', compiler + 'pas', '/simple-lib.pas'
         if not NO_JAVA_TESTS:
@@ -273,9 +308,10 @@ def _make_compilation_with_additional_archive_cases():
     ]
 
     if ENABLE_SANDBOXED_COMPILERS:
-        yield 'Hello World from c-lib', 'default-c', '/simple-lib.c', '/library.c', '/library-archive.zip', [
-            '../b.txt'
-        ]
+        for compiler in C_SANDBOXED_COMPILERS:
+            yield 'Hello World from c-lib', compiler, '/simple-lib.c', '/library.c', '/library-archive.zip', [
+                '../b.txt'
+            ]
 
 
 @pytest.mark.parametrize(
@@ -345,7 +381,7 @@ def _make_compilation_error_gcc_size_and_out_limit_cases():
     mem_limit = _get_limits()['mem_limit']
     compilers = ['system-cpp']
     if ENABLE_SANDBOXED_COMPILERS:
-        compilers += ['default-cpp']
+        compilers += CPP_SANDBOXED_COMPILERS
 
     nasty_loopers = [
         'self-include.cpp',
@@ -395,7 +431,7 @@ def test_compilation_error_gcc_size_and_out_limit(message, compiler, source):
 def _make_compilation_error_gcc_large_limit_cases():
     compilers = ['system-cpp']
     if ENABLE_SANDBOXED_COMPILERS:
-        compilers += ['default-cpp']
+        compilers += CPP_SANDBOXED_COMPILERS
 
     for compiler in compilers:
         yield None, compiler, '/nasty-infinite-warnings.cpp'
@@ -438,7 +474,7 @@ def test_compilation_error_gcc_large_limit(message, compiler, source):
 def _make_compilation_extremes_cases():
     compilers = ['system-cpp']
     if ENABLE_SANDBOXED_COMPILERS:
-        compilers += ['default-cpp']
+        compilers += CPP_SANDBOXED_COMPILERS
 
     for compiler in compilers:
         yield "0", compiler, '/extreme-4.9MB-static-exec.cpp'

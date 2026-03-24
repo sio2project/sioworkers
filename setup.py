@@ -52,7 +52,17 @@ setup(
 
             # Sandboxed compilers:
             'gcc4_8_2_c99 = sio.compilers.gcc:run_c_gcc4_8_2_c99',
+            'gcc12_2_0_c17 = sio.compilers.gcc:run_c_gcc12_2_0_c17',
+            'gcc14_2_0_c17 = sio.compilers.gcc:run_c_gcc14_2_0_c17',
+
             'g++4_8_2_cpp11 = sio.compilers.gcc:run_cpp_gcc4_8_2_cpp11',
+            'g++6_3_cpp14 = sio.compilers.gcc:run_cpp_gcc6_3_cpp14',
+            'g++8_3_cpp17 = sio.compilers.gcc:run_cpp_gcc8_3_cpp17',
+            'g++8_3_cpp17_amd64 = sio.compilers.gcc:run_cpp_gcc8_3_cpp17_amd64',
+            'g++10_2_cpp17_amd64 = sio.compilers.gcc:run_cpp_gcc10_2_cpp17_amd64',
+            'g++12_2_cpp20_amd64 = sio.compilers.gcc:run_cpp_gcc12_2_cpp20_amd64',
+            'g++14_2_cpp23_amd64 = sio.compilers.gcc:run_cpp_gcc14_2_cpp23_amd64',
+
             'fpc2_6_2 = sio.compilers.fpc:run_pas_fpc2_6_2',
             'java1_8 = sio.compilers.java:run_java1_8',
 
