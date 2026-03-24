@@ -17,7 +17,11 @@ from sio.compilers.common import (
     DEFAULT_COMPILER_TIME_LIMIT,
     DEFAULT_COMPILER_MEM_LIMIT,
 )
-from sio.workers.executors import UnprotectedExecutor, PRootExecutor
+from sio.workers.executors import (
+    UnprotectedExecutor,
+    PRootExecutor,
+    PRoot32BitExecutor,
+)
 from sio.workers.file_runners import get_file_runner
 from sio.workers.util import TemporaryCwd, tempcwd
 
@@ -92,7 +96,7 @@ def compile_and_run(compiler_env, expected_output, program_args=None):
 
     # Hack for java
     if compiler_env.get('compiler') == 'default-java':
-        executor = PRootExecutor('compiler-java.1_8')
+        executor = PRoot32BitExecutor('compiler-java.1_8')
         frkwargs['proot_options'] = ['-b', '/proc']
 
     frunner = get_file_runner(executor, result_env)

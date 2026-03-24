@@ -55,7 +55,7 @@ class Compiler(object):
     #: Default output binary file.
     output_file = ''
 
-    def __init__(self, sandbox=None):
+    def __init__(self, sandbox=None, executor=PRootExecutor):
         """
         :param sandbox: If specified, commands will be executed in an isolated
                         environment with the sandbox as root directory.
@@ -66,7 +66,7 @@ class Compiler(object):
         if self.sandbox is None:
             self.executor = UnprotectedExecutor()
         else:
-            self.executor = PRootExecutor('compiler-' + self.sandbox)
+            self.executor = executor('compiler-' + self.sandbox)
 
     def rcwd(self, subpath=''):
         return self.executor.rcwd(subpath)

@@ -924,3 +924,10 @@ class PRootExecutor(CompoundSandboxExecutor):
         )
 
         return self.tool._execute(command, **kwargs)
+
+
+class PRoot32BitExecutor(PRootExecutor):
+    """ Similiar to the 64-bit proot above. Useful for compiling java
+    to work under SupervisedExecutor until support for java is modernized.
+    """
+    tool_sandbox = 'proot-sandbox'
