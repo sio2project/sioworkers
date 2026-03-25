@@ -3,7 +3,7 @@ import logging
 import os
 
 from sio.workers import ft
-from sio.workers.executors import DetailedUnprotectedExecutor, SupervisedExecutor
+from sio.workers.executors import DetailedUnprotectedExecutor, RealTimeSio2JailExecutor
 from sio.workers.util import tempcwd
 
 logger = logging.getLogger(__name__)
@@ -33,10 +33,10 @@ def _run_in_executor(environ, command, executor, **kwargs):
 
 def _run_inwer(environ, use_sandboxes=False):
     if use_sandboxes:
-        executor = SupervisedExecutor()
+        executor = RealTimeSio2JailExecutor()
     else:
         executor = DetailedUnprotectedExecutor()
-    command = [executor.rcwd('inwer')]
+    command = [tempcwd('inwer')]
     if 'in_file_name' in environ:
         command.append(environ['in_file_name'])
     return _run_in_executor(environ, command, executor, ignore_errors=True)
@@ -55,7 +55,7 @@ def run(environ):
                         the second argument.
 
     ``use_sandboxes``: if this key equals ``True``, the program is executed
-                     in the SupervisedExecutor, otherwise the UnsafeExecutor
+                     in the Sio2JailProotModeExecutor, otherwise the UnsafeExecutor
                      is used
 
     ``inwer_time_limit``: time limit in ms
