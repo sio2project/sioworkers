@@ -411,7 +411,7 @@ def test_untrusted_checkers(checker, callback, sandboxed, exception):
         with TemporaryCwd():
             executor = (
                 Sio2JailExecutor()
-                if sandboxed
+                if sandboxed and not NO_SIO2JAIL_TESTS
                 else DetailedUnprotectedExecutor()
             )
             renv = compile_and_run(
@@ -460,7 +460,7 @@ def _make_inwer_cases():
         return inner
 
     sandbox_options = [False]
-    if ENABLE_SANDBOXES:
+    if ENABLE_SANDBOXES and not NO_SIO2JAIL_TESTS:
         sandbox_options.append(True)
 
     for use_sandboxes in sandbox_options:
