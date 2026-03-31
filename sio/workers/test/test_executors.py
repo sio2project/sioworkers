@@ -77,11 +77,21 @@ def upload_files():
         ft.upload({'path': '/' + os.path.basename(path)}, 'path', path)
 
 
-def compile(source, output='/exe', use_sandboxes=ENABLE_SANDBOXES):
+def compile(source, output='/exe', use_sandboxes=ENABLE_SANDBOXES, use_legacy_compiler=False):
+    legacy_compilers = {
+        'c': 'gcc4_8_2_c99',
+        'cpp': 'g++4_8_2_cpp11',
+    }
     ext = os.path.splitext(source.split('@')[0])[1][1:]
+    if not use_sandboxes:
+        compiler = 'system-' + ext
+    elif use_legacy_compiler and ext in legacy_compilers:
+        compiler = legacy_compilers[ext]
+    else:
+        compiler = 'default-' + ext
     compiler_env = {
         'source_file': source,
-        'compiler': (use_sandboxes and 'default-' or 'system-') + ext,
+        'compiler': compiler,
         'out_file': output,
         'compilation_time_limit': 180000,
     }
@@ -97,7 +107,11 @@ def compile(source, output='/exe', use_sandboxes=ENABLE_SANDBOXES):
 
 
 def compile_and_execute(source, executor, **exec_args):
-    cenv = compile(source, use_sandboxes=isinstance(executor, SandboxExecutor))
+    cenv = compile(
+        source,
+        use_sandboxes=isinstance(executor, SandboxExecutor),
+        use_legacy_compiler=isinstance(executor, SupervisedExecutor),
+    )
     frunner = get_file_runner(executor, cenv)
 
     ft.download(
@@ -114,7 +128,11 @@ def compile_and_execute(source, executor, **exec_args):
 
 
 def compile_and_run(source, executor_env, executor, use_sandboxes=False):
-    renv = compile(source, use_sandboxes=isinstance(executor, SandboxExecutor))
+    renv = compile(
+        source,
+        use_sandboxes=isinstance(executor, SandboxExecutor),
+        use_legacy_compiler=isinstance(executor, SupervisedExecutor),
+    )
     executor_env['exe_file'] = renv['out_file']
     executor_env['exec_info'] = renv['exec_info']
     return run_executor(executor_env, executor, use_sandboxes=use_sandboxes)
@@ -392,8 +410,8 @@ def test_untrusted_checkers(checker, callback, sandboxed, exception):
             checker_bin = compile(checker, '/chk.e')['out_file']
         with TemporaryCwd():
             executor = (
-                SupervisedExecutor()
-                if sandboxed
+                Sio2JailExecutor()
+                if sandboxed and not NO_SIO2JAIL_TESTS
                 else DetailedUnprotectedExecutor()
             )
             renv = compile_and_run(
@@ -442,7 +460,7 @@ def _make_inwer_cases():
         return inner
 
     sandbox_options = [False]
-    if ENABLE_SANDBOXES:
+    if ENABLE_SANDBOXES and not NO_SIO2JAIL_TESTS:
         sandbox_options.append(True)
 
     for use_sandboxes in sandbox_options:

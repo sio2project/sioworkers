@@ -6,6 +6,7 @@ from sio.workers.executors import (
     RealTimeSio2JailExecutor,
     SupervisedExecutor,
     PRootExecutor,
+    PRoot32BitExecutor,
 )
 from sio.workers.util import RegisteredSubclassesBase
 import os.path
@@ -126,7 +127,12 @@ class Java(_BaseJava):
     """Wraps compiled java's ``.jar`` and takes care of memory limiting."""
 
     handled_exec_mode = 'java'
-    handled_executors = UnprotectedExecutor, DetailedUnprotectedExecutor, PRootExecutor
+    handled_executors = (
+        UnprotectedExecutor,
+        DetailedUnprotectedExecutor,
+        PRootExecutor,
+        PRoot32BitExecutor,
+    )
 
     def __call__(self, file, args, entry_point=None, **kwargs):
         environ = kwargs.get('environ', {})
