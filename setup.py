@@ -66,6 +66,11 @@ setup(
             'python_3_4_numpy = sio.compilers.python:run_python3_4_numpy',
             'python_3_7 = sio.compilers.python:run_python3_7',
             'python_3_7_numpy = sio.compilers.python:run_python3_7_numpy',
+            'python_3_7_numpy_amd64 = sio.compilers.python:run_python3_7_numpy_amd64',
+            'python_3_9_numpy = sio.compilers.python:run_python3_9_numpy_amd64',
+            'python_3_9_numpy_amd64 = sio.compilers.python:run_python3_9_numpy_amd64',
+            'python_3_11_numpy_amd64 = sio.compilers.python:run_python3_11_numpy_amd64',
+            'python_3_13_numpy_amd64 = sio.compilers.python:run_python3_13_numpy_amd64',
 
             'fpc2_6_2 = sio.compilers.fpc:run_pas_fpc2_6_2',
             'java1_8 = sio.compilers.java:run_java1_8',

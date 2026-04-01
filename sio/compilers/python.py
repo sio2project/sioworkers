@@ -59,31 +59,23 @@ class PythonCompiler(Compiler):
         return environ
 
     @classmethod
-    def python_3_4_numpy(cls):
-        obj = cls('python3.4.2-numpy_i386')
-        obj.python_executable_path = '/usr/bin/python3.4'
-        return obj
-
-    @classmethod
-    def python_3_7(cls):
-        obj = cls('python3.7_i386')
-        obj.python_executable_path = '/usr/bin/python3.7'
-        return obj
-
-    @classmethod
-    def python_3_7_numpy(cls):
-        obj = cls('python3.7.3-numpy_i386')
-        obj.python_executable_path = '/usr/bin/python3.7'
+    def get_instance(cls, version):
+        obj = cls('python' + version)
+        version_parts = version.replace('-', '.').replace('_', '.').split('.')
+        short_version = '.'.join(version_parts[:2])
+        obj.python_executable_path = '/usr/bin/python' + short_version
         return obj
 
 
-def run_python3_4_numpy(environ):
-    return PythonCompiler().python_3_4_numpy().compile(environ)
+def run_python(environ, version):
+    return PythonCompiler().get_instance(version).compile(environ)
 
-def run_python3_7(environ):
-    return PythonCompiler().python_3_7().compile(environ)
 
-def run_python3_7_numpy(environ):
-    return PythonCompiler().python_3_7_numpy().compile(environ)
-
-run_python_default = run_python3_4_numpy
+run_python3_4_numpy = lambda environ: run_python(environ, '3.4.2-numpy_i386')
+run_python3_7 = lambda environ: run_python(environ, '3.7_i386')
+run_python3_7_numpy = lambda environ: run_python(environ, '3.7.3-numpy_i386')
+run_python3_7_numpy_amd64 = lambda environ: run_python(environ, '3.7.3-numpy_amd64')
+run_python3_9_numpy_amd64 = lambda environ: run_python(environ, '3.9.2-numpy_amd64')
+run_python3_11_numpy_amd64 = lambda environ: run_python(environ, '3.11.2-numpy_amd64')
+run_python3_13_numpy_amd64 = lambda environ: run_python(environ, '3.13.5-numpy')
+run_python_default = run_python3_13_numpy_amd64
