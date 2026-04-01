@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name = "sioworkers",
-    version = '1.5.8',
+    version = '1.5.9',
     author = "SIO2 Project Team",
     author_email = 'sio2@sio2project.mimuw.edu.pl',
     description = "Programming contest judging infrastructure",
