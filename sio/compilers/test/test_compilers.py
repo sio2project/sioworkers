@@ -64,6 +64,13 @@ CPP_SANDBOXED_COMPILERS = [
     'g++14_2_cpp23_amd64',
 ]
 
+PYTHON_COMPILERS = [] if not ENABLE_SANDBOXED_COMPILERS else [
+    'default-py',
+    'python_3_9_numpy_amd64',
+    'python_3_11_numpy_amd64',
+    'python_3_13_numpy_amd64',
+]
+
 def in_(a, b, msg=None):
     """Shorthand for 'assert a in b, "%r not in %r" % (a, b)"""
     if a not in b:
@@ -141,6 +148,8 @@ def _make_compilation_cases():
         yield 'Hello World from cpp', compiler, '/simple.cpp', None
         yield 'Hello World from cc', compiler, '/simple.cc', None
         yield '3\n5\n5\n7\n9\n10', compiler, '/libstdc++.cpp', None
+    for compiler in PYTHON_COMPILERS:
+        yield 'Hello World from py', compiler, '/simple.py', None
     for compiler in compilers:
         yield 'Hello World from pas', compiler + 'pas', '/simple.pas', None
         if not NO_JAVA_TESTS:
@@ -223,6 +232,8 @@ def _make_compilation_with_additional_library_cases():
         yield 'Hello World from c-lib', compiler, '/simple-lib.c', '/library.c', '/library.h'
     for compiler in cpp_compilers:
         yield 'Hello World from cpp-lib', compiler, '/simple-lib.cpp', '/library.cpp', '/library.h'
+    for compiler in PYTHON_COMPILERS:
+        yield 'Hello World from py-lib', compiler, '/simple-lib.py', '/library.py', {}
     for compiler in compilers:
         yield 'Hello World from pas-lib', compiler + 'pas', '/simple-lib.pas', '/pas_library.pas', {}
         if not NO_JAVA_TESTS:
@@ -262,6 +273,8 @@ def _make_compilation_with_additional_library_and_directory_params_cases():
 
     for compiler in c_compilers:
         yield 'Hello World from c-lib', compiler, '/simple-lib.c'
+    for compiler in PYTHON_COMPILERS:
+        yield 'Hello World from py-lib', compiler, '/simple-lib.py',
     for compiler in compilers:
         yield 'Hello World from cpp-lib', compiler + 'cpp', '/simple-lib.cpp'
         yield 'Hello World from pas-lib', compiler + 'pas', '/simple-lib.pas'
@@ -292,6 +305,7 @@ def test_compilation_with_additional_library_and_dictionary_params(
                 'additional_sources': {
                     'c': '/library.c',
                     'cpp': '/library.cpp',
+                    'py': '/library.py',
                     'pas': '/pas_library.pas',
                     'java': '/library.java',
                 },

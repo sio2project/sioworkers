@@ -131,7 +131,7 @@ class Python3(LanguageModeWrapper):
     """Wraps a Python3 .pyz archive and takes care of running it."""
 
     handled_exec_mode = 'python3'
-    handled_executors = Sio2JailExecutor,
+    handled_executors = Sio2JailExecutor, DetailedUnprotectedExecutor, UnprotectedExecutor
 
     def __init__(self, executor, environ):
         exec_info = environ['exec_info']
