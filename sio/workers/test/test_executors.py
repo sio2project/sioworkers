@@ -333,6 +333,47 @@ def test_common_time_limiting(source, time_limit, executor, callback):
         callback(result_env)
 
 
+def _make_extra_exec_files_cases():
+    env_empty = dict()
+    env_with_file = {'extra_execution_files': {'extra_exec_file': '/extra_exec_file.suffix'}}
+    STRICT_EXECUTOR_CLASSES = (Sio2JailExecutor, SupervisedExecutor)
+    for env, callback in ((env_empty, res_not_ok), (env_with_file, res_ok)):
+        for executor in CHECKING_EXECUTORS:
+            yield '/extra_file.c', env, executor(), callback
+            if not NO_JAVA_TESTS:
+                yield '/extra_file.java', env, executor(), callback
+
+        if ENABLE_SANDBOXES:
+            for executor in SANDBOXED_CHECKING_EXECUTORS:
+                if any([issubclass(executor, c) for c in STRICT_EXECUTOR_CLASSES]):
+                    # The user's program shouldn't be able to see the file.
+                    # If Sio2jail with proot mode is added in the future,
+                    # it should be tested around here to work properly.
+                    yield '/extra_file.c', env, executor(), res_not_ok
+                else:
+                    yield '/extra_file.c', env, executor(), callback
+
+                    if not NO_JAVA_TESTS:
+                        yield '/extra_file.java', env, executor(), callback
+
+@pytest.mark.parametrize(
+    "source,extra_environ,executor,callback",
+    [test_case for test_case in _make_extra_exec_files_cases()],
+)
+def test_extra_exec_files(source, extra_environ, executor, callback):
+    environ = {'in_file': '/input'}
+    environ.update(extra_environ)
+    with TemporaryCwd():
+        upload_files()
+        result_env = compile_and_run(
+            source,
+            environ,
+            executor
+        )
+        print_env(result_env)
+        callback(result_env)
+
+
 def test_outputting_non_utf8():
     if ENABLE_SANDBOXES:
         with TemporaryCwd():

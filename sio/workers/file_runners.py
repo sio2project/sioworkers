@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+from sio.workers import ft
 from sio.workers.executors import (
     UnprotectedExecutor,
     DetailedUnprotectedExecutor,
@@ -10,7 +11,6 @@ from sio.workers.executors import (
 )
 from sio.workers.util import RegisteredSubclassesBase
 import os.path
-
 
 class LanguageModeWrapper(RegisteredSubclassesBase):
     """Language mode wrapper runs compiled file within ``executor``.
@@ -74,6 +74,18 @@ class LanguageModeWrapper(RegisteredSubclassesBase):
         """Returns filename to which the file should be downloaded."""
         raise NotImplementedError
 
+    def _download_extra_execution_files(self, _dest='.', environ=None, **kwargs):
+        if environ is None:
+            environ = os.environ.copy()
+        environ_key = '_extra_execution_file'
+        assert environ_key not in environ
+        for file_name, file_path in environ.get('extra_execution_files', {}).items():
+            environ[environ_key] = file_path
+            ft.download(environ, environ_key,
+                        dest=os.path.join(_dest, file_name),
+                        add_to_cache=True)
+            del environ[environ_key]
+
 
 class NoOp(LanguageModeWrapper):
     """NoOp wrapper doesn't do any wrapping at all."""
@@ -82,6 +94,7 @@ class NoOp(LanguageModeWrapper):
     handled_executors = ()
 
     def __call__(self, file, args, **kwargs):
+        self._download_extra_execution_files(**kwargs)
         return self.executor([file] + args, **kwargs)
 
     def preferred_filename(self):
@@ -106,6 +119,7 @@ class Executable(LanguageModeWrapper):
             cmd = file
         else:
             cmd = './%s' % file
+        self._download_extra_execution_files(**kwargs)
         return self.executor([cmd] + args, **kwargs)
 
     def preferred_filename(self):
@@ -157,6 +171,7 @@ class Java(_BaseJava):
             cmd = ['java'] + options + ['-classpath', file_sandboxed_path, entry_point]
         else:
             cmd = ['java'] + options + ['-jar', file_sandboxed_path]
+        self._download_extra_execution_files(**kwargs)
         return self.executor(cmd + args, **kwargs)
 
 
@@ -165,6 +180,7 @@ class JavaSIO(_BaseJava):
     handled_executors = (SupervisedExecutor,)
 
     def __call__(self, file, args, **kwargs):
+        self._download_extra_execution_files(**kwargs)
         return self.executor([file] + args, java_sandbox='compiler-java.1_8', **kwargs)
 
 
