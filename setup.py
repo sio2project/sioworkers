@@ -63,6 +63,10 @@ setup(
             'g++12_2_cpp20_amd64 = sio.compilers.gcc:run_cpp_gcc12_2_cpp20_amd64',
             'g++14_2_cpp23_amd64 = sio.compilers.gcc:run_cpp_gcc14_2_cpp23_amd64',
 
+            'python_3_9_numpy_amd64 = sio.compilers.python:run_python3_9_numpy_amd64',
+            'python_3_11_numpy_amd64 = sio.compilers.python:run_python3_11_numpy_amd64',
+            'python_3_13_numpy_amd64 = sio.compilers.python:run_python3_13_numpy_amd64',
+
             'fpc2_6_2 = sio.compilers.fpc:run_pas_fpc2_6_2',
             'java1_8 = sio.compilers.java:run_java1_8',
 
@@ -81,6 +85,7 @@ setup(
             'default-c = sio.compilers.gcc:run_c_default',
             'default-cc = sio.compilers.gcc:run_cpp_default',
             'default-cpp = sio.compilers.gcc:run_cpp_default',
+            'default-py = sio.compilers.python:run_python_default',
             'default-pas = sio.compilers.fpc:run_pas_default',
             'default-java = sio.compilers.java:run_java_default',
 
@@ -91,6 +96,8 @@ setup(
 
             'cc = sio.compilers.gcc:run_cpp_default',
             'cpp = sio.compilers.gcc:run_cpp_default',
+
+            'py = sio.compilers.python:run_python_default',
 
             'pas = sio.compilers.fpc:run_pas_default',
 
