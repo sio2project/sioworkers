@@ -135,7 +135,7 @@ class Python3(LanguageModeWrapper):
 
     def __init__(self, executor, environ):
         exec_info = environ['exec_info']
-        executor = Sio2JailExecutor('compiler-' + exec_info.get('version', 'python3.4.2-numpy_i386'))
+        executor = Sio2JailExecutor('compiler-' + exec_info.get('version'))
 
         super(Python3, self).__init__(executor, environ)
         self.exec_info = exec_info

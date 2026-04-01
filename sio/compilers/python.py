@@ -71,10 +71,6 @@ def run_python(environ, version):
     return PythonCompiler().get_instance(version).compile(environ)
 
 
-run_python3_4_numpy = lambda environ: run_python(environ, '3.4.2-numpy_i386')
-run_python3_7 = lambda environ: run_python(environ, '3.7_i386')
-run_python3_7_numpy = lambda environ: run_python(environ, '3.7.3-numpy_i386')
-run_python3_7_numpy_amd64 = lambda environ: run_python(environ, '3.7.3-numpy_amd64')
 run_python3_9_numpy_amd64 = lambda environ: run_python(environ, '3.9.2-numpy_amd64')
 run_python3_11_numpy_amd64 = lambda environ: run_python(environ, '3.11.2-numpy_amd64')
 run_python3_13_numpy_amd64 = lambda environ: run_python(environ, '3.13.5-numpy')

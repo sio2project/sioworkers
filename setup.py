@@ -63,11 +63,6 @@ setup(
             'g++12_2_cpp20_amd64 = sio.compilers.gcc:run_cpp_gcc12_2_cpp20_amd64',
             'g++14_2_cpp23_amd64 = sio.compilers.gcc:run_cpp_gcc14_2_cpp23_amd64',
 
-            'python_3_4_numpy = sio.compilers.python:run_python3_4_numpy',
-            'python_3_7 = sio.compilers.python:run_python3_7',
-            'python_3_7_numpy = sio.compilers.python:run_python3_7_numpy',
-            'python_3_7_numpy_amd64 = sio.compilers.python:run_python3_7_numpy_amd64',
-            'python_3_9_numpy = sio.compilers.python:run_python3_9_numpy_amd64',
             'python_3_9_numpy_amd64 = sio.compilers.python:run_python3_9_numpy_amd64',
             'python_3_11_numpy_amd64 = sio.compilers.python:run_python3_11_numpy_amd64',
             'python_3_13_numpy_amd64 = sio.compilers.python:run_python3_13_numpy_amd64',
