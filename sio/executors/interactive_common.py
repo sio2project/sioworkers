@@ -93,7 +93,11 @@ def _fill_result(env, renv, irenv, interactor_out):
     inter_sig = irenv.get('exit_signal', None)
     sigpipe = signal.SIGPIPE.value
 
-    if six.ensure_binary(interactor_out[0]) != b'':
+    if renv['result_code'] == 'TLE':
+        # The interactor gets EOF and may report WA when the solution
+        # is killed on the time limit, so TLE takes precedence.
+        return
+    elif six.ensure_binary(interactor_out[0]) != b'':
         renv['result_string'] = ''
         if six.ensure_binary(interactor_out[0]) == b'OK':
             renv['result_code'] = 'OK'
