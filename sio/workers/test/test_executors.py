@@ -3,6 +3,7 @@ import glob
 import os.path
 import re
 import filecmp
+import signal
 
 from sio.assertion_utils import (
     ok_,
@@ -20,6 +21,11 @@ from filetracker.client.dummy import DummyClient
 from sio.compilers.job import run as run_compiler
 from sio.executors.common import run as run_executor
 from sio.executors.ingen import run as run_ingen
+from sio.executors.interactive_common import (
+    InteractorError,
+    _fill_result,
+    run as run_interactive,
+)
 from sio.executors.inwer import run as run_inwer
 from sio.executors.checker import (
     RESULT_STRING_LENGTH_LIMIT,
@@ -328,6 +334,47 @@ def test_common_time_limiting(source, time_limit, executor, callback):
         upload_files()
         result_env = compile_and_run(
             source, {'in_file': '/input', 'exec_time_limit': time_limit}, executor
+        )
+        print_env(result_env)
+        callback(result_env)
+
+
+def _make_interactive_cases():
+    executors = CHECKING_EXECUTORS
+    if ENABLE_SANDBOXES:
+        # Interactive execution is supported only by the sio2jail executors
+        executors = executors + [
+            executor
+            for executor in SANDBOXED_CHECKING_EXECUTORS
+            if issubclass(executor, Sio2JailExecutor)
+        ]
+
+    for executor in executors:
+        yield '/interactive_add.c', {'exec_time_limit': 1000}, executor(), res_ok
+        yield '/interactive_add_wrong.c', {'exec_time_limit': 1000}, executor(), res_wa
+        # Solutions killed on the time limit, see sio2project/oioioi#542
+        yield '/interactive_hang.c', {'exec_time_limit': 1000, 'exec_real_time_limit': 2000}, executor(), res_tle
+        yield '/interactive_wrong_then_hang.c', {'exec_time_limit': 500}, executor(), res_tle
+        yield '/interactive_ok_then_hang.c', {'exec_time_limit': 500}, executor(), res_tle
+
+
+@pytest.mark.parametrize(
+    "source,extra_environ,executor,callback",
+    [test_case for test_case in _make_interactive_cases()],
+)
+def test_interactive(source, extra_environ, executor, callback):
+    with TemporaryCwd():
+        upload_files()
+        interactor_bin = compile('/interactor_add.c', '/interactor.e')['out_file']
+    with TemporaryCwd():
+        cenv = compile(source, use_sandboxes=isinstance(executor, SandboxExecutor))
+        environ = {'in_file': '/input'}
+        environ.update(extra_environ)
+        environ['exe_file'] = cenv['out_file']
+        environ['exec_info'] = cenv['exec_info']
+        environ['interactor_file'] = interactor_bin
+        result_env = run_interactive(
+            environ, executor, use_sandboxes=isinstance(executor, SandboxExecutor)
         )
         print_env(result_env)
         callback(result_env)
@@ -931,3 +978,77 @@ def test_checker_percentage_parsing():
         output_to_fraction('abc')
     with pytest.raises(CheckerError):
         output_to_fraction('42/abc')
+
+
+def test_interactive_fill_result_solution_tle():
+    # TLE of the solution takes precedence over the interactor verdict,
+    # see sio2project/oioioi#542
+    interactor_outs = [
+        [b'WRONG', b'got no output', b''],
+        [b'OK', b'', b'100'],
+        [b'', b'', b''],
+    ]
+    # It also takes precedence over an interactor failure caused by the
+    # solution getting killed
+    irenvs = [
+        {'result_code': 'OK'},
+        {'result_code': 'RE', 'exit_signal': 11},
+    ]
+    for interactor_out in interactor_outs:
+        for irenv in irenvs:
+            renv = {'result_code': 'TLE', 'result_string': 'time limit exceeded'}
+            _fill_result({}, renv, irenv, interactor_out)
+            eq_(renv['result_code'], 'TLE')
+            eq_(renv['result_string'], 'time limit exceeded')
+
+
+def test_interactive_fill_result_interactor_verdict():
+    renv = {'result_code': 'OK'}
+    irenv = {'result_code': 'OK'}
+    _fill_result({}, renv, irenv, [b'OK', b'good job', b'75'])
+    eq_(renv['result_code'], 'OK')
+    eq_(renv['result_string'], b'good job')
+    eq_(renv['result_percentage'], (75, 1))
+
+    renv = {'result_code': 'OK'}
+    irenv = {'result_code': 'OK'}
+    _fill_result({}, renv, irenv, [b'WRONG', b'bad answer', b''])
+    eq_(renv['result_code'], 'WA')
+    eq_(renv['result_string'], b'bad answer')
+    eq_(renv['result_percentage'], (0, 1))
+
+    # The interactor verdict wins when the solution got killed with
+    # SIGPIPE after the interactor closed the pipe and exited
+    renv = {'result_code': 'RE', 'exit_signal': signal.SIGPIPE.value}
+    irenv = {'result_code': 'OK'}
+    _fill_result({}, renv, irenv, [b'WRONG', b'bad answer', b''])
+    eq_(renv['result_code'], 'WA')
+
+
+def test_interactive_fill_result_failures():
+    # The solution result stays when the interactor got SIGPIPE or
+    # reported nothing
+    renv = {'result_code': 'RE', 'result_string': 'program exited due to signal 11', 'exit_signal': 11}
+    irenv = {'result_code': 'RE', 'exit_signal': signal.SIGPIPE.value}
+    _fill_result({}, renv, irenv, [b'', b'', b''])
+    eq_(renv['result_code'], 'RE')
+
+    # The solution exited before reading the whole interactor input
+    renv = {'result_code': 'OK'}
+    irenv = {'result_code': 'RE', 'exit_signal': signal.SIGPIPE.value}
+    _fill_result({}, renv, irenv, [b'', b'', b''])
+    eq_(renv['result_code'], 'WA')
+    eq_(renv['result_string'], 'solution exited prematurely')
+
+    # The interactor was killed on its real time limit
+    renv = {'result_code': 'OK'}
+    irenv = {'result_code': 'TLE', 'real_time_killed': True}
+    _fill_result({}, renv, irenv, [b'', b'', b''])
+    eq_(renv['result_code'], 'TLE')
+
+    # The interactor failed and did not write a verdict
+    renv = {'result_code': 'OK'}
+    irenv = {'result_code': 'RE', 'exit_signal': 11}
+    with pytest.raises(InteractorError):
+        _fill_result({}, renv, irenv, [b'', b'', b''])
+    eq_(renv['result_code'], 'SE')
