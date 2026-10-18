@@ -75,6 +75,21 @@ class SIORPC(XMLRPC):
         return self.taskm.addTaskGroup(env)
 
 
+class NoHTTPKeepaliveRequest(server.Request):
+    def render(self, res):
+        # Disable HTTP keepalive to avoid a race condition in which the server
+        # closes the connection exactly when the client tries to reuse it.
+        self.setHeader(b"connection", b"close")
+        self.persistent = False
+
+        return server.Request.render(self, res)
+
+
+class NoHTTPKeepaliveSite(server.Site):
+    requestFactory = NoHTTPKeepaliveRequest
+
+
 def makeSite(workerm, taskm):
     p = SIORPC(workerm, taskm)
-    return server.Site(p)
+    site = NoHTTPKeepaliveSite(p)
+    return site
