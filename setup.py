@@ -17,10 +17,10 @@ setup(
         'bsddb3==6.2.7',
         'simplejson==3.14.0',
         'supervisor==4.3.0',
-        'Twisted>=25.0.0,<26.0.0',
+        'Twisted>=26.4.0,<27.0.0',
         'sortedcontainers==2.4.0',
         'six',
-        'urllib3>=1.26.14,<2.0',
+        'urllib3>=2.8.0,<3.0',
     ],
 
     extras_require = {
