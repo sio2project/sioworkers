@@ -278,8 +278,7 @@ class TaskManager(Service):
                     'message': error,
                     'traceback': traceback.format_exc(),
                 }
-                defer.returnValue(group_env)
-                return
+                return group_env
 
         # There is no need to save synchronous task. In case of server
         # failure client is disconnected, so it can't receive the result
@@ -297,7 +296,7 @@ class TaskManager(Service):
                 },
             )
         ret = yield self._addGroup(group_env)
-        defer.returnValue(ret)
+        return ret
 
     def returnToSio(self, x, url, orig_env=None, tid=None, count=0):
         if isinstance(x, Failure):
