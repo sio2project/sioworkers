@@ -200,7 +200,7 @@ class TaskInfo(object):
         )
         # Immutable data
         self.id = env['task_id']
-        self.real_cpu = env['job_type'] == 'cpu-exec'
+        self.real_cpu = env['job_type'] in ('cpu-exec', 'cpu-interactive-exec')
         self.required_ram_mb = get_required_ram_for_job(env)
         self.priority = env.get('task_priority', 0)
         self.contest = contest

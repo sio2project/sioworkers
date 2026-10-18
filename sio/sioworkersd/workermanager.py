@@ -128,7 +128,7 @@ class WorkerManager(service.MultiService):
             raise RuntimeError('Tried to send task to worker running cpu-exec job')
         if len(wd.tasks) >= wd.concurrency:
             raise RuntimeError('Tried to send task to fully loaded worker')
-        if job_type == 'cpu-exec':
+        if job_type in ('cpu-exec', 'cpu-interactive-exec'):
             if wd.tasks:
                 raise RuntimeError('Tried to send cpu-exec job to busy worker')
             if not wd.can_run_cpu_exec:
